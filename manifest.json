@@ -1,0 +1,14 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "mtb-camboya.vercel",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "mtb-camboya.vercel",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "id": "vamp69",
+  "description": "mtb camboya",
+  "lang": "es"
+}
