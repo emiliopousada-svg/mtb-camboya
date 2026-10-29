@@ -1,0 +1,7 @@
+{
+  "appId": "com.mtbcamboya.app",
+  "appName": "MTB CAMBOYA",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "backgroundColor": "#121212" }
+}

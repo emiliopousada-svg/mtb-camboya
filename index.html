@@ -647,7 +647,19 @@
             });
         }
 
-        function download(name, text, mime) {
+        async function download(name, text, mime) {
+            // Dentro del APK (Capacitor) las descargas por enlace no funcionan: se comparte el archivo
+            const cap = window.Capacitor;
+            if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem && cap.Plugins.Share) {
+                try {
+                    const res = await cap.Plugins.Filesystem.writeFile({ path: name, data: text, directory: 'CACHE', encoding: 'utf8' });
+                    await cap.Plugins.Share.share({ title: name, url: res.uri, dialogTitle: 'Guardar o compartir' });
+                    return;
+                } catch (e) {
+                    if (e && /cancel/i.test(String(e.message || e))) return;
+                    console.warn('Compartir falló, probando descarga normal:', e);
+                }
+            }
             const url = URL.createObjectURL(new Blob([text], { type: mime }));
             const a = document.createElement('a');
             a.href = url;
@@ -1544,7 +1556,7 @@
 
         btnBle.addEventListener('click', async () => {
             if (!navigator.bluetooth) {
-                toast('Tu navegador no soporta Web Bluetooth. Usa Chrome en Android.', 5000);
+                toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
                 return;
             }
             if (bleDevice && bleDevice.gatt.connected) { // un segundo toque lo desconecta
