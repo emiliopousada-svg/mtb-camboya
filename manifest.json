@@ -1,14 +1,16 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
+  "name": "MTB CAMBOYA",
+  "short_name": "MTB",
+  "description": "Graba tus salidas en MTB, sigue rutas GPX y consulta tus estadísticas.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "name": "mtb-camboya.vercel",
-  "orientation": "any",
-  "scope": "/",
-  "short_name": "mtb-camboya.vercel",
-  "start_url": "/",
-  "theme_color": "#ffffff",
-  "id": "vamp69",
-  "description": "mtb camboya",
-  "lang": "es"
+  "orientation": "portrait",
+  "background_color": "#121212",
+  "theme_color": "#2e7d32",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
 }
