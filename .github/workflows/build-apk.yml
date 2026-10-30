@@ -29,14 +29,24 @@ jobs:
       - name: Crear proyecto Android
         run: npx cap add android
 
-      - name: Permisos de ubicación
+      - name: Permisos (ubicación, notificación y servicio en segundo plano)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
           sed -i \
             -e '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' \
             -e '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' \
+            -e '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' \
+            -e '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />' \
+            -e '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />' \
             "$MANIFEST"
+          grep -q FOREGROUND_SERVICE_LOCATION "$MANIFEST"
           grep -q ACCESS_FINE_LOCATION "$MANIFEST"
+
+      - name: Icono y texto de la notificación de grabación
+        run: |
+          mkdir -p android/app/src/main/res/drawable android/app/src/main/res/values
+          cp android-res/ic_tracking.xml android/app/src/main/res/drawable/ic_tracking.xml
+          cp android-res/tracking.xml android/app/src/main/res/values/tracking.xml
 
       - name: Sincronizar
         run: npx cap sync android
