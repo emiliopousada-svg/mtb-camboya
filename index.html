@@ -95,7 +95,58 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
-        .m-box { text-align: center; }
+        .m-box {
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            padding: 2px 0;
+            transition: background 0.15s ease;
+        }
+        .m-box.active { background: rgba(255, 152, 0, 0.2); }
+
+        /* Vista ampliada tipo ciclocomputador */
+        #big-metric {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 900;
+            background: var(--bg);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: calc(env(safe-area-inset-top, 0px) + 92px) 16px calc(135px + env(safe-area-inset-bottom, 0px));
+            text-align: center;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+        }
+        #big-metric.show { display: flex; }
+        #big-label {
+            font-size: 1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        #big-gauge { display: none; width: min(86vw, 420px); margin-top: 6px; }
+        #big-gauge.show { display: block; }
+        #big-value {
+            font-size: min(30vw, 22vh);
+            font-weight: 800;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            color: #fff;
+            margin-top: 6px;
+        }
+        #big-value.long { font-size: min(19vw, 14vh); }
+        #big-unit { font-size: 1.6rem; color: var(--text-secondary); margin-top: 8px; min-height: 1.6rem; }
+        #big-hint {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+            font-size: 0.72rem;
+            color: #666;
+        }
 
         .m-val {
             font-size: 1.1rem;
@@ -409,29 +460,43 @@
         <!-- PÁGINA 1: MAPA Y CONTROLES DIRECTOS -->
         <div class="page" id="page-map">
             <div class="metrics-bar">
-                <div class="m-box">
+                <div class="m-box" data-metric="speed" role="button">
                     <div class="m-val" id="m-speed">0.0</div>
                     <div class="m-lbl">KM/H</div>
                 </div>
-                <div class="m-box">
+                <div class="m-box" data-metric="dist" role="button">
                     <div class="m-val" id="m-dist">0.00</div>
                     <div class="m-lbl">DISTANCIA</div>
                 </div>
-                <div class="m-box">
+                <div class="m-box" data-metric="elev" role="button">
                     <div class="m-val" id="m-elevation">0</div>
                     <div class="m-lbl">Desnivel</div>
                 </div>
-                <div class="m-box">
+                <div class="m-box" data-metric="hr" role="button">
                     <div class="m-val" id="m-hr" style="color: #ef5350;">--</div>
                     <div class="m-lbl">BPM</div>
                 </div>
-                <div class="m-box">
+                <div class="m-box" data-metric="time" role="button">
                     <div class="m-val" id="m-time">00:00</div>
                     <div class="m-lbl">TIEMPO</div>
                 </div>
             </div>
 
             <div id="map"></div>
+
+            <div id="big-metric" role="button" aria-label="Volver a la vista normal">
+                <div id="big-label"></div>
+                <svg id="big-gauge" viewBox="0 0 220 125" aria-hidden="true">
+                    <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round"/>
+                    <path id="gauge-arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#ff9800" stroke-width="14"
+                          stroke-dasharray="282.74" stroke-dashoffset="282.74" style="transition: stroke-dashoffset 0.4s ease;"/>
+                    <text x="20" y="124" fill="#777" font-size="10" text-anchor="middle">0</text>
+                    <text id="gauge-max" x="200" y="124" fill="#777" font-size="10" text-anchor="middle">50</text>
+                </svg>
+                <div id="big-value">0.0</div>
+                <div id="big-unit"></div>
+                <div id="big-hint">Toca para volver</div>
+            </div>
 
             <div class="controls-overlay">
                 <button class="btn-icon-only active" id="btn-center" title="Centrar y seguir mi posición">📍</button>
@@ -833,7 +898,7 @@
         // ============================================================
         function startGps() {
             if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
-            navigator.geolocation.watchPosition(onPos, err => {
+            navigator.geolocation.watchPosition(pos => { if (!bgActive) onPos(pos); }, err => {
                 console.warn('GPS error:', err);
                 if (err.code === 1) toast('Permiso de ubicación denegado: actívalo para grabar rutas', 6000);
             }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
@@ -910,6 +975,7 @@
         // ============================================================
         let wakeLock = null;
         async function acquireWake() {
+            if (bgActive) return; // con GPS en segundo plano no hace falta mantener la pantalla encendida
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
@@ -919,6 +985,101 @@
         }
         function releaseWake() {
             if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+        }
+
+        // ---- GPS en segundo plano (solo dentro del APK) ----
+        let bgActive = false, bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
+
+        function bgPlugin() {
+            const cap = window.Capacitor;
+            if (!(cap && cap.isNativePlatform && cap.isNativePlatform())) return null;
+            return (cap.Plugins && cap.Plugins.BackgroundGeolocation) || null;
+        }
+
+        async function ensureNotifPermission() { // Android 13+: para mostrar el aviso "Grabando tu ruta"
+            try {
+                const ln = window.Capacitor.Plugins.LocalNotifications;
+                if (!ln) return;
+                const st = await ln.checkPermissions();
+                if (st.display !== 'granted') await ln.requestPermissions();
+            } catch (e) { console.warn('Permiso de notificaciones:', e); }
+        }
+
+        async function onBgDenied(bg) {
+            if (bgDeniedShown) return;
+            bgDeniedShown = true;
+            const ok = await modal({
+                message: 'Para grabar con la pantalla bloqueada la app necesita el permiso de ubicación. ¿Abrir los ajustes?',
+                ok: 'Abrir ajustes', cancel: 'Ahora no'
+            });
+            if (ok) bg.openSettings();
+            bgDeniedShown = false;
+        }
+
+        async function startBgWatcher() {
+            const bg = bgPlugin();
+            if (!bg || bgActive) return false;
+            const my = ++bgToken;
+            bgActive = true; // desde ya, las posiciones llegan por el plugin y no por el GPS web
+            try {
+                await ensureNotifPermission();
+                const id = await bg.addWatcher({
+                    backgroundTitle: 'MTB CAMBOYA',
+                    backgroundMessage: 'Grabando tu ruta…',
+                    requestPermissions: true,
+                    stale: false,
+                    distanceFilter: 2
+                }, (loc, err) => {
+                    if (my !== bgToken) return;
+                    if (err) {
+                        console.warn('GPS en segundo plano:', err);
+                        if (err.code === 'NOT_AUTHORIZED') onBgDenied(bg);
+                        return;
+                    }
+                    if (!loc) return;
+                    onPos({
+                        coords: {
+                            latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy,
+                            altitude: loc.altitude, speed: loc.speed
+                        },
+                        timestamp: loc.time
+                    });
+                });
+                if (my !== bgToken) { // se pausó o terminó mientras se activaba
+                    try { await bg.removeWatcher({ id }); } catch (e) {}
+                    return false;
+                }
+                bgWatcherId = id;
+                return true;
+            } catch (e) {
+                console.warn('No se pudo iniciar el GPS en segundo plano:', e);
+                if (my === bgToken) { bgActive = false; bgWatcherId = null; }
+                return false;
+            }
+        }
+
+        function stopBgWatcher() {
+            const bg = bgPlugin();
+            const id = bgWatcherId;
+            bgToken++;
+            bgActive = false;
+            bgWatcherId = null;
+            if (bg && id != null) bg.removeWatcher({ id }).catch(() => {});
+        }
+
+        // Empieza a recibir posiciones: en segundo plano si se puede; si no, pantalla encendida
+        async function beginTracking(showToast) {
+            const ok = await startBgWatcher();
+            if (ok) {
+                if (showToast) toast('Grabando en segundo plano: puedes bloquear la pantalla.', 5000);
+                return;
+            }
+            acquireWake();
+            if (showToast) {
+                toast('wakeLock' in navigator
+                    ? 'Grabando. Mantén la app abierta en primer plano.'
+                    : 'Grabando. Tu navegador no mantiene la pantalla encendida: no la bloquees o se perderá el track.', 5000);
+            }
         }
 
         function elapsedSec() {
@@ -968,12 +1129,9 @@
             if (routePolyline) routePolyline.setLatLngs([]);
             setBtnState('recording');
             startTimers();
-            acquireWake();
             following = true;
             updateCenterBtn();
-            toast('wakeLock' in navigator
-                ? 'Grabando. Mantén la app abierta en primer plano.'
-                : 'Grabando. Tu navegador no mantiene la pantalla encendida: no la bloquees o se perderá el track.', 5000);
+            beginTracking(true);
         }
 
         function pauseRecording() {
@@ -982,6 +1140,7 @@
             isPaused = true;
             stopTimers();
             releaseWake();
+            stopBgWatcher();
             setBtnState('paused');
             $('m-speed').textContent = '0.0';
             saveDraft();
@@ -993,7 +1152,7 @@
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
             setBtnState('recording');
             startTimers();
-            acquireWake();
+            beginTracking(false);
         }
 
         btnStart.addEventListener('click', () => {
@@ -1014,6 +1173,7 @@
             isPaused = false;
             stopTimers();
             releaseWake();
+            stopBgWatcher();
             setBtnState('idle');
             $('m-speed').textContent = '0.0';
             DB.kvDel('draft').catch(() => {});
@@ -1652,6 +1812,68 @@
         // ============================================================
         //  INICIO
         // ============================================================
+        // ============================================================
+        //  VISTA AMPLIADA DE MÉTRICAS (toca una métrica para verla grande)
+        // ============================================================
+        const METRICS = {
+            speed: { src: 'm-speed',     label: 'Velocidad',          unit: 'km/h' },
+            dist:  { src: 'm-dist',      label: 'Distancia',          unit: 'km' },
+            elev:  { src: 'm-elevation', label: 'Desnivel positivo',  unit: 'm' },
+            hr:    { src: 'm-hr',        label: 'Pulso',              unit: 'bpm', color: '#ef5350' },
+            time:  { src: 'm-time',      label: 'Tiempo',             unit: '' }
+        };
+        let expandedMetric = null;
+
+        function updateGauge(v) {
+            const LEN = 282.74;
+            const max = Math.max(50, Math.ceil(v / 10) * 10); // la escala crece si pasas de 50 km/h
+            $('gauge-arc').style.strokeDashoffset = LEN * (1 - Math.min(v / max, 1));
+            $('gauge-max').textContent = max;
+        }
+
+        function syncBigMetric() {
+            if (!expandedMetric) return;
+            const txt = $(METRICS[expandedMetric].src).textContent;
+            const big = $('big-value');
+            big.textContent = txt;
+            big.classList.toggle('long', txt.length > 5);
+            if (expandedMetric === 'speed') updateGauge(parseFloat(txt) || 0);
+        }
+
+        function collapseMetric() {
+            expandedMetric = null;
+            $('big-metric').classList.remove('show');
+            document.querySelectorAll('.m-box').forEach(b => b.classList.remove('active'));
+        }
+
+        function expandMetric(key) {
+            const m = METRICS[key];
+            expandedMetric = key;
+            $('big-label').textContent = m.label;
+            $('big-unit').textContent = m.unit;
+            $('big-value').style.color = m.color || '#fff';
+            $('big-gauge').classList.toggle('show', key === 'speed');
+            document.querySelectorAll('.m-box').forEach(b => b.classList.toggle('active', b.dataset.metric === key));
+            $('big-metric').classList.add('show');
+            syncBigMetric();
+        }
+
+        function initMetricPanel() {
+            document.querySelector('.metrics-bar').addEventListener('click', e => {
+                const box = e.target.closest('.m-box');
+                if (!box) return;
+                const key = box.dataset.metric;
+                if (expandedMetric === key) collapseMetric(); // segundo toque: vuelve
+                else expandMetric(key);
+            });
+            $('big-metric').addEventListener('click', collapseMetric);
+
+            // La vista grande copia en vivo el valor de la métrica original
+            const obs = new MutationObserver(syncBigMetric);
+            Object.values(METRICS).forEach(m =>
+                obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
+        }
+
         async function migrateOldRoutes() {
             let old;
             try { old = JSON.parse(localStorage.getItem('mtb_saved_routes') || 'null'); } catch (e) { return; }
@@ -1677,6 +1899,7 @@
         async function init() {
             initMap();
             initCharts();
+            initMetricPanel();
             setBtnState('idle');
             updateCenterBtn();
             loadSavedFountains();
