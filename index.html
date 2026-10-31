@@ -230,6 +230,25 @@
             display: none;
         }
 
+        /* Botones laterales del mapa (marcar fuente / parada en bar) */
+        .side-controls {
+            position: absolute;
+            left: 10px;
+            top: calc(env(safe-area-inset-top, 0px) + 96px);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 1000;
+        }
+        #page-map.metric-open .side-controls { display: none; }
+
+        .beer-icon { position: relative; display: inline-block; font-size: 1.3rem; line-height: 1; }
+        .beer-star { position: absolute; right: -10px; top: -10px; font-size: 0.75rem; line-height: 1; }
+
+        .poi-icon { font-size: 22px; line-height: 30px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+        .poi-beer { position: relative; display: inline-block; line-height: 30px; }
+        .poi-beer span { position: absolute; right: -5px; top: -4px; font-size: 12px; line-height: 1; }
+
         /* Paneles de Contenido Secundarios */
         .content-panel {
             padding: 20px 16px 80px 16px;
@@ -498,6 +517,13 @@
                 <div id="big-hint">Toca para volver</div>
             </div>
 
+            <div class="side-controls">
+                <button class="btn-icon-only" id="btn-poi-fountain" title="Marcar fuente de agua aquí">🚰</button>
+                <button class="btn-icon-only" id="btn-poi-bar" title="Marcar parada en un bar">
+                    <span class="beer-icon">🍺<span class="beer-star">⭐</span></span>
+                </button>
+            </div>
+
             <div class="controls-overlay">
                 <button class="btn-icon-only active" id="btn-center" title="Centrar y seguir mi posición">📍</button>
                 <button class="btn-icon-only" id="btn-ble" title="Conectar pulsómetro Bluetooth">📶</button>
@@ -613,8 +639,10 @@
             </div>
 
             <div class="card">
-                <h2>🚰 Fuentes de Agua</h2>
-                <button class="btn" id="btn-fountain">📍 Marcar Fuente Aquí</button>
+                <h2>📍 Fuentes y paradas</h2>
+                <p class="hint">También puedes marcarlas con los iconos de la izquierda del mapa.</p>
+                <button class="btn" id="btn-fountain">🚰 Marcar fuente aquí</button>
+                <button class="btn secondary" id="btn-bar">🍺 Marcar parada en un bar</button>
             </div>
         </div>
 
@@ -1857,7 +1885,7 @@
         });
 
         // ============================================================
-        //  FUENTES DE AGUA
+        //  FUENTES DE AGUA Y PARADAS EN BARES
         // ============================================================
         let savedFountains = [];
         try { savedFountains = JSON.parse(localStorage.getItem('mtb_saved_fountains') || '[]'); } catch (e) {}
@@ -1865,20 +1893,32 @@
 
         function persistFountains() {
             try { localStorage.setItem('mtb_saved_fountains', JSON.stringify(savedFountains)); }
-            catch (e) { toast('No se pudo guardar la fuente en el dispositivo'); }
+            catch (e) { toast('No se pudo guardar el punto en el dispositivo'); }
+        }
+
+        const POI_TYPES = {
+            fountain: { emoji: '🚰', defaultName: 'Fuente de Agua', ask: false, confirm: '¿Eliminar esta fuente guardada?' },
+            bar:      { emoji: '🍺', defaultName: 'Bar', ask: true, prompt: 'Nombre del bar donde paras:', confirm: '¿Eliminar esta parada?' }
+        };
+        const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain'); // las fuentes antiguas no tienen tipo
+
+        function poiIcon(type) {
+            const html = type === 'bar' ? '<div class="poi-beer">🍺<span>⭐</span></div>' : '🚰';
+            return L.divIcon({ html, className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] });
         }
 
         function loadSavedFountains() {
             if (!map) return;
             fountainMarkers.forEach(m => map.removeLayer(m));
             fountainMarkers = [];
-            const icon = L.divIcon({ html: '🚰', className: 'fountain-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
 
             savedFountains.forEach(f => {
+                const type = poiType(f);
+                const meta = POI_TYPES[type];
                 const wrap = document.createElement('div');
                 wrap.style.cssText = 'text-align:center; color:#121212;';
                 const strong = document.createElement('strong');
-                strong.textContent = '🚰 ' + (f.name || 'Fuente de Agua');
+                strong.textContent = meta.emoji + ' ' + (f.name || meta.defaultName);
                 const small = document.createElement('small');
                 small.textContent = 'Guardada: ' + f.date;
                 const btn = document.createElement('button');
@@ -1887,36 +1927,47 @@
                 btn.addEventListener('click', () => removeFountain(f.id));
                 wrap.append(strong, document.createElement('br'), small, document.createElement('br'), btn);
 
-                fountainMarkers.push(L.marker([f.lat, f.lng], { icon }).addTo(map).bindPopup(wrap));
+                fountainMarkers.push(L.marker([f.lat, f.lng], { icon: poiIcon(type) }).addTo(map).bindPopup(wrap));
             });
         }
 
         async function removeFountain(id) {
-            const ok = await modal({ message: '¿Eliminar esta fuente guardada?', ok: 'Eliminar' });
+            const f = savedFountains.find(x => x.id === id);
+            if (!f) return;
+            const ok = await modal({ message: POI_TYPES[poiType(f)].confirm, ok: 'Eliminar' });
             if (!ok) return;
-            savedFountains = savedFountains.filter(f => f.id !== id);
+            savedFountains = savedFountains.filter(x => x.id !== id);
             persistFountains();
             loadSavedFountains();
         }
 
-        $('btn-fountain').addEventListener('click', async () => {
+        let lastPoiAt = 0;
+        async function addPoi(type) {
+            const meta = POI_TYPES[type];
             if (lastLat === null || lastLon === null) { toast('Buscando señal GPS para marcar tu ubicación exacta...'); return; }
-            const name = await modal({ message: 'Nombre o referencia de la fuente:', input: 'Fuente de Agua', ok: 'Guardar' });
-            if (name === null) return;
-            const f = {
-                id: Date.now(),
-                name: name.trim() || 'Fuente de Agua',
-                lat: lastLat,
-                lng: lastLon,
-                date: new Date().toLocaleDateString('es-ES')
-            };
-            savedFountains.push(f);
+            if (Date.now() - lastPoiAt < 1500) return; // evita duplicados por doble toque
+            lastPoiAt = Date.now();
+            const lat = lastLat, lng = lastLon; // la posición del momento del toque
+
+            let name = meta.defaultName;
+            if (meta.ask) { // el bar pide nombre; la fuente se guarda al instante
+                const n = await modal({ message: meta.prompt, input: meta.defaultName, ok: 'Guardar' });
+                if (n === null) return;
+                name = n.trim() || meta.defaultName;
+            }
+
+            savedFountains.push({ id: Date.now(), type, name, lat, lng, date: new Date().toLocaleDateString('es-ES') });
             persistFountains();
             loadSavedFountains();
-            goToPage(0);
-            if (map) map.setView([f.lat, f.lng], 17);
-            toast(`Fuente «${f.name}» marcada en tu posición`);
-        });
+            if (navigator.vibrate) navigator.vibrate(60);
+            if (currentPage !== 0) { goToPage(0); if (map) map.setView([lat, lng], 17); }
+            toast(`${meta.emoji} «${name}» marcado en tu posición`);
+        }
+
+        $('btn-poi-fountain').addEventListener('click', () => addPoi('fountain'));
+        $('btn-poi-bar').addEventListener('click', () => addPoi('bar'));
+        $('btn-fountain').addEventListener('click', () => addPoi('fountain'));
+        $('btn-bar').addEventListener('click', () => addPoi('bar'));
 
         // ============================================================
         //  AMIGOS (pendiente de servidor)
@@ -1959,6 +2010,7 @@
         function collapseMetric() {
             expandedMetric = null;
             $('big-metric').classList.remove('show');
+            $('page-map').classList.remove('metric-open');
             document.querySelectorAll('.m-box').forEach(b => b.classList.remove('active'));
         }
 
@@ -1971,6 +2023,7 @@
             $('big-gauge').classList.toggle('show', key === 'speed');
             document.querySelectorAll('.m-box').forEach(b => b.classList.toggle('active', b.dataset.metric === key));
             $('big-metric').classList.add('show');
+            $('page-map').classList.add('metric-open');
             syncBigMetric();
         }
 
