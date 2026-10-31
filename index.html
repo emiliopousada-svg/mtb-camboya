@@ -310,7 +310,7 @@
         .btn.secondary { background: #444; }
         .btn:disabled { opacity: 0.5; }
 
-        input[type="file"], input[type="text"] {
+        input[type="file"], input[type="text"], input[type="password"] {
             width: 100%;
             padding: 12px;
             border-radius: 10px;
@@ -564,6 +564,22 @@
 
         <!-- PÁGINA 3: AMIGOS EN LIVE -->
         <div class="page content-panel">
+            <div class="card">
+                <h2>☁️ Cuenta y sincronización</h2>
+                <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
+                <div id="acc-form">
+                    <input type="text" id="acc-server" placeholder="Servidor (https://...)" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
+                    <button class="btn" id="acc-login">Entrar</button>
+                    <button class="btn secondary" id="acc-register">Crear cuenta</button>
+                </div>
+                <div id="acc-logged" style="display:none;">
+                    <button class="btn" id="acc-sync">Sincronizar ahora</button>
+                    <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
+                </div>
+            </div>
+
             <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
                 <p class="hint">Unirse a un pelotón para ver a tus compañeros en el mapa en vivo. Próximamente: necesita un servidor.</p>
@@ -1209,6 +1225,7 @@
             renderSavedRoutes();
             refreshStats();
             showProfile(r);
+            syncRoutes();
         }
 
         // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
@@ -1401,8 +1418,10 @@
                 const name = await modal({ message: 'Nombre de la ruta:', input: r.name, ok: 'Guardar' });
                 if (name && name.trim()) {
                     r.name = name.trim();
+                    if (r.remoteId) r.dirty = true;
                     try { await DB.put(r); } catch (err) { toast('No se pudo guardar el cambio'); }
                     renderSavedRoutes();
+                    syncRoutes();
                 }
             } else if (btn.dataset.act === 'gpx') {
                 const safe = r.name.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
@@ -1411,11 +1430,13 @@
                 const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
                 if (!ok) return;
                 try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); }
+                if (r.remoteId) await queueRemoteDelete(r.remoteId);
                 savedRoutes = savedRoutes.filter(x => x.id !== id);
                 if (followedRoute && followedRoute.id === id) unfollowRoute();
                 renderSavedRoutes();
                 refreshStats();
                 showProfile(savedRoutes[0] || null);
+                syncRoutes();
             }
         });
 
@@ -1874,6 +1895,226 @@
                 obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
         }
 
+        // ============================================================
+        //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
+        // ============================================================
+        const Cloud = {
+            get server() { return localStorage.getItem('mtb_server') || ''; },
+            get token()  { return localStorage.getItem('mtb_token') || ''; },
+            get uid()    { return localStorage.getItem('mtb_uid') || ''; },
+            get email()  { return localStorage.getItem('mtb_email') || ''; },
+            loggedIn()   { return !!(this.server && this.token && this.uid); },
+            setSession(token, rec) {
+                localStorage.setItem('mtb_token', token);
+                localStorage.setItem('mtb_uid', rec.id);
+                localStorage.setItem('mtb_email', rec.email || '');
+            },
+            clearSession() {
+                ['mtb_token', 'mtb_uid', 'mtb_email'].forEach(k => localStorage.removeItem(k));
+            }
+        };
+
+        // body: objeto (JSON), FormData (archivos) o null
+        async function cloudApi(path, method = 'GET', body = null) {
+            const headers = {};
+            if (Cloud.token) headers.Authorization = Cloud.token;
+            let payload;
+            if (body instanceof FormData) payload = body;
+            else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+            const res = await fetch(Cloud.server + path, { method, headers, body: payload });
+            if (!res.ok) {
+                let msg = '';
+                try {
+                    const j = await res.json();
+                    msg = j.message || '';
+                    const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
+                    if (f) msg += ` (${f})`;
+                } catch (e) {}
+                const err = new Error(msg || ('Error ' + res.status));
+                err.status = res.status; // sin status = no se pudo conectar
+                throw err;
+            }
+            return res.status === 204 ? null : res.json();
+        }
+
+        function normalizeServer(v) {
+            v = v.trim().replace(/\/+$/, '');
+            if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+            return v;
+        }
+
+        function renderAccount() {
+            const on = Cloud.loggedIn();
+            $('acc-form').style.display = on ? 'none' : 'block';
+            $('acc-logged').style.display = on ? 'block' : 'none';
+            $('acc-server').value = Cloud.server;
+            const last = localStorage.getItem('mtb_lastsync');
+            $('acc-status').textContent = on
+                ? `Conectado como ${Cloud.email}` + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
+                : 'Sin sesión: tus rutas se guardan solo en este móvil.';
+        }
+
+        async function accAuth(register) {
+            const server = normalizeServer($('acc-server').value);
+            const email = $('acc-email').value.trim();
+            const pass = $('acc-pass').value;
+            if (!server || !email || !pass) { toast('Rellena servidor, correo y contraseña'); return; }
+            if (!/^https:\/\//i.test(server)) { toast('La dirección del servidor debe empezar por https://', 5000); return; }
+            if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
+            localStorage.setItem('mtb_server', server);
+            Cloud.clearSession();
+            try {
+                if (register) await cloudApi('/api/collections/users/records', 'POST', { email, password: pass, passwordConfirm: pass });
+                const r = await cloudApi('/api/collections/users/auth-with-password', 'POST', { identity: email, password: pass });
+                Cloud.setSession(r.token, r.record);
+                $('acc-pass').value = '';
+                renderAccount();
+                toast(register ? '✅ Cuenta creada' : '✅ Sesión iniciada');
+                syncRoutes(true);
+            } catch (e) {
+                console.warn('Auth:', e);
+                toast(e.status === undefined
+                    ? 'No se pudo conectar con el servidor. Revisa la dirección.'
+                    : 'No se pudo entrar: ' + e.message, 6000);
+            }
+        }
+
+        async function putLocal(r) { try { await DB.put(r); } catch (e) { console.warn('put local:', e); } }
+
+        async function queueRemoteDelete(remoteId) {
+            try {
+                const p = (await DB.kvGet('pendingDeletes')) || [];
+                p.push(remoteId);
+                await DB.kvSet('pendingDeletes', p);
+            } catch (e) {}
+        }
+
+        function routeForm(r) {
+            const fd = new FormData();
+            fd.append('owner', Cloud.uid);
+            fd.append('clientId', String(r.id));
+            fd.append('name', r.name);
+            fd.append('kind', r.kind || 'recorded');
+            fd.append('startedAt', r.startedAt);
+            fd.append('movingTimeSec', String(r.movingTimeSec || 0));
+            fd.append('distanceKm', String(r.distanceKm || 0));
+            fd.append('elevationGain', String(r.elevationGain || 0));
+            fd.append('hrAvg', String(r.hrAvg || 0));
+            fd.append('track', new Blob([JSON.stringify(r.points)], { type: 'application/json' }), 'track.json');
+            return fd;
+        }
+
+        let syncing = false;
+        async function syncRoutes(manual = false) {
+            if (!Cloud.loggedIn() || syncing) return;
+            if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
+            syncing = true;
+            $('acc-status').textContent = 'Sincronizando…';
+            let pushed = 0, pulled = 0;
+            try {
+                // 0) renovar la sesión (si ha caducado, se cierra)
+                try {
+                    const ar = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                    Cloud.setSession(ar.token, ar.record);
+                } catch (e) {
+                    if (e.status !== undefined) {
+                        Cloud.clearSession();
+                        toast('La sesión ha caducado. Vuelve a entrar.', 5000);
+                        return;
+                    }
+                    throw e;
+                }
+
+                // 1) rutas que ya hay en el servidor
+                const remote = [];
+                for (let page = 1; ; page++) {
+                    const r = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=clientId`);
+                    remote.push(...r.items);
+                    if (page >= r.totalPages) break;
+                }
+
+                // 2) borrados pendientes
+                let pend = [];
+                try { pend = (await DB.kvGet('pendingDeletes')) || []; } catch (e) {}
+                const rest = [];
+                for (const rid of pend) {
+                    try { await cloudApi(`/api/collections/routes/records/${rid}`, 'DELETE'); }
+                    catch (e) { if (e.status !== 404) rest.push(rid); }
+                }
+                try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
+                const skip = new Set(pend);
+
+                // 3) subir lo nuevo y los cambios de nombre
+                const byClient = new Map(remote.map(x => [Number(x.clientId), x]));
+                for (const r of savedRoutes) {
+                    const found = byClient.get(r.id);
+                    if (!r.remoteId && found && !skip.has(found.id)) { r.remoteId = found.id; r.dirty = false; await putLocal(r); }
+                    if (r.remoteId && !r.dirty) continue;
+                    try {
+                        let rec;
+                        if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { name: r.name });
+                        else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
+                        r.remoteId = rec.id;
+                        r.dirty = false;
+                        await putLocal(r);
+                        pushed++;
+                    } catch (e) {
+                        if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); } // desaparecida del servidor: se subirá de nuevo
+                        else throw e;
+                    }
+                }
+
+                // 4) bajar las que faltan en este móvil
+                const localIds = new Set(savedRoutes.map(r => r.id));
+                const missing = remote.filter(x => !skip.has(x.id) && x.track && !localIds.has(Number(x.clientId)));
+                if (missing.length) {
+                    const ft = (await cloudApi('/api/files/token', 'POST')).token;
+                    for (const rec of missing) {
+                        const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
+                        if (!res.ok) continue;
+                        const points = await res.json();
+                        if (!Array.isArray(points) || points.length < 2) continue;
+                        const r = {
+                            id: Number(rec.clientId), remoteId: rec.id, dirty: false,
+                            kind: rec.kind || 'recorded', name: rec.name, startedAt: rec.startedAt,
+                            movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
+                            elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
+                        };
+                        await putLocal(r);
+                        savedRoutes.push(r);
+                        pulled++;
+                    }
+                    savedRoutes.sort((a, b) => b.id - a.id);
+                }
+
+                localStorage.setItem('mtb_lastsync', String(Date.now()));
+                renderSavedRoutes();
+                refreshStats();
+                if (manual) toast(`✅ Sincronizado: ${pushed} subidas, ${pulled} descargadas`);
+            } catch (e) {
+                console.warn('Sync:', e);
+                if (manual || e.status !== undefined) {
+                    toast(e.status === undefined ? 'No se pudo conectar con el servidor' : 'Error al sincronizar: ' + e.message, 6000);
+                }
+            } finally {
+                syncing = false;
+                renderAccount();
+            }
+        }
+
+        function initAccount() {
+            $('acc-login').addEventListener('click', () => accAuth(false));
+            $('acc-register').addEventListener('click', () => accAuth(true));
+            $('acc-sync').addEventListener('click', () => syncRoutes(true));
+            $('acc-logout').addEventListener('click', () => {
+                Cloud.clearSession();
+                renderAccount();
+                toast('Sesión cerrada. Tus rutas siguen en este móvil.');
+            });
+            window.addEventListener('online', () => syncRoutes());
+            renderAccount();
+        }
+
         async function migrateOldRoutes() {
             let old;
             try { old = JSON.parse(localStorage.getItem('mtb_saved_routes') || 'null'); } catch (e) { return; }
@@ -1916,6 +2157,8 @@
             renderSavedRoutes();
             refreshStats();
             showProfile(savedRoutes[0] || null);
+            initAccount();
+            syncRoutes();
             startGps();
             await maybeRestoreDraft();
         }
