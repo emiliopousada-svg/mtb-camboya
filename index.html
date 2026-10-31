@@ -242,12 +242,10 @@
         }
         #page-map.metric-open .side-controls { display: none; }
 
-        .beer-icon { position: relative; display: inline-block; font-size: 1.3rem; line-height: 1; }
-        .beer-star { position: absolute; right: -10px; top: -10px; font-size: 0.75rem; line-height: 1; }
+        .btn-logo { width: 34px; height: auto; display: block; }
 
         .poi-icon { font-size: 22px; line-height: 30px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
-        .poi-beer { position: relative; display: inline-block; line-height: 30px; }
-        .poi-beer span { position: absolute; right: -5px; top: -4px; font-size: 12px; line-height: 1; }
+        .poi-bar-img { width: 40px; height: auto; display: block; }
 
         /* Paneles de Contenido Secundarios */
         .content-panel {
@@ -520,7 +518,7 @@
             <div class="side-controls">
                 <button class="btn-icon-only" id="btn-poi-fountain" title="Marcar fuente de agua aquí">🚰</button>
                 <button class="btn-icon-only" id="btn-poi-bar" title="Marcar parada en un bar">
-                    <span class="beer-icon">🍺<span class="beer-star">⭐</span></span>
+                    <img src="estrella-galicia.svg" alt="Parada en un bar" class="btn-logo">
                 </button>
             </div>
 
@@ -1903,8 +1901,13 @@
         const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain'); // las fuentes antiguas no tienen tipo
 
         function poiIcon(type) {
-            const html = type === 'bar' ? '<div class="poi-beer">🍺<span>⭐</span></div>' : '🚰';
-            return L.divIcon({ html, className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] });
+            if (type === 'bar') {
+                return L.divIcon({
+                    html: '<img src="estrella-galicia.svg" class="poi-bar-img" alt="">',
+                    className: 'poi-icon', iconSize: [40, 30], iconAnchor: [20, 15]
+                });
+            }
+            return L.divIcon({ html: '🚰', className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] });
         }
 
         function loadSavedFountains() {

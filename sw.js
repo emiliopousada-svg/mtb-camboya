@@ -1,7 +1,7 @@
 // Service Worker de MTB CAMBOYA
 // - Guarda la app y las librerías para que abra sin conexión.
 // - Guarda las teselas del mapa que ya has visto (no descarga zonas enteras).
-const SHELL = 'mtb-shell-v2';
+const SHELL = 'mtb-shell-v3';
 const TILES = 'mtb-tiles-v1';
 const MAX_TILES = 2000;
 
@@ -9,6 +9,7 @@ const SHELL_URLS = [
   './',
   'index.html',
   'manifest.json',
+  'estrella-galicia.svg',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js'
