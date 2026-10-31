@@ -1,6 +1,3 @@
-// Service Worker de MTB CAMBOYA
-// - Guarda la app y las librerías para que abra sin conexión.
-// - Guarda las teselas del mapa que ya has visto (no descarga zonas enteras).
 const SHELL = 'mtb-shell-v3';
 const TILES = 'mtb-tiles-v1';
 const MAX_TILES = 2000;
@@ -48,7 +45,6 @@ async function tileCacheFirst(req) {
   const hit = await cache.match(req.url);
   if (hit) return hit;
   try {
-    // Con CORS podemos guardar la respuesta real (las "opacas" ocupan muchísima cuota)
     const res = await fetch(req.url, { mode: 'cors' });
     if (res.ok) {
       cache.put(req.url, res.clone());

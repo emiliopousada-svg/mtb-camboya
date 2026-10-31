@@ -4,16 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>MTB CAMBOYA</title>
-    <!-- Enlace al manifiesto PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2e7d32">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Chart.js (versión fijada) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 
     <style>
@@ -28,14 +25,7 @@
             --danger: #d32f2f;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
         html, body {
             width: 100%;
             height: 100%;
@@ -44,10 +34,9 @@
             background-color: var(--bg);
             color: var(--text);
             padding-bottom: env(safe-area-inset-bottom, 0px);
-            touch-action: manipulation; /* sin zoom por doble toque, pero se permite pellizcar */
+            touch-action: manipulation;
         }
 
-        /* Contenedor Horizontal de Páginas */
         .swiper-wrapper {
             display: flex;
             width: 400vw;
@@ -77,7 +66,6 @@
             background: #1a1a1a;
         }
 
-        /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
             top: 12px;
@@ -91,20 +79,13 @@
             grid-template-columns: repeat(5, 1fr);
             gap: 2px;
             z-index: 1000;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.1);
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
-        .m-box {
-            text-align: center;
-            cursor: pointer;
-            border-radius: 10px;
-            padding: 2px 0;
-            transition: background 0.15s ease;
-        }
+        .m-box { text-align: center; cursor: pointer; border-radius: 10px; padding: 2px 0; transition: background 0.15s ease; }
         .m-box.active { background: rgba(255, 152, 0, 0.2); }
 
-        /* Vista ampliada tipo ciclocomputador */
         #big-metric {
             display: none;
             position: absolute;
@@ -121,12 +102,7 @@
             cursor: pointer;
         }
         #big-metric.show { display: flex; }
-        #big-label {
-            font-size: 1rem;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-        }
+        #big-label { font-size: 1rem; letter-spacing: 3px; text-transform: uppercase; color: var(--text-secondary); }
         #big-gauge { display: none; width: min(86vw, 420px); margin-top: 6px; }
         #big-gauge.show { display: block; }
         #big-value {
@@ -139,31 +115,11 @@
         }
         #big-value.long { font-size: min(19vw, 14vh); }
         #big-unit { font-size: 1.6rem; color: var(--text-secondary); margin-top: 8px; min-height: 1.6rem; }
-        #big-hint {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-            font-size: 0.72rem;
-            color: #666;
-        }
+        #big-hint { position: absolute; left: 0; right: 0; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); font-size: 0.72rem; color: #666; }
 
-        .m-val {
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: #fff;
-            line-height: 1.1;
-        }
+        .m-val { font-size: 1.1rem; font-weight: 800; color: #fff; line-height: 1.1; }
+        .m-lbl { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
 
-        .m-lbl {
-            font-size: 0.55rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
-
-        /* Controles Flotantes del Mapa */
         .controls-overlay {
             position: absolute;
             bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -177,7 +133,6 @@
             padding: 0 16px;
             pointer-events: none;
         }
-
         .controls-overlay > * { pointer-events: auto; }
 
         .btn-main-action {
@@ -195,7 +150,6 @@
             box-shadow: 0 6px 16px rgba(0,0,0,0.5);
             cursor: pointer;
         }
-
         .btn-main-action.recording { background: var(--accent); }
 
         .btn-icon-only {
@@ -212,25 +166,11 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             cursor: pointer;
         }
+        .btn-icon-only.connected { border-color: #81c784; background: rgba(46, 125, 50, 0.8); }
+        .btn-icon-only.active { border-color: #29b6f6; background: rgba(2, 119, 189, 0.85); }
 
-        .btn-icon-only.connected {
-            border-color: #81c784;
-            background: rgba(46, 125, 50, 0.8);
-        }
+        .btn-danger-stop { background: var(--danger) !important; border: none !important; display: none; }
 
-        /* Botón de centrar: azul cuando el mapa te sigue */
-        .btn-icon-only.active {
-            border-color: #29b6f6;
-            background: rgba(2, 119, 189, 0.85);
-        }
-
-        .btn-danger-stop {
-            background: var(--danger) !important;
-            border: none !important;
-            display: none;
-        }
-
-        /* Botones laterales del mapa (marcar fuente / parada en bar) */
         .side-controls {
             position: absolute;
             left: 10px;
@@ -243,11 +183,9 @@
         #page-map.metric-open .side-controls { display: none; }
 
         .btn-logo { width: 34px; height: auto; display: block; }
-
         .poi-icon { font-size: 22px; line-height: 30px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
         .poi-bar-img { width: 40px; height: auto; display: block; }
 
-        /* Paneles de Contenido Secundarios */
         .content-panel {
             padding: 20px 16px 80px 16px;
             display: flex;
@@ -323,7 +261,6 @@
             font-size: 0.95rem;
             margin-top: 8px;
         }
-
         .btn.secondary { background: #444; }
         .btn:disabled { opacity: 0.5; }
 
@@ -337,12 +274,7 @@
             margin-top: 8px;
         }
 
-        .stat-box {
-            background: #121212;
-            padding: 12px;
-            border-radius: 10px;
-            text-align: center;
-        }
+        .stat-box { background: #121212; padding: 12px; border-radius: 10px; text-align: center; }
         .stat-box .v { font-size: 1.4rem; font-weight: bold; }
         .stat-box .l { font-size: 0.68rem; color: var(--text-secondary); }
 
@@ -387,7 +319,6 @@
         .btn-small.secondary { background: #3a3a3a; }
         .btn-small.danger { background: #5a2020; }
 
-        /* Navegación Inferior */
         nav {
             height: calc(60px + env(safe-area-inset-bottom, 0px));
             padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -419,7 +350,6 @@
         .nav-btn.active { color: #81c784; font-weight: bold; }
         .nav-btn .icon { font-size: 1.3rem; }
 
-        /* Avisos (toast) y diálogos */
         #toast {
             position: fixed;
             top: calc(env(safe-area-inset-top, 0px) + 84px);
@@ -470,33 +400,14 @@
     </style>
 </head>
 <body>
-
-    <!-- CONTENEDOR DESLIZABLE DE PÁGINAS -->
     <div class="swiper-wrapper" id="swiper">
-
-        <!-- PÁGINA 1: MAPA Y CONTROLES DIRECTOS -->
         <div class="page" id="page-map">
             <div class="metrics-bar">
-                <div class="m-box" data-metric="speed" role="button">
-                    <div class="m-val" id="m-speed">0.0</div>
-                    <div class="m-lbl">KM/H</div>
-                </div>
-                <div class="m-box" data-metric="dist" role="button">
-                    <div class="m-val" id="m-dist">0.00</div>
-                    <div class="m-lbl">DISTANCIA</div>
-                </div>
-                <div class="m-box" data-metric="elev" role="button">
-                    <div class="m-val" id="m-elevation">0</div>
-                    <div class="m-lbl">Desnivel</div>
-                </div>
-                <div class="m-box" data-metric="hr" role="button">
-                    <div class="m-val" id="m-hr" style="color: #ef5350;">--</div>
-                    <div class="m-lbl">BPM</div>
-                </div>
-                <div class="m-box" data-metric="time" role="button">
-                    <div class="m-val" id="m-time">00:00</div>
-                    <div class="m-lbl">TIEMPO</div>
-                </div>
+                <div class="m-box" data-metric="speed" role="button"><div class="m-val" id="m-speed">0.0</div><div class="m-lbl">KM/H</div></div>
+                <div class="m-box" data-metric="dist" role="button"><div class="m-val" id="m-dist">0.00</div><div class="m-lbl">DISTANCIA</div></div>
+                <div class="m-box" data-metric="elev" role="button"><div class="m-val" id="m-elevation">0</div><div class="m-lbl">Desnivel</div></div>
+                <div class="m-box" data-metric="hr" role="button"><div class="m-val" id="m-hr" style="color: #ef5350;">--</div><div class="m-lbl">BPM</div></div>
+                <div class="m-box" data-metric="time" role="button"><div class="m-val" id="m-time">00:00</div><div class="m-lbl">TIEMPO</div></div>
             </div>
 
             <div id="map"></div>
@@ -505,8 +416,7 @@
                 <div id="big-label"></div>
                 <svg id="big-gauge" viewBox="0 0 220 125" aria-hidden="true">
                     <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round"/>
-                    <path id="gauge-arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#ff9800" stroke-width="14"
-                          stroke-dasharray="282.74" stroke-dashoffset="282.74" style="transition: stroke-dashoffset 0.4s ease;"/>
+                    <path id="gauge-arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#ff9800" stroke-width="14" stroke-dasharray="282.74" stroke-dashoffset="282.74" style="transition: stroke-dashoffset 0.4s ease;"/>
                     <text x="20" y="124" fill="#777" font-size="10" text-anchor="middle">0</text>
                     <text id="gauge-max" x="200" y="124" fill="#777" font-size="10" text-anchor="middle">50</text>
                 </svg>
@@ -532,7 +442,6 @@
             </div>
         </div>
 
-        <!-- PÁGINA 2: ESTADÍSTICAS -->
         <div class="page content-panel">
             <div class="card">
                 <div class="card-header">
@@ -540,55 +449,17 @@
                     <div class="pill-selector">
                         <button class="pill-btn active" onclick="setStatsPeriod('semanal', this)">Semanal</button>
                         <button class="pill-btn" onclick="setStatsPeriod('mensual', this)">Mensual</button>
-                        <button class="pill-btn" onclick="setStatsPeriod('anual', this)">Anual</button>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:var(--primary);" id="st-dist">0.0 km</div>
-                        <div class="l" id="st-dist-lbl">Distancia esta semana</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="v" style="color:var(--accent);" id="st-time">0h 0m</div>
-                        <div class="l" id="st-time-lbl">Tiempo esta semana</div>
-                    </div>
+                    <div class="stat-box"><div class="v" style="color:var(--primary);" id="st-dist">0.0 km</div><div class="l" id="st-dist-lbl">Distancia esta semana</div></div>
+                    <div class="stat-box"><div class="v" style="color:var(--accent);" id="st-time">0h 0m</div><div class="l" id="st-time-lbl">Tiempo esta semana</div></div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:#64b5f6;" id="st-desnivel">+0 m</div>
-                        <div class="l">Desnivel positivo</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="v" style="color:#e57373;" id="st-rutas">0 salidas</div>
-                        <div class="l">Salidas realizadas</div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:#ffb74d; font-size:1.15rem;" id="st-kcal">Indica tu peso</div>
-                        <div class="l" id="st-kcal-lbl">Calorías estimadas</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="v" style="color:#4dd0e1;" id="st-vel">0.0 km/h</div>
-                        <div class="l">Velocidad media</div>
-                    </div>
+                    <div class="stat-box"><div class="v" style="color:#64b5f6;" id="st-desnivel">+0 m</div><div class="l">Desnivel positivo</div></div>
+                    <div class="stat-box"><div class="v" style="color:#e57373;" id="st-rutas">0 salidas</div><div class="l">Salidas realizadas</div></div>
                 </div>
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
-            </div>
-
-            <div class="card">
-                <h2>🔥 Calorías</h2>
-                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
-                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
-                    <select id="sex-input">
-                        <option value="">Sexo (opcional)</option>
-                        <option value="m">Hombre</option>
-                        <option value="f">Mujer</option>
-                    </select>
-                </div>
-                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
             </div>
 
             <div class="card">
@@ -612,7 +483,6 @@
             </div>
         </div>
 
-        <!-- PÁGINA 3: AMIGOS EN LIVE -->
         <div class="page content-panel">
             <div class="card">
                 <h2>☁️ Cuenta y sincronización</h2>
@@ -640,14 +510,11 @@
             <div class="card">
                 <h2>🚴‍♂️ Compañeros Cerca</h2>
                 <div id="friends-list">
-                    <p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding:10px 0;">
-                        No hay compañeros cerca o no te has unido a un grupo activo.
-                    </p>
+                    <p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding:10px 0;">No hay compañeros cerca o no te has unido a un grupo activo.</p>
                 </div>
             </div>
         </div>
 
-        <!-- PÁGINA 4: RUTAS REALIZADAS Y TRACKS -->
         <div class="page content-panel">
             <div class="card">
                 <h2>🗺️ Mis Rutas Guardadas</h2>
@@ -669,27 +536,13 @@
                 <button class="btn secondary" id="btn-bar">🍺 Marcar parada en un bar</button>
             </div>
         </div>
-
     </div>
 
-    <!-- NAVEGACIÓN DE PESTAÑAS INFERIOR -->
     <nav>
-        <button class="nav-btn active" onclick="goToPage(0)">
-            <span class="icon">🗺️</span>
-            <span>Mapa</span>
-        </button>
-        <button class="nav-btn" onclick="goToPage(1)">
-            <span class="icon">📊</span>
-            <span>Stats</span>
-        </button>
-        <button class="nav-btn" onclick="goToPage(2)">
-            <span class="icon">👥</span>
-            <span>Amigos</span>
-        </button>
-        <button class="nav-btn" onclick="goToPage(3)">
-            <span class="icon">📂</span>
-            <span>Rutas</span>
-        </button>
+        <button class="nav-btn active" onclick="goToPage(0)"><span class="icon">🗺️</span><span>Mapa</span></button>
+        <button class="nav-btn" onclick="goToPage(1)"><span class="icon">📊</span><span>Stats</span></button>
+        <button class="nav-btn" onclick="goToPage(2)"><span class="icon">👥</span><span>Amigos</span></button>
+        <button class="nav-btn" onclick="goToPage(3)"><span class="icon">📂</span><span>Rutas</span></button>
     </nav>
 
     <div id="toast" role="status" aria-live="polite"></div>
@@ -705,27 +558,20 @@
         </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         'use strict';
 
-        // ============================================================
-        //  CONFIGURACIÓN
-        // ============================================================
-        const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
-        const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
-        const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
-        const ELEV_STEP = 3;         // metros mínimos para contar una subida
-        const OFFROUTE_M = 60;       // aviso de desvío
-        const BACKONROUTE_M = 30;    // se considera que has vuelto a la ruta
+        const MIN_STEP_M = 4;
+        const MAX_ACC_M = 30;
+        const MAX_SPEED_MS = 25;
+        const ELEV_STEP = 3;
+        const OFFROUTE_M = 60;
+        const BACKONROUTE_M = 30;
 
-        // ============================================================
-        //  UTILIDADES
-        // ============================================================
         const $ = id => document.getElementById(id);
 
-        function dist(a, b) { // metros entre [lat, lon] y [lat, lon]
+        function dist(a, b) {
             const R = 6371000, r = Math.PI / 180;
             const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
             const s = Math.sin(dLat / 2) ** 2 +
@@ -757,7 +603,6 @@
             toastTimer = setTimeout(() => t.classList.remove('show'), ms);
         }
 
-        // Diálogo propio (sustituye a confirm/prompt). Con `input` devuelve texto o null.
         function modal({ message, input = null, ok = 'Aceptar', cancel = 'Cancelar' }) {
             return new Promise(resolve => {
                 const m = $('modal'), inp = $('modal-input'), bOk = $('modal-ok'), bCancel = $('modal-cancel');
@@ -781,7 +626,6 @@
         }
 
         async function download(name, text, mime) {
-            // Dentro del APK (Capacitor) las descargas por enlace no funcionan: se comparte el archivo
             const cap = window.Capacitor;
             if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem && cap.Plugins.Share) {
                 try {
@@ -803,14 +647,11 @@
             setTimeout(() => URL.revokeObjectURL(url), 2000);
         }
 
-        // ============================================================
-        //  ALMACENAMIENTO (IndexedDB)
-        // ============================================================
         const DB = {
             db: null,
             open() {
                 return new Promise((res, rej) => {
-                    if (!window.indexedDB) return rej(new Error('no-idb'));
+                    if (!window.indexedDB) return res();
                     const r = indexedDB.open('mtb_app', 1);
                     r.onupgradeneeded = () => {
                         const d = r.result;
@@ -818,7 +659,7 @@
                         d.createObjectStore('kv');
                     };
                     r.onsuccess = () => { this.db = r.result; res(); };
-                    r.onerror = () => rej(r.error);
+                    r.onerror = () => { console.warn('IndexedDB no disponible:', r.error); this.db = null; res(); };
                 });
             },
             run(store, mode, fn) {
@@ -828,29 +669,19 @@
                         const t = this.db.transaction(store, mode);
                         const req = fn(t.objectStore(store));
                         t.oncomplete = () => res(req ? req.result : undefined);
-                        t.onerror = () => rej(t.error);
-                        t.onabort = () => rej(t.error || new Error('abort'));
+                        t.onerror = () => rej(t.error || new Error('db-error'));
+                        t.onabort = () => rej(t.error || new Error('db-abort'));
                     } catch (e) { rej(e); }
                 });
             },
-            all()       { return this.run('routes', 'readonly',  s => s.getAll()); },
-            put(r)      { return this.run('routes', 'readwrite', s => s.put(r)); },
-            del(id)     { return this.run('routes', 'readwrite', s => s.delete(id)); },
-            kvGet(k)    { return this.run('kv', 'readonly',  s => s.get(k)); },
+            all() { return this.run('routes', 'readonly', s => s.getAll()); },
+            put(r) { return this.run('routes', 'readwrite', s => s.put(r)); },
+            del(id) { return this.run('routes', 'readwrite', s => s.delete(id)); },
+            kvGet(k) { return this.run('kv', 'readonly', s => s.get(k)); },
             kvSet(k, v) { return this.run('kv', 'readwrite', s => s.put(v, k)); },
-            kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); }
+            kvDel(k) { return this.run('kv', 'readwrite', s => s.delete(k)); }
         };
 
-        /*
-         Modelo de ruta:
-         { id, kind: 'recorded' | 'imported', name, startedAt (ISO), movingTimeSec,
-           distanceKm (número), elevationGain (m), hrAvg,
-           points: [ [lat, lon, alt|null, tiempoMs|null, bpm|null, (1 = inicio de tramo nuevo)] ] }
-        */
-
-        // ============================================================
-        //  DESNIVEL SUAVIZADO
-        // ============================================================
         function makeElevTracker() {
             const buf = [];
             let ref = null, gain = 0;
@@ -859,7 +690,7 @@
                     if (alt == null || isNaN(alt)) return;
                     buf.push(alt);
                     if (buf.length > 5) buf.shift();
-                    const s = buf.reduce((x, y) => x + y, 0) / buf.length; // media móvil
+                    const s = buf.reduce((x, y) => x + y, 0) / buf.length;
                     if (ref === null) { ref = s; return; }
                     if (s - ref >= ELEV_STEP) { gain += s - ref; ref = s; }
                     else if (ref - s >= ELEV_STEP) { ref = s; }
@@ -868,9 +699,6 @@
             };
         }
 
-        // ============================================================
-        //  NAVEGACIÓN ENTRE PÁGINAS
-        // ============================================================
         let currentPage = 0;
         const swiper = $('swiper');
         const navBtns = document.querySelectorAll('.nav-btn');
@@ -882,7 +710,6 @@
             if (index === 0 && map) setTimeout(() => map.invalidateSize(), 150);
         }
 
-        // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)
         let touchStartX = 0, touchStartY = 0, swipeBlocked = false;
 
         document.addEventListener('touchstart', e => {
@@ -902,9 +729,6 @@
             }
         }, { passive: true });
 
-        // ============================================================
-        //  ESTADO GLOBAL
-        // ============================================================
         let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null;
         let isRecording = false, isPaused = false;
         let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
@@ -920,14 +744,12 @@
         const btnStart = $('btn-start'), btnStop = $('btn-stop');
         const lblStart = $('lbl-start'), icoStart = $('ico-start');
 
-        // ============================================================
-        //  MAPA
-        // ============================================================
         function initMap() {
             if (typeof L === 'undefined') {
                 $('map').innerHTML = '<div style="padding:90px 24px; text-align:center; color:#b0b0b0;">No se pudo cargar el mapa (sin conexión y sin copia guardada). Puedes seguir grabando; el track se guarda igualmente.</div>';
                 return;
             }
+
             let center = [40.4168, -3.7038];
             try {
                 const lp = JSON.parse(localStorage.getItem('mtb_last_pos'));
@@ -937,15 +759,9 @@
             map = L.map('map', { zoomControl: false }).setView(center, 15);
             window.map = map;
 
-            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                maxZoom: 17,
-                attribution: 'Map data: © OpenStreetMap contributors | Map style: © OpenTopoMap'
-            }).addTo(map);
-
+            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Map data: © OpenStreetMap contributors | Map style: © OpenTopoMap' }).addTo(map);
             routePolyline = L.polyline([], { color: '#ff9800', weight: 5 }).addTo(map);
             savedRouteLayer = L.polyline([], { color: '#29b6f6', weight: 4, dashArray: '5, 5' }).addTo(map);
-
-            // Al arrastrar el mapa se desactiva el seguimiento automático
             map.on('dragstart', () => { following = false; updateCenterBtn(); });
             setTimeout(() => map.invalidateSize(), 300);
         }
@@ -961,9 +777,6 @@
             if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
         });
 
-        // ============================================================
-        //  GPS
-        // ============================================================
         function startGps() {
             if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
             navigator.geolocation.watchPosition(pos => { if (!bgActive) onPos(pos); }, err => {
@@ -992,7 +805,6 @@
                 if (!firstFix) { firstFix = true; map.setView(ll, 16); }
             }
 
-            // Velocidad (siempre visible; 0 en pausa o casi parado)
             let kmh = (speed != null && !isNaN(speed)) ? speed * 3.6 : 0;
             if (isPaused || kmh < 0.5) kmh = 0;
             $('m-speed').textContent = kmh.toFixed(1);
@@ -1000,18 +812,18 @@
             if (!isRecording || isPaused) return;
 
             if (followedRoute) checkOffRoute(lat, lon);
-            if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
+            if (accuracy > MAX_ACC_M) return;
 
             const t = pos.timestamp;
             let add = 0, brk = false;
 
             if (!lastAccepted || resumeBreak) {
-                brk = points.length > 0; // primer punto tras una pausa: nuevo tramo, sin sumar distancia
+                brk = points.length > 0;
             } else {
                 const d = dist(lastAccepted.ll, ll);
-                if (d < MIN_STEP_M) return; // parado o ruido
+                if (d < MIN_STEP_M) return;
                 const dt = Math.max((t - lastAccepted.t) / 1000, 0.001);
-                if (d / dt > MAX_SPEED_MS) return; // salto imposible
+                if (d / dt > MAX_SPEED_MS) return;
                 add = d / 1000;
             }
             resumeBreak = false;
@@ -1038,12 +850,9 @@
             if (map && following) map.panTo(ll, { animate: true });
         }
 
-        // ============================================================
-        //  CONTROL DE GRABACIÓN
-        // ============================================================
         let wakeLock = null;
         async function acquireWake() {
-            if (bgActive) return; // con GPS en segundo plano no hace falta mantener la pantalla encendida
+            if (bgActive) return;
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
@@ -1055,7 +864,6 @@
             if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
         }
 
-        // ---- GPS en segundo plano (solo dentro del APK) ----
         let bgActive = false, bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
 
         function bgPlugin() {
@@ -1064,9 +872,9 @@
             return (cap.Plugins && cap.Plugins.BackgroundGeolocation) || null;
         }
 
-        async function ensureNotifPermission() { // Android 13+: para mostrar el aviso "Grabando tu ruta"
+        async function ensureNotifPermission() {
             try {
-                const ln = window.Capacitor.Plugins.LocalNotifications;
+                const ln = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
                 if (!ln) return;
                 const st = await ln.checkPermissions();
                 if (st.display !== 'granted') await ln.requestPermissions();
@@ -1088,7 +896,7 @@
             const bg = bgPlugin();
             if (!bg || bgActive) return false;
             const my = ++bgToken;
-            bgActive = true; // desde ya, las posiciones llegan por el plugin y no por el GPS web
+            bgActive = true;
             try {
                 await ensureNotifPermission();
                 const id = await bg.addWatcher({
@@ -1113,7 +921,7 @@
                         timestamp: loc.time
                     });
                 });
-                if (my !== bgToken) { // se pausó o terminó mientras se activaba
+                if (my !== bgToken) {
                     try { await bg.removeWatcher({ id }); } catch (e) {}
                     return false;
                 }
@@ -1121,7 +929,10 @@
                 return true;
             } catch (e) {
                 console.warn('No se pudo iniciar el GPS en segundo plano:', e);
-                if (my === bgToken) { bgActive = false; bgWatcherId = null; }
+                if (my === bgToken) {
+                    bgActive = false;
+                    bgWatcherId = null;
+                }
                 return false;
             }
         }
@@ -1135,7 +946,6 @@
             if (bg && id != null) bg.removeWatcher({ id }).catch(() => {});
         }
 
-        // Empieza a recibir posiciones: en segundo plano si se puede; si no, pantalla encendida
         async function beginTracking(showToast) {
             const ok = await startBgWatcher();
             if (ok) {
@@ -1150,22 +960,10 @@
             }
         }
 
-        function elapsedSec() {
-            return Math.floor((movingMs + (segStart ? Date.now() - segStart : 0)) / 1000);
-        }
-        function updateTimerDisplay() {
-            $('m-time').textContent = fmtClock(elapsedSec());
-        }
-        function startTimers() {
-            updateTimerDisplay();
-            timerInterval = setInterval(updateTimerDisplay, 1000);
-            draftInterval = setInterval(saveDraft, 10000);
-        }
-        function stopTimers() {
-            clearInterval(timerInterval);
-            clearInterval(draftInterval);
-            timerInterval = draftInterval = null;
-        }
+        function elapsedSec() { return Math.floor((movingMs + (segStart ? Date.now() - segStart : 0)) / 1000); }
+        function updateTimerDisplay() { $('m-time').textContent = fmtClock(elapsedSec()); }
+        function startTimers() { updateTimerDisplay(); timerInterval = setInterval(updateTimerDisplay, 1000); draftInterval = setInterval(saveDraft, 10000); }
+        function stopTimers() { clearInterval(timerInterval); clearInterval(draftInterval); timerInterval = draftInterval = null; }
 
         function setBtnState(s) {
             btnStart.classList.toggle('recording', s !== 'idle');
@@ -1217,7 +1015,7 @@
         function resumeRecording() {
             isPaused = false;
             segStart = Date.now();
-            resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
+            resumeBreak = true;
             setBtnState('recording');
             startTimers();
             beginTracking(false);
@@ -1260,20 +1058,14 @@
                     points
                 };
                 await saveRoute(route);
-                const kc = estimateKcal(route);
-                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m` + (kc ? ` · ~${kc} kcal` : ''), 5000);
+                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
             } else {
                 toast('La ruta es muy corta y no se ha guardado.');
             }
         }
 
         async function saveRoute(r) {
-            try {
-                await DB.put(r);
-            } catch (e) {
-                console.warn('Error guardando:', e);
-                toast('⚠️ No se pudo guardar en el dispositivo (¿almacenamiento lleno?). Exporta el GPX ahora desde Rutas.', 7000);
-            }
+            try { await DB.put(r); } catch (e) { console.warn('Error guardando:', e); toast('⚠️ No se pudo guardar en el dispositivo.', 7000); }
             savedRoutes.unshift(r);
             renderSavedRoutes();
             refreshStats();
@@ -1281,7 +1073,6 @@
             syncRoutes();
         }
 
-        // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
         function saveDraft() {
             if (!isRecording) return;
             DB.kvSet('draft', {
@@ -1289,7 +1080,8 @@
                 movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
                 totalDistance,
                 points,
-                savedAt: Date.now()
+                savedAt: Date.now(),
+                paused: isPaused
             }).catch(() => {});
         }
 
@@ -1304,16 +1096,15 @@
 
         function restoreDraft(d) {
             resetRecordingState();
-            points = d.points;
+            points = Array.isArray(d.points) ? d.points : [];
             startedAt = d.startedAt || new Date().toISOString();
-            movingMs = d.movingMs || 0;
-            totalDistance = d.totalDistance || 0;
+            movingMs = Number(d.movingMs) || 0;
+            totalDistance = Number(d.totalDistance) || 0;
             points.forEach(p => elev.add(p[2]));
             segments = buildSegments(points);
             isRecording = true;
-            isPaused = true;
-            resumeBreak = true;
-            setBtnState('paused');
+            isPaused = !!d.paused;
+            setBtnState(isPaused ? 'paused' : 'recording');
             $('m-dist').textContent = totalDistance.toFixed(2);
             $('m-elevation').textContent = Math.round(elev.gain);
             $('m-time').textContent = fmtClock(Math.floor(movingMs / 1000));
@@ -1346,15 +1137,12 @@
                 if (isRecording) saveDraft();
             } else if (isRecording && !isPaused) {
                 updateTimerDisplay();
-                acquireWake(); // el wake lock se pierde al ocultar la página
+                acquireWake();
             }
         });
         window.addEventListener('pagehide', () => { if (isRecording) saveDraft(); });
 
-        // ============================================================
-        //  AVISO DE DESVÍO
-        // ============================================================
-        function pointSegDistM(p, a, b) { // metros de p al segmento a-b (proyección local)
+        function pointSegDistM(p, a, b) {
             const k = Math.cos(p[0] * Math.PI / 180);
             const ax = (a[1] - p[1]) * k * 111320, ay = (a[0] - p[0]) * 110540;
             const bx = (b[1] - p[1]) * k * 111320, by = (b[0] - p[0]) * 110540;
@@ -1407,9 +1195,6 @@
         }
         $('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
 
-        // ============================================================
-        //  RUTAS GUARDADAS
-        // ============================================================
         function renderSavedRoutes() {
             const c = $('saved-routes-list');
             c.textContent = '';
@@ -1420,6 +1205,7 @@
                 c.appendChild(e);
                 return;
             }
+
             savedRoutes.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'route-item';
@@ -1434,8 +1220,6 @@
                 if (r.movingTimeSec) parts.push(`⏱️ ${fmtDur(r.movingTimeSec)}`);
                 if (r.elevationGain) parts.push(`⛰️ +${r.elevationGain} m`);
                 if (r.hrAvg) parts.push(`❤️ ${r.hrAvg}`);
-                const kd = estimateKcalDetail(r);
-                if (kd) parts.push(`🔥 ~${kd.kcal} kcal` + (kd.usedHr ? ' (ajustadas con pulso)' : ''));
                 if (r.kind === 'imported') parts.push('📥 importada');
                 p.textContent = parts.join('  •  ');
                 info.append(h, p);
@@ -1495,9 +1279,6 @@
             }
         });
 
-        // ============================================================
-        //  EXPORTAR / IMPORTAR GPX, KML, GEOJSON
-        // ============================================================
         function routeToGpx(r) {
             const out = [
                 '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1521,13 +1302,12 @@
             return out.join('\n');
         }
 
-        // Devuelve { name, segs: [ [ [lat, lon, alt|null, tMs|null], ... ], ... ] }
         function parseTrack(text, fname) {
             let name = fname.replace(/\.[^.]+$/, '');
             const segs = [];
             const trimmed = text.trim();
 
-            if (trimmed.startsWith('{')) { // GeoJSON
+            if (trimmed.startsWith('{')) {
                 const geoms = [];
                 (function walk(o) {
                     if (!o) return;
@@ -1547,7 +1327,7 @@
                 const doc = new DOMParser().parseFromString(trimmed, 'application/xml');
                 if (doc.getElementsByTagName('parsererror').length) throw new Error('el archivo no es un XML válido');
 
-                if (/<kml[\s>]/i.test(trimmed)) { // KML
+                if (/<kml[\s>]/i.test(trimmed)) {
                     const n = doc.getElementsByTagName('name')[0];
                     if (n && n.textContent.trim()) name = n.textContent.trim();
                     Array.from(doc.getElementsByTagName('LineString')).forEach(ls => {
@@ -1558,11 +1338,12 @@
                             return [lat, lon, Number.isFinite(alt) && alt !== 0 ? alt : null, null];
                         }));
                     });
-                } else { // GPX
+                } else {
                     const n = doc.getElementsByTagName('trk')[0]
                         ? doc.getElementsByTagName('trk')[0].getElementsByTagName('name')[0]
                         : doc.getElementsByTagName('name')[0];
                     if (n && n.textContent.trim()) name = n.textContent.trim();
+
                     const readPt = e => {
                         const ele = e.getElementsByTagName('ele')[0];
                         const tm = e.getElementsByTagName('time')[0];
@@ -1572,6 +1353,7 @@
                             tm ? Date.parse(tm.textContent) : null
                         ];
                     };
+
                     const trksegs = Array.from(doc.getElementsByTagName('trkseg'));
                     if (trksegs.length) {
                         trksegs.forEach(s => segs.push(Array.from(s.getElementsByTagName('trkpt')).map(readPt)));
@@ -1605,10 +1387,11 @@
             if (full.length < 2) throw new Error('no contiene ningún track válido');
 
             let stored = full;
-            if (full.length > 20000) { // evita guardar tracks gigantes
+            if (full.length > 20000) {
                 const k = Math.ceil(full.length / 20000);
                 stored = full.filter((p, i) => i % k === 0 || p[5] === 1 || i === full.length - 1);
             }
+
             return {
                 id: Date.now(),
                 kind: 'imported',
@@ -1636,116 +1419,10 @@
             }
         });
 
-        // ============================================================
-        //  ESTADÍSTICAS Y GRÁFICAS
-        // ============================================================
-        // ---- Calorías estimadas: kcal = MET × peso (kg) × horas ----
-        // MET del Compendio de Actividades Físicas: MTB general 8,5; MTB cuesta arriba intensa 14,0;
-        // ciclismo por velocidad media (4,0 / 6,8 / 8,0 / 10,0 / 12,0 / 15,8).
-        function getWeightKg() {
-            let w = NaN;
-            try { w = parseFloat(localStorage.getItem('mtb_weight_kg')); } catch (e) {}
-            return (isFinite(w) && w >= 30 && w <= 250) ? w : null;
-        }
-
-        function metBySpeed(kmh) {
-            if (kmh < 16.1) return 4.0;
-            if (kmh < 19.3) return 6.8;
-            if (kmh < 22.5) return 8.0;
-            if (kmh < 25.7) return 10.0;
-            if (kmh < 32.2) return 12.0;
-            return 15.8;
-        }
-
-        function getAge() {
-            let a = NaN;
-            try { a = parseInt(localStorage.getItem('mtb_age'), 10); } catch (e) {}
-            return (a >= 14 && a <= 90) ? a : null;
-        }
-        function getSex() {
-            try { const v = localStorage.getItem('mtb_sex'); return (v === 'm' || v === 'f') ? v : null; } catch (e) { return null; }
-        }
-
-        // Fracción de puntos de la ruta que llevan pulso (se guarda en caché: las rutas pueden tener miles de puntos)
-        const hrCovCache = new Map();
-        function hrCoverage(r) {
-            if (!r.points || !r.points.length) return 0;
-            const key = r.id + ':' + r.points.length;
-            if (!hrCovCache.has(key)) {
-                let n = 0;
-                for (const p of r.points) if (p[4] != null) n++;
-                hrCovCache.set(key, n / r.points.length);
-            }
-            return hrCovCache.get(key);
-        }
-
-        // Keytel et al. (2005): kcal/min a partir del pulso, peso, edad y sexo
-        function keytelKcalPerMin(hr, w, age, sex) {
-            const k = sex === 'm'
-                ? (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age)
-                : (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * age);
-            return k / 4.184;
-        }
-
-        // 1) Estimación por esfuerzo y desnivel (MET). 2) Si hay pulso, edad y sexo, el pulso la ajusta entre ×0,75 y ×1,25.
-        function estimateKcalDetail(r) {
-            const w = getWeightKg();
-            if (!w || r.kind === 'imported' || !r.movingTimeSec || r.movingTimeSec < 60 || !r.distanceKm) return null;
-            const hours = r.movingTimeSec / 3600;
-            const kmh = r.distanceKm / hours;
-            const climb = (r.elevationGain || 0) / r.distanceKm;           // metros de subida por km
-            const f = Math.max(0, Math.min(1, (climb - 10) / 30));          // 0 = llano, 1 = muy montañosa
-            const mtb = 8.5 + f * (14.0 - 8.5);                             // entre «MTB general» y «cuesta arriba»
-            const met = Math.max(mtb, metBySpeed(kmh));                     // en pista rápida manda la velocidad
-            const kcalMet = met * w * hours;
-
-            let kcal = kcalMet, usedHr = false;
-            const age = getAge(), sex = getSex();
-            if (r.hrAvg >= 80 && age && sex && hrCoverage(r) >= 0.5) {
-                const rate = keytelKcalPerMin(r.hrAvg, w, age, sex);
-                if (rate > 0) {
-                    const kcalHr = rate * (r.movingTimeSec / 60);
-                    kcal = kcalMet * Math.max(0.75, Math.min(1.25, kcalHr / kcalMet));
-                    usedHr = true;
-                }
-            }
-            return { kcal: Math.round(kcal), usedHr };
-        }
-
-        function estimateKcal(r) {
-            const d = estimateKcalDetail(r);
-            return d ? d.kcal : null;
-        }
-
-        function initWeight() {
-            const refresh = () => { renderSavedRoutes(); refreshStats(); };
-            const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
-
-            const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
-            const w = getWeightKg(), a = getAge(), sx = getSex();
-            if (w) wIn.value = w;
-            if (a) aIn.value = a;
-            if (sx) sIn.value = sx;
-
-            wIn.addEventListener('change', () => {
-                const v = parseFloat(String(wIn.value).replace(',', '.'));
-                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
-                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
-                refresh();
-            });
-            aIn.addEventListener('change', () => {
-                const v = parseInt(aIn.value, 10);
-                if (v >= 14 && v <= 90) save('mtb_age', v);
-                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
-                refresh();
-            });
-            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
-        }
-
         function startOfWeek(d) {
             const x = new Date(d);
             x.setHours(0, 0, 0, 0);
-            x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // lunes
+            x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
             return x;
         }
 
@@ -1753,18 +1430,13 @@
             const now = new Date();
             let from, when;
             if (statsPeriod === 'semanal') { from = startOfWeek(now); when = 'esta semana'; }
-            else if (statsPeriod === 'mensual') { from = new Date(now.getFullYear(), now.getMonth(), 1); when = 'este mes'; }
-            else { from = new Date(now.getFullYear(), 0, 1); when = 'este año'; }
-            const rides = savedRoutes.filter(r => r.kind !== 'imported' && new Date(r.startedAt) >= from);
+            else { from = new Date(now.getFullYear(), now.getMonth(), 1); when = 'este mes'; }
 
+            const rides = savedRoutes.filter(r => r.kind !== 'imported' && new Date(r.startedAt) >= from);
             const km = rides.reduce((a, r) => a + r.distanceKm, 0);
             const sec = rides.reduce((a, r) => a + (r.movingTimeSec || 0), 0);
             const gain = rides.reduce((a, r) => a + (r.elevationGain || 0), 0);
 
-            const kcal = rides.reduce((a, r) => a + (estimateKcal(r) || 0), 0);
-            $('st-kcal').textContent = getWeightKg() ? kcal.toLocaleString('es-ES') + ' kcal' : 'Indica tu peso';
-            $('st-kcal-lbl').textContent = 'Calorías estimadas ' + when;
-            $('st-vel').textContent = (sec > 0 ? km / (sec / 3600) : 0).toFixed(1) + ' km/h';
             $('st-dist').textContent = km.toFixed(1) + ' km';
             $('st-time').textContent = fmtDur(sec);
             $('st-desnivel').textContent = '+' + Math.round(gain) + ' m';
@@ -1777,17 +1449,14 @@
                 labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                 buckets = Array(7).fill(0);
                 rides.forEach(r => { buckets[(new Date(r.startedAt).getDay() + 6) % 7] += r.distanceKm; });
-            } else if (statsPeriod === 'mensual') {
+            } else {
                 const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
                 const n = Math.ceil(days / 7);
                 labels = Array.from({ length: n }, (_, i) => 'S' + (i + 1));
                 buckets = Array(n).fill(0);
                 rides.forEach(r => { buckets[Math.floor((new Date(r.startedAt).getDate() - 1) / 7)] += r.distanceKm; });
-            } else {
-                labels = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-                buckets = Array(12).fill(0);
-                rides.forEach(r => { buckets[new Date(r.startedAt).getMonth()] += r.distanceKm; });
             }
+
             if (statsChart) {
                 statsChart.data.labels = labels;
                 statsChart.data.datasets[0].data = buckets.map(v => +v.toFixed(2));
@@ -1832,39 +1501,24 @@
 
             statsChart = new Chart($('statsChart').getContext('2d'), {
                 type: 'bar',
-                data: { labels: [], datasets: [{
-                    label: 'km', data: [],
-                    backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1, borderRadius: 4
-                }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: axis, y: { ...axis, beginAtZero: true } }
-                }
+                data: { labels: [], datasets: [{ label: 'km', data: [], backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1, borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: true } } }
             });
 
             profileChart = new Chart($('profileChart').getContext('2d'), {
                 type: 'line',
-                data: { labels: [], datasets: [{
-                    label: 'Altitud (m)', data: [],
-                    borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.15)',
-                    fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
-                }] },
+                data: { labels: [], datasets: [{ label: 'Altitud (m)', data: [], borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.15)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ...axis, title: { display: true, text: 'km', color: '#b0b0b0', font: { size: 10 } },
-                             ticks: { ...axis.ticks, maxTicksLimit: 6 } },
+                        x: { ...axis, title: { display: true, text: 'km', color: '#b0b0b0', font: { size: 10 } }, ticks: { ...axis.ticks, maxTicksLimit: 6 } },
                         y: axis
                     }
                 }
             });
         }
 
-        // ============================================================
-        //  PULSÓMETRO BLUETOOTH
-        // ============================================================
         let bleDevice = null, bleManual = false;
         const btnBle = $('btn-ble');
 
@@ -1902,7 +1556,6 @@
             reconnectHr(e.target);
         }
 
-        // ---- Pulsómetro Bluetooth nativo (solo dentro del APK) ----
         const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
         const sleep = ms => new Promise(r => setTimeout(r, ms));
         let nativeBleLoading = null, nativeHrId = null, nativeHrConnected = false, nativeHrManual = false;
@@ -1955,7 +1608,7 @@
         }
 
         async function nativeHrToggle() {
-            if (nativeHrConnected) { // un segundo toque lo desconecta
+            if (nativeHrConnected) {
                 nativeHrManual = true;
                 try { await (await loadNativeBle()).disconnect(nativeHrId); } catch (e) {}
                 nativeHrConnected = false;
@@ -1968,10 +1621,9 @@
             nativeHrManual = false;
             try {
                 const ble = await loadNativeBle();
-                await ble.init(); // pide los permisos de Bluetooth la primera vez
+                await ble.init();
                 if (!(await ble.isEnabled())) { toast('Activa el Bluetooth del móvil', 5000); return; }
 
-                // 1) intentar con el último pulsómetro usado
                 let saved = null;
                 try { saved = JSON.parse(localStorage.getItem('mtb_hr_device')); } catch (e) {}
                 if (saved && saved.id) {
@@ -1983,7 +1635,6 @@
                     } catch (e) { console.warn('Último pulsómetro no disponible:', e); }
                 }
 
-                // 2) elegir de la lista de dispositivos cercanos
                 const dev = await ble.pick();
                 await nativeHrConnect(dev.deviceId, dev.name);
                 toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
@@ -2002,7 +1653,7 @@
                 toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
                 return;
             }
-            if (bleDevice && bleDevice.gatt.connected) { // un segundo toque lo desconecta
+            if (bleDevice && bleDevice.gatt.connected) {
                 bleManual = true;
                 bleDevice.gatt.disconnect();
                 return;
@@ -2023,9 +1674,6 @@
             }
         });
 
-        // ============================================================
-        //  FUENTES DE AGUA Y PARADAS EN BARES
-        // ============================================================
         let savedFountains = [];
         try { savedFountains = JSON.parse(localStorage.getItem('mtb_saved_fountains') || '[]'); } catch (e) {}
         let fountainMarkers = [];
@@ -2037,9 +1685,9 @@
 
         const POI_TYPES = {
             fountain: { emoji: '🚰', defaultName: 'Fuente de Agua', ask: false, confirm: '¿Eliminar esta fuente guardada?' },
-            bar:      { emoji: '🍺', defaultName: 'Bar', ask: true, prompt: 'Nombre del bar donde paras:', confirm: '¿Eliminar esta parada?' }
+            bar: { emoji: '🍺', defaultName: 'Bar', ask: true, prompt: 'Nombre del bar donde paras:', confirm: '¿Eliminar esta parada?' }
         };
-        const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain'); // las fuentes antiguas no tienen tipo
+        const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain');
 
         function poiIcon(type) {
             if (type === 'bar') {
@@ -2089,12 +1737,12 @@
         async function addPoi(type) {
             const meta = POI_TYPES[type];
             if (lastLat === null || lastLon === null) { toast('Buscando señal GPS para marcar tu ubicación exacta...'); return; }
-            if (Date.now() - lastPoiAt < 1500) return; // evita duplicados por doble toque
+            if (Date.now() - lastPoiAt < 1500) return;
             lastPoiAt = Date.now();
-            const lat = lastLat, lng = lastLon; // la posición del momento del toque
+            const lat = lastLat, lng = lastLon;
 
             let name = meta.defaultName;
-            if (meta.ask) { // el bar pide nombre; la fuente se guarda al instante
+            if (meta.ask) {
                 const n = await modal({ message: meta.prompt, input: meta.defaultName, ok: 'Guardar' });
                 if (n === null) return;
                 name = n.trim() || meta.defaultName;
@@ -2113,31 +1761,22 @@
         $('btn-fountain').addEventListener('click', () => addPoi('fountain'));
         $('btn-bar').addEventListener('click', () => addPoi('bar'));
 
-        // ============================================================
-        //  AMIGOS (pendiente de servidor)
-        // ============================================================
         $('btn-join').addEventListener('click', () => {
             toast('Esta función necesita un servidor y todavía no está disponible.', 4500);
         });
 
-        // ============================================================
-        //  INICIO
-        // ============================================================
-        // ============================================================
-        //  VISTA AMPLIADA DE MÉTRICAS (toca una métrica para verla grande)
-        // ============================================================
         const METRICS = {
-            speed: { src: 'm-speed',     label: 'Velocidad',          unit: 'km/h' },
-            dist:  { src: 'm-dist',      label: 'Distancia',          unit: 'km' },
-            elev:  { src: 'm-elevation', label: 'Desnivel positivo',  unit: 'm' },
-            hr:    { src: 'm-hr',        label: 'Pulso',              unit: 'bpm', color: '#ef5350' },
-            time:  { src: 'm-time',      label: 'Tiempo',             unit: '' }
+            speed: { src: 'm-speed', label: 'Velocidad', unit: 'km/h' },
+            dist: { src: 'm-dist', label: 'Distancia', unit: 'km' },
+            elev: { src: 'm-elevation', label: 'Desnivel positivo', unit: 'm' },
+            hr: { src: 'm-hr', label: 'Pulso', unit: 'bpm', color: '#ef5350' },
+            time: { src: 'm-time', label: 'Tiempo', unit: '' }
         };
         let expandedMetric = null;
 
         function updateGauge(v) {
             const LEN = 282.74;
-            const max = Math.max(50, Math.ceil(v / 10) * 10); // la escala crece si pasas de 50 km/h
+            const max = Math.max(50, Math.ceil(v / 10) * 10);
             $('gauge-arc').style.strokeDashoffset = LEN * (1 - Math.min(v / max, 1));
             $('gauge-max').textContent = max;
         }
@@ -2176,26 +1815,20 @@
                 const box = e.target.closest('.m-box');
                 if (!box) return;
                 const key = box.dataset.metric;
-                if (expandedMetric === key) collapseMetric(); // segundo toque: vuelve
+                if (expandedMetric === key) collapseMetric();
                 else expandMetric(key);
             });
             $('big-metric').addEventListener('click', collapseMetric);
-
-            // La vista grande copia en vivo el valor de la métrica original
             const obs = new MutationObserver(syncBigMetric);
-            Object.values(METRICS).forEach(m =>
-                obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
+            Object.values(METRICS).forEach(m => obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
         }
 
-        // ============================================================
-        //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
-        // ============================================================
         const Cloud = {
             get server() { return localStorage.getItem('mtb_server') || ''; },
-            get token()  { return localStorage.getItem('mtb_token') || ''; },
-            get uid()    { return localStorage.getItem('mtb_uid') || ''; },
-            get email()  { return localStorage.getItem('mtb_email') || ''; },
-            loggedIn()   { return !!(this.server && this.token && this.uid); },
+            get token() { return localStorage.getItem('mtb_token') || ''; },
+            get uid() { return localStorage.getItem('mtb_uid') || ''; },
+            get email() { return localStorage.getItem('mtb_email') || ''; },
+            loggedIn() { return !!(this.server && this.token && this.uid); },
             setSession(token, rec) {
                 localStorage.setItem('mtb_token', token);
                 localStorage.setItem('mtb_uid', rec.id);
@@ -2206,27 +1839,33 @@
             }
         };
 
-        // body: objeto (JSON), FormData (archivos) o null
         async function cloudApi(path, method = 'GET', body = null) {
             const headers = {};
             if (Cloud.token) headers.Authorization = Cloud.token;
             let payload;
             if (body instanceof FormData) payload = body;
             else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+
             const res = await fetch(Cloud.server + path, { method, headers, body: payload });
             if (!res.ok) {
+                let raw = '';
+                try { raw = await res.text(); } catch (e) {}
                 let msg = '';
                 try {
-                    const j = await res.json();
+                    const j = JSON.parse(raw);
                     msg = j.message || '';
                     const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
                     if (f) msg += ` (${f})`;
-                } catch (e) {}
+                } catch (e) {
+                    msg = raw || ('Error ' + res.status);
+                }
                 const err = new Error(msg || ('Error ' + res.status));
-                err.status = res.status; // sin status = no se pudo conectar
+                err.status = res.status;
                 throw err;
             }
-            return res.status === 204 ? null : res.json();
+            const txt = await res.text();
+            if (!txt) return null;
+            try { return JSON.parse(txt); } catch (e) { return txt; }
         }
 
         function normalizeServer(v) {
@@ -2265,9 +1904,7 @@
                 syncRoutes(true);
             } catch (e) {
                 console.warn('Auth:', e);
-                toast(e.status === undefined
-                    ? 'No se pudo conectar con el servidor. Revisa la dirección.'
-                    : 'No se pudo entrar: ' + e.message, 6000);
+                toast(e.status === undefined ? 'No se pudo conectar con el servidor. Revisa la dirección.' : 'No se pudo entrar: ' + e.message, 6000);
             }
         }
 
@@ -2300,11 +1937,12 @@
         async function syncRoutes(manual = false) {
             if (!Cloud.loggedIn() || syncing) return;
             if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
+
             syncing = true;
             $('acc-status').textContent = 'Sincronizando…';
             let pushed = 0, pulled = 0;
+
             try {
-                // 0) renovar la sesión (si ha caducado, se cierra)
                 try {
                     const ar = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                     Cloud.setSession(ar.token, ar.record);
@@ -2317,15 +1955,16 @@
                     throw e;
                 }
 
-                // 1) rutas que ya hay en el servidor
                 const remote = [];
-                for (let page = 1; ; page++) {
+                let page = 1;
+                while (page) {
                     const r = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=clientId`);
+                    if (!r || !r.items) break;
                     remote.push(...r.items);
-                    if (page >= r.totalPages) break;
+                    if (!r.totalPages || page >= r.totalPages) break;
+                    page++;
                 }
 
-                // 2) borrados pendientes
                 let pend = [];
                 try { pend = (await DB.kvGet('pendingDeletes')) || []; } catch (e) {}
                 const rest = [];
@@ -2336,7 +1975,6 @@
                 try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
                 const skip = new Set(pend);
 
-                // 3) subir lo nuevo y los cambios de nombre
                 const byClient = new Map(remote.map(x => [Number(x.clientId), x]));
                 for (const r of savedRoutes) {
                     const found = byClient.get(r.id);
@@ -2351,12 +1989,11 @@
                         await putLocal(r);
                         pushed++;
                     } catch (e) {
-                        if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); } // desaparecida del servidor: se subirá de nuevo
+                        if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); }
                         else throw e;
                     }
                 }
 
-                // 4) bajar las que faltan en este móvil
                 const localIds = new Set(savedRoutes.map(r => r.id));
                 const missing = remote.filter(x => !skip.has(x.id) && x.track && !localIds.has(Number(x.clientId)));
                 if (missing.length) {
@@ -2364,7 +2001,9 @@
                     for (const rec of missing) {
                         const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
                         if (!res.ok) continue;
-                        const points = await res.json();
+                        const txt = await res.text();
+                        let points;
+                        try { points = JSON.parse(txt); } catch (e) { continue; }
                         if (!Array.isArray(points) || points.length < 2) continue;
                         const r = {
                             id: Number(rec.clientId), remoteId: rec.id, dirty: false,
@@ -2425,7 +2064,7 @@
             try {
                 for (const r of migrated) await DB.put(r);
                 savedRoutes = savedRoutes.concat(migrated).sort((a, b) => b.id - a.id);
-                localStorage.removeItem('mtb_saved_routes'); // solo se borra si todo se copió bien
+                localStorage.removeItem('mtb_saved_routes');
             } catch (e) { console.warn('Migración incompleta', e); }
         }
 
@@ -2450,7 +2089,6 @@
             refreshStats();
             showProfile(savedRoutes[0] || null);
             initAccount();
-            initWeight();
             syncRoutes();
             startGps();
             await maybeRestoreDraft();
@@ -2458,7 +2096,6 @@
 
         init();
 
-        // Service Worker: abre la app sin conexión y guarda las teselas ya vistas
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('sw.js').catch(() => {});
         }
