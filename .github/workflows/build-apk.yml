@@ -51,6 +51,17 @@ jobs:
       - name: Sincronizar
         run: npx cap sync android
 
+      - name: Firma fija (necesaria para poder actualizar la app)
+        env:
+          KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Falta el secret DEBUG_KEYSTORE_B64 (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          mkdir -p ~/.android
+          echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
       - name: Compilar APK
         working-directory: android
         run: |
