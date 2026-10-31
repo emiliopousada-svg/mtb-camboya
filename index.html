@@ -327,7 +327,7 @@
         .btn.secondary { background: #444; }
         .btn:disabled { opacity: 0.5; }
 
-        input[type="file"], input[type="text"], input[type="password"] {
+        input[type="file"], input[type="text"], input[type="password"], input[type="number"], select {
             width: 100%;
             padding: 12px;
             border-radius: 10px;
@@ -540,6 +540,7 @@
                     <div class="pill-selector">
                         <button class="pill-btn active" onclick="setStatsPeriod('semanal', this)">Semanal</button>
                         <button class="pill-btn" onclick="setStatsPeriod('mensual', this)">Mensual</button>
+                        <button class="pill-btn" onclick="setStatsPeriod('anual', this)">Anual</button>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
@@ -562,7 +563,32 @@
                         <div class="l">Salidas realizadas</div>
                     </div>
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                    <div class="stat-box">
+                        <div class="v" style="color:#ffb74d; font-size:1.15rem;" id="st-kcal">Indica tu peso</div>
+                        <div class="l" id="st-kcal-lbl">Calorías estimadas</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="v" style="color:#4dd0e1;" id="st-vel">0.0 km/h</div>
+                        <div class="l">Velocidad media</div>
+                    </div>
+                </div>
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
+            </div>
+
+            <div class="card">
+                <h2>🔥 Calorías</h2>
+                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
+                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
+                    <select id="sex-input">
+                        <option value="">Sexo (opcional)</option>
+                        <option value="m">Hombre</option>
+                        <option value="f">Mujer</option>
+                    </select>
+                </div>
+                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
             </div>
 
             <div class="card">
@@ -1234,7 +1260,8 @@
                     points
                 };
                 await saveRoute(route);
-                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
+                const kc = estimateKcal(route);
+                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m` + (kc ? ` · ~${kc} kcal` : ''), 5000);
             } else {
                 toast('La ruta es muy corta y no se ha guardado.');
             }
@@ -1407,6 +1434,8 @@
                 if (r.movingTimeSec) parts.push(`⏱️ ${fmtDur(r.movingTimeSec)}`);
                 if (r.elevationGain) parts.push(`⛰️ +${r.elevationGain} m`);
                 if (r.hrAvg) parts.push(`❤️ ${r.hrAvg}`);
+                const kd = estimateKcalDetail(r);
+                if (kd) parts.push(`🔥 ~${kd.kcal} kcal` + (kd.usedHr ? ' (ajustadas con pulso)' : ''));
                 if (r.kind === 'imported') parts.push('📥 importada');
                 p.textContent = parts.join('  •  ');
                 info.append(h, p);
@@ -1610,6 +1639,109 @@
         // ============================================================
         //  ESTADÍSTICAS Y GRÁFICAS
         // ============================================================
+        // ---- Calorías estimadas: kcal = MET × peso (kg) × horas ----
+        // MET del Compendio de Actividades Físicas: MTB general 8,5; MTB cuesta arriba intensa 14,0;
+        // ciclismo por velocidad media (4,0 / 6,8 / 8,0 / 10,0 / 12,0 / 15,8).
+        function getWeightKg() {
+            let w = NaN;
+            try { w = parseFloat(localStorage.getItem('mtb_weight_kg')); } catch (e) {}
+            return (isFinite(w) && w >= 30 && w <= 250) ? w : null;
+        }
+
+        function metBySpeed(kmh) {
+            if (kmh < 16.1) return 4.0;
+            if (kmh < 19.3) return 6.8;
+            if (kmh < 22.5) return 8.0;
+            if (kmh < 25.7) return 10.0;
+            if (kmh < 32.2) return 12.0;
+            return 15.8;
+        }
+
+        function getAge() {
+            let a = NaN;
+            try { a = parseInt(localStorage.getItem('mtb_age'), 10); } catch (e) {}
+            return (a >= 14 && a <= 90) ? a : null;
+        }
+        function getSex() {
+            try { const v = localStorage.getItem('mtb_sex'); return (v === 'm' || v === 'f') ? v : null; } catch (e) { return null; }
+        }
+
+        // Fracción de puntos de la ruta que llevan pulso (se guarda en caché: las rutas pueden tener miles de puntos)
+        const hrCovCache = new Map();
+        function hrCoverage(r) {
+            if (!r.points || !r.points.length) return 0;
+            const key = r.id + ':' + r.points.length;
+            if (!hrCovCache.has(key)) {
+                let n = 0;
+                for (const p of r.points) if (p[4] != null) n++;
+                hrCovCache.set(key, n / r.points.length);
+            }
+            return hrCovCache.get(key);
+        }
+
+        // Keytel et al. (2005): kcal/min a partir del pulso, peso, edad y sexo
+        function keytelKcalPerMin(hr, w, age, sex) {
+            const k = sex === 'm'
+                ? (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age)
+                : (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * age);
+            return k / 4.184;
+        }
+
+        // 1) Estimación por esfuerzo y desnivel (MET). 2) Si hay pulso, edad y sexo, el pulso la ajusta entre ×0,75 y ×1,25.
+        function estimateKcalDetail(r) {
+            const w = getWeightKg();
+            if (!w || r.kind === 'imported' || !r.movingTimeSec || r.movingTimeSec < 60 || !r.distanceKm) return null;
+            const hours = r.movingTimeSec / 3600;
+            const kmh = r.distanceKm / hours;
+            const climb = (r.elevationGain || 0) / r.distanceKm;           // metros de subida por km
+            const f = Math.max(0, Math.min(1, (climb - 10) / 30));          // 0 = llano, 1 = muy montañosa
+            const mtb = 8.5 + f * (14.0 - 8.5);                             // entre «MTB general» y «cuesta arriba»
+            const met = Math.max(mtb, metBySpeed(kmh));                     // en pista rápida manda la velocidad
+            const kcalMet = met * w * hours;
+
+            let kcal = kcalMet, usedHr = false;
+            const age = getAge(), sex = getSex();
+            if (r.hrAvg >= 80 && age && sex && hrCoverage(r) >= 0.5) {
+                const rate = keytelKcalPerMin(r.hrAvg, w, age, sex);
+                if (rate > 0) {
+                    const kcalHr = rate * (r.movingTimeSec / 60);
+                    kcal = kcalMet * Math.max(0.75, Math.min(1.25, kcalHr / kcalMet));
+                    usedHr = true;
+                }
+            }
+            return { kcal: Math.round(kcal), usedHr };
+        }
+
+        function estimateKcal(r) {
+            const d = estimateKcalDetail(r);
+            return d ? d.kcal : null;
+        }
+
+        function initWeight() {
+            const refresh = () => { renderSavedRoutes(); refreshStats(); };
+            const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
+
+            const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
+            const w = getWeightKg(), a = getAge(), sx = getSex();
+            if (w) wIn.value = w;
+            if (a) aIn.value = a;
+            if (sx) sIn.value = sx;
+
+            wIn.addEventListener('change', () => {
+                const v = parseFloat(String(wIn.value).replace(',', '.'));
+                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
+                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
+                refresh();
+            });
+            aIn.addEventListener('change', () => {
+                const v = parseInt(aIn.value, 10);
+                if (v >= 14 && v <= 90) save('mtb_age', v);
+                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
+                refresh();
+            });
+            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
+        }
+
         function startOfWeek(d) {
             const x = new Date(d);
             x.setHours(0, 0, 0, 0);
@@ -1619,15 +1751,20 @@
 
         function refreshStats() {
             const now = new Date();
-            const weekly = statsPeriod === 'semanal';
-            const from = weekly ? startOfWeek(now) : new Date(now.getFullYear(), now.getMonth(), 1);
+            let from, when;
+            if (statsPeriod === 'semanal') { from = startOfWeek(now); when = 'esta semana'; }
+            else if (statsPeriod === 'mensual') { from = new Date(now.getFullYear(), now.getMonth(), 1); when = 'este mes'; }
+            else { from = new Date(now.getFullYear(), 0, 1); when = 'este año'; }
             const rides = savedRoutes.filter(r => r.kind !== 'imported' && new Date(r.startedAt) >= from);
 
             const km = rides.reduce((a, r) => a + r.distanceKm, 0);
             const sec = rides.reduce((a, r) => a + (r.movingTimeSec || 0), 0);
             const gain = rides.reduce((a, r) => a + (r.elevationGain || 0), 0);
 
-            const when = weekly ? 'esta semana' : 'este mes';
+            const kcal = rides.reduce((a, r) => a + (estimateKcal(r) || 0), 0);
+            $('st-kcal').textContent = getWeightKg() ? kcal.toLocaleString('es-ES') + ' kcal' : 'Indica tu peso';
+            $('st-kcal-lbl').textContent = 'Calorías estimadas ' + when;
+            $('st-vel').textContent = (sec > 0 ? km / (sec / 3600) : 0).toFixed(1) + ' km/h';
             $('st-dist').textContent = km.toFixed(1) + ' km';
             $('st-time').textContent = fmtDur(sec);
             $('st-desnivel').textContent = '+' + Math.round(gain) + ' m';
@@ -1636,16 +1773,20 @@
             $('st-time-lbl').textContent = 'Tiempo ' + when;
 
             let labels, buckets;
-            if (weekly) {
+            if (statsPeriod === 'semanal') {
                 labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                 buckets = Array(7).fill(0);
                 rides.forEach(r => { buckets[(new Date(r.startedAt).getDay() + 6) % 7] += r.distanceKm; });
-            } else {
+            } else if (statsPeriod === 'mensual') {
                 const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
                 const n = Math.ceil(days / 7);
                 labels = Array.from({ length: n }, (_, i) => 'S' + (i + 1));
                 buckets = Array(n).fill(0);
                 rides.forEach(r => { buckets[Math.floor((new Date(r.startedAt).getDate() - 1) / 7)] += r.distanceKm; });
+            } else {
+                labels = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+                buckets = Array(12).fill(0);
+                rides.forEach(r => { buckets[new Date(r.startedAt).getMonth()] += r.distanceKm; });
             }
             if (statsChart) {
                 statsChart.data.labels = labels;
@@ -2309,6 +2450,7 @@
             refreshStats();
             showProfile(savedRoutes[0] || null);
             initAccount();
+            initWeight();
             syncRoutes();
             startGps();
             await maybeRestoreDraft();
