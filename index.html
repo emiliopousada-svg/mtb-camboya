@@ -1735,7 +1735,102 @@
             reconnectHr(e.target);
         }
 
+        // ---- Pulsómetro Bluetooth nativo (solo dentro del APK) ----
+        const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        let nativeBleLoading = null, nativeHrId = null, nativeHrConnected = false, nativeHrManual = false;
+
+        function loadNativeBle() {
+            if (window.MtbBle) return Promise.resolve(window.MtbBle);
+            if (!nativeBleLoading) {
+                nativeBleLoading = new Promise((res, rej) => {
+                    const sc = document.createElement('script');
+                    sc.src = 'lib/ble.js';
+                    sc.onload = () => window.MtbBle ? res(window.MtbBle) : rej(new Error('Falta el módulo Bluetooth'));
+                    sc.onerror = () => { nativeBleLoading = null; rej(new Error('No se pudo cargar el módulo Bluetooth')); };
+                    document.head.appendChild(sc);
+                });
+            }
+            return nativeBleLoading;
+        }
+
+        function setHrConnected(on) {
+            btnBle.classList.toggle('connected', on);
+            if (!on) { $('m-hr').textContent = '--'; currentHr = null; }
+        }
+
+        async function nativeHrConnect(id, name) {
+            const ble = await loadNativeBle();
+            await ble.connect(id, bpm => { currentHr = bpm; $('m-hr').textContent = bpm; }, () => onNativeHrDisconnected(id));
+            nativeHrId = id;
+            nativeHrConnected = true;
+            setHrConnected(true);
+            if (name !== undefined) {
+                try { localStorage.setItem('mtb_hr_device', JSON.stringify({ id, name: name || '' })); } catch (e) {}
+            }
+        }
+
+        function onNativeHrDisconnected(id) {
+            nativeHrConnected = false;
+            setHrConnected(false);
+            if (nativeHrManual || nativeHrId !== id) return;
+            toast('⚠️ Pulsómetro desconectado, reconectando…');
+            nativeHrReconnect(id);
+        }
+
+        async function nativeHrReconnect(id) {
+            for (let i = 0; i < 8; i++) {
+                await sleep(4000);
+                if (nativeHrManual || nativeHrId !== id || nativeHrConnected) return;
+                try { await nativeHrConnect(id); toast('❤️ Pulsómetro reconectado'); return; } catch (e) {}
+            }
+            toast('⚠️ No se pudo reconectar el pulsómetro. Pulsa 📶 para conectarlo de nuevo.', 6000);
+        }
+
+        async function nativeHrToggle() {
+            if (nativeHrConnected) { // un segundo toque lo desconecta
+                nativeHrManual = true;
+                try { await (await loadNativeBle()).disconnect(nativeHrId); } catch (e) {}
+                nativeHrConnected = false;
+                nativeHrId = null;
+                setHrConnected(false);
+                toast('Pulsómetro desconectado');
+                return;
+            }
+            btnBle.style.opacity = '0.5';
+            nativeHrManual = false;
+            try {
+                const ble = await loadNativeBle();
+                await ble.init(); // pide los permisos de Bluetooth la primera vez
+                if (!(await ble.isEnabled())) { toast('Activa el Bluetooth del móvil', 5000); return; }
+
+                // 1) intentar con el último pulsómetro usado
+                let saved = null;
+                try { saved = JSON.parse(localStorage.getItem('mtb_hr_device')); } catch (e) {}
+                if (saved && saved.id) {
+                    try {
+                        toast(`Conectando con ${saved.name || 'el último pulsómetro'}…`);
+                        await nativeHrConnect(saved.id, saved.name);
+                        toast('✅ Pulsómetro conectado');
+                        return;
+                    } catch (e) { console.warn('Último pulsómetro no disponible:', e); }
+                }
+
+                // 2) elegir de la lista de dispositivos cercanos
+                const dev = await ble.pick();
+                await nativeHrConnect(dev.deviceId, dev.name);
+                toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
+            } catch (err) {
+                console.warn('Bluetooth nativo:', err);
+                const msg = String((err && (err.message || err)) || '');
+                if (!/cancel|no device|not found|notfound/i.test(msg)) toast('No se pudo conectar el pulsómetro: ' + msg, 6000);
+            } finally {
+                btnBle.style.opacity = '1';
+            }
+        }
+
         btnBle.addEventListener('click', async () => {
+            if (isNativeApp()) { nativeHrToggle(); return; }
             if (!navigator.bluetooth) {
                 toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
                 return;

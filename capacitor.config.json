@@ -2,9 +2,21 @@
   "appId": "com.mtbcamboya.app",
   "appName": "MTB CAMBOYA",
   "webDir": "www",
-  "server": { "androidScheme": "https" },
+  "server": {
+    "androidScheme": "https"
+  },
   "android": {
     "backgroundColor": "#121212",
     "useLegacyBridge": true
+  },
+  "plugins": {
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Buscando pulsómetros…",
+        "cancel": "Cancelar",
+        "availableDevices": "Pulsómetros disponibles",
+        "noDeviceFound": "No se ha encontrado ningún pulsómetro"
+      }
+    }
   }
 }
