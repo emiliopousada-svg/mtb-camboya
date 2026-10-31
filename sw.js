@@ -1,4 +1,7 @@
-const SHELL = 'mtb-shell-v3';
+// Service Worker de MTB CAMBOYA
+// - Guarda la app y las librerías para que abra sin conexión.
+// - Guarda las teselas del mapa que ya has visto (no descarga zonas enteras).
+const SHELL = 'mtb-shell-v2';
 const TILES = 'mtb-tiles-v1';
 const MAX_TILES = 2000;
 
@@ -6,7 +9,6 @@ const SHELL_URLS = [
   './',
   'index.html',
   'manifest.json',
-  'estrella-galicia.svg',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js'
@@ -45,6 +47,7 @@ async function tileCacheFirst(req) {
   const hit = await cache.match(req.url);
   if (hit) return hit;
   try {
+    // Con CORS podemos guardar la respuesta real (las "opacas" ocupan muchísima cuota)
     const res = await fetch(req.url, { mode: 'cors' });
     if (res.ok) {
       cache.put(req.url, res.clone());

@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>MTB CAMBOYA</title>
+    <!-- Enlace al manifiesto PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2e7d32">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Chart.js (versión fijada) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 
     <style>
@@ -25,7 +28,14 @@
             --danger: #d32f2f;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         html, body {
             width: 100%;
             height: 100%;
@@ -34,9 +44,10 @@
             background-color: var(--bg);
             color: var(--text);
             padding-bottom: env(safe-area-inset-bottom, 0px);
-            touch-action: manipulation;
+            touch-action: manipulation; /* sin zoom por doble toque, pero se permite pellizcar */
         }
 
+        /* Contenedor Horizontal de Páginas */
         .swiper-wrapper {
             display: flex;
             width: 400vw;
@@ -66,6 +77,7 @@
             background: #1a1a1a;
         }
 
+        /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
             top: 12px;
@@ -79,13 +91,20 @@
             grid-template-columns: repeat(5, 1fr);
             gap: 2px;
             z-index: 1000;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
-        .m-box { text-align: center; cursor: pointer; border-radius: 10px; padding: 2px 0; transition: background 0.15s ease; }
+        .m-box {
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            padding: 2px 0;
+            transition: background 0.15s ease;
+        }
         .m-box.active { background: rgba(255, 152, 0, 0.2); }
 
+        /* Vista ampliada tipo ciclocomputador */
         #big-metric {
             display: none;
             position: absolute;
@@ -102,7 +121,12 @@
             cursor: pointer;
         }
         #big-metric.show { display: flex; }
-        #big-label { font-size: 1rem; letter-spacing: 3px; text-transform: uppercase; color: var(--text-secondary); }
+        #big-label {
+            font-size: 1rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
         #big-gauge { display: none; width: min(86vw, 420px); margin-top: 6px; }
         #big-gauge.show { display: block; }
         #big-value {
@@ -115,11 +139,31 @@
         }
         #big-value.long { font-size: min(19vw, 14vh); }
         #big-unit { font-size: 1.6rem; color: var(--text-secondary); margin-top: 8px; min-height: 1.6rem; }
-        #big-hint { position: absolute; left: 0; right: 0; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); font-size: 0.72rem; color: #666; }
+        #big-hint {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+            font-size: 0.72rem;
+            color: #666;
+        }
 
-        .m-val { font-size: 1.1rem; font-weight: 800; color: #fff; line-height: 1.1; }
-        .m-lbl { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+        .m-val {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.1;
+        }
 
+        .m-lbl {
+            font-size: 0.55rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        /* Controles Flotantes del Mapa */
         .controls-overlay {
             position: absolute;
             bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -133,6 +177,7 @@
             padding: 0 16px;
             pointer-events: none;
         }
+
         .controls-overlay > * { pointer-events: auto; }
 
         .btn-main-action {
@@ -150,6 +195,7 @@
             box-shadow: 0 6px 16px rgba(0,0,0,0.5);
             cursor: pointer;
         }
+
         .btn-main-action.recording { background: var(--accent); }
 
         .btn-icon-only {
@@ -166,26 +212,25 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             cursor: pointer;
         }
-        .btn-icon-only.connected { border-color: #81c784; background: rgba(46, 125, 50, 0.8); }
-        .btn-icon-only.active { border-color: #29b6f6; background: rgba(2, 119, 189, 0.85); }
 
-        .btn-danger-stop { background: var(--danger) !important; border: none !important; display: none; }
-
-        .side-controls {
-            position: absolute;
-            left: 10px;
-            top: calc(env(safe-area-inset-top, 0px) + 96px);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 1000;
+        .btn-icon-only.connected {
+            border-color: #81c784;
+            background: rgba(46, 125, 50, 0.8);
         }
-        #page-map.metric-open .side-controls { display: none; }
 
-        .btn-logo { width: 34px; height: auto; display: block; }
-        .poi-icon { font-size: 22px; line-height: 30px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
-        .poi-bar-img { width: 40px; height: auto; display: block; }
+        /* Botón de centrar: azul cuando el mapa te sigue */
+        .btn-icon-only.active {
+            border-color: #29b6f6;
+            background: rgba(2, 119, 189, 0.85);
+        }
 
+        .btn-danger-stop {
+            background: var(--danger) !important;
+            border: none !important;
+            display: none;
+        }
+
+        /* Paneles de Contenido Secundarios */
         .content-panel {
             padding: 20px 16px 80px 16px;
             display: flex;
@@ -261,10 +306,11 @@
             font-size: 0.95rem;
             margin-top: 8px;
         }
+
         .btn.secondary { background: #444; }
         .btn:disabled { opacity: 0.5; }
 
-        input[type="file"], input[type="text"], input[type="password"], input[type="number"], select {
+        input[type="file"], input[type="text"], input[type="password"] {
             width: 100%;
             padding: 12px;
             border-radius: 10px;
@@ -274,7 +320,12 @@
             margin-top: 8px;
         }
 
-        .stat-box { background: #121212; padding: 12px; border-radius: 10px; text-align: center; }
+        .stat-box {
+            background: #121212;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+        }
         .stat-box .v { font-size: 1.4rem; font-weight: bold; }
         .stat-box .l { font-size: 0.68rem; color: var(--text-secondary); }
 
@@ -319,6 +370,7 @@
         .btn-small.secondary { background: #3a3a3a; }
         .btn-small.danger { background: #5a2020; }
 
+        /* Navegación Inferior */
         nav {
             height: calc(60px + env(safe-area-inset-bottom, 0px));
             padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -350,6 +402,7 @@
         .nav-btn.active { color: #81c784; font-weight: bold; }
         .nav-btn .icon { font-size: 1.3rem; }
 
+        /* Avisos (toast) y diálogos */
         #toast {
             position: fixed;
             top: calc(env(safe-area-inset-top, 0px) + 84px);
@@ -400,14 +453,33 @@
     </style>
 </head>
 <body>
+
+    <!-- CONTENEDOR DESLIZABLE DE PÁGINAS -->
     <div class="swiper-wrapper" id="swiper">
+
+        <!-- PÁGINA 1: MAPA Y CONTROLES DIRECTOS -->
         <div class="page" id="page-map">
             <div class="metrics-bar">
-                <div class="m-box" data-metric="speed" role="button"><div class="m-val" id="m-speed">0.0</div><div class="m-lbl">KM/H</div></div>
-                <div class="m-box" data-metric="dist" role="button"><div class="m-val" id="m-dist">0.00</div><div class="m-lbl">DISTANCIA</div></div>
-                <div class="m-box" data-metric="elev" role="button"><div class="m-val" id="m-elevation">0</div><div class="m-lbl">Desnivel</div></div>
-                <div class="m-box" data-metric="hr" role="button"><div class="m-val" id="m-hr" style="color: #ef5350;">--</div><div class="m-lbl">BPM</div></div>
-                <div class="m-box" data-metric="time" role="button"><div class="m-val" id="m-time">00:00</div><div class="m-lbl">TIEMPO</div></div>
+                <div class="m-box" data-metric="speed" role="button">
+                    <div class="m-val" id="m-speed">0.0</div>
+                    <div class="m-lbl">KM/H</div>
+                </div>
+                <div class="m-box" data-metric="dist" role="button">
+                    <div class="m-val" id="m-dist">0.00</div>
+                    <div class="m-lbl">DISTANCIA</div>
+                </div>
+                <div class="m-box" data-metric="elev" role="button">
+                    <div class="m-val" id="m-elevation">0</div>
+                    <div class="m-lbl">Desnivel</div>
+                </div>
+                <div class="m-box" data-metric="hr" role="button">
+                    <div class="m-val" id="m-hr" style="color: #ef5350;">--</div>
+                    <div class="m-lbl">BPM</div>
+                </div>
+                <div class="m-box" data-metric="time" role="button">
+                    <div class="m-val" id="m-time">00:00</div>
+                    <div class="m-lbl">TIEMPO</div>
+                </div>
             </div>
 
             <div id="map"></div>
@@ -416,20 +488,14 @@
                 <div id="big-label"></div>
                 <svg id="big-gauge" viewBox="0 0 220 125" aria-hidden="true">
                     <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round"/>
-                    <path id="gauge-arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#ff9800" stroke-width="14" stroke-dasharray="282.74" stroke-dashoffset="282.74" style="transition: stroke-dashoffset 0.4s ease;"/>
+                    <path id="gauge-arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#ff9800" stroke-width="14"
+                          stroke-dasharray="282.74" stroke-dashoffset="282.74" style="transition: stroke-dashoffset 0.4s ease;"/>
                     <text x="20" y="124" fill="#777" font-size="10" text-anchor="middle">0</text>
                     <text id="gauge-max" x="200" y="124" fill="#777" font-size="10" text-anchor="middle">50</text>
                 </svg>
                 <div id="big-value">0.0</div>
                 <div id="big-unit"></div>
                 <div id="big-hint">Toca para volver</div>
-            </div>
-
-            <div class="side-controls">
-                <button class="btn-icon-only" id="btn-poi-fountain" title="Marcar fuente de agua aquí">🚰</button>
-                <button class="btn-icon-only" id="btn-poi-bar" title="Marcar parada en un bar">
-                    <img src="estrella-galicia.svg" alt="Parada en un bar" class="btn-logo">
-                </button>
             </div>
 
             <div class="controls-overlay">
@@ -442,6 +508,7 @@
             </div>
         </div>
 
+        <!-- PÁGINA 2: ESTADÍSTICAS -->
         <div class="page content-panel">
             <div class="card">
                 <div class="card-header">
@@ -452,12 +519,24 @@
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
-                    <div class="stat-box"><div class="v" style="color:var(--primary);" id="st-dist">0.0 km</div><div class="l" id="st-dist-lbl">Distancia esta semana</div></div>
-                    <div class="stat-box"><div class="v" style="color:var(--accent);" id="st-time">0h 0m</div><div class="l" id="st-time-lbl">Tiempo esta semana</div></div>
+                    <div class="stat-box">
+                        <div class="v" style="color:var(--primary);" id="st-dist">0.0 km</div>
+                        <div class="l" id="st-dist-lbl">Distancia esta semana</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="v" style="color:var(--accent);" id="st-time">0h 0m</div>
+                        <div class="l" id="st-time-lbl">Tiempo esta semana</div>
+                    </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="stat-box"><div class="v" style="color:#64b5f6;" id="st-desnivel">+0 m</div><div class="l">Desnivel positivo</div></div>
-                    <div class="stat-box"><div class="v" style="color:#e57373;" id="st-rutas">0 salidas</div><div class="l">Salidas realizadas</div></div>
+                    <div class="stat-box">
+                        <div class="v" style="color:#64b5f6;" id="st-desnivel">+0 m</div>
+                        <div class="l">Desnivel positivo</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="v" style="color:#e57373;" id="st-rutas">0 salidas</div>
+                        <div class="l">Salidas realizadas</div>
+                    </div>
                 </div>
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
             </div>
@@ -483,6 +562,7 @@
             </div>
         </div>
 
+        <!-- PÁGINA 3: AMIGOS EN LIVE -->
         <div class="page content-panel">
             <div class="card">
                 <h2>☁️ Cuenta y sincronización</h2>
@@ -502,19 +582,23 @@
 
             <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
-                <p class="hint">Unirse a un pelotón para ver a tus compañeros en el mapa en vivo. Próximamente: necesita un servidor.</p>
-                <input type="text" id="group-code" value="MTB-CAMBOYA-GRUPO" placeholder="Código de Grupo">
+                <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
+                <input type="text" id="group-code" placeholder="Código de grupo asignado">
                 <button class="btn" id="btn-join">Unirse al Grupo</button>
+                <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
             </div>
 
             <div class="card">
                 <h2>🚴‍♂️ Compañeros Cerca</h2>
                 <div id="friends-list">
-                    <p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding:10px 0;">No hay compañeros cerca o no te has unido a un grupo activo.</p>
+                    <p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding:10px 0;">
+                        No hay compañeros cerca o no te has unido a un grupo activo.
+                    </p>
                 </div>
             </div>
         </div>
 
+        <!-- PÁGINA 4: RUTAS REALIZADAS Y TRACKS -->
         <div class="page content-panel">
             <div class="card">
                 <h2>🗺️ Mis Rutas Guardadas</h2>
@@ -530,19 +614,31 @@
             </div>
 
             <div class="card">
-                <h2>📍 Fuentes y paradas</h2>
-                <p class="hint">También puedes marcarlas con los iconos de la izquierda del mapa.</p>
-                <button class="btn" id="btn-fountain">🚰 Marcar fuente aquí</button>
-                <button class="btn secondary" id="btn-bar">🍺 Marcar parada en un bar</button>
+                <h2>🚰 Fuentes de Agua</h2>
+                <button class="btn" id="btn-fountain">📍 Marcar Fuente Aquí</button>
             </div>
         </div>
+
     </div>
 
+    <!-- NAVEGACIÓN DE PESTAÑAS INFERIOR -->
     <nav>
-        <button class="nav-btn active" onclick="goToPage(0)"><span class="icon">🗺️</span><span>Mapa</span></button>
-        <button class="nav-btn" onclick="goToPage(1)"><span class="icon">📊</span><span>Stats</span></button>
-        <button class="nav-btn" onclick="goToPage(2)"><span class="icon">👥</span><span>Amigos</span></button>
-        <button class="nav-btn" onclick="goToPage(3)"><span class="icon">📂</span><span>Rutas</span></button>
+        <button class="nav-btn active" onclick="goToPage(0)">
+            <span class="icon">🗺️</span>
+            <span>Mapa</span>
+        </button>
+        <button class="nav-btn" onclick="goToPage(1)">
+            <span class="icon">📊</span>
+            <span>Stats</span>
+        </button>
+        <button class="nav-btn" onclick="goToPage(2)">
+            <span class="icon">👥</span>
+            <span>Amigos</span>
+        </button>
+        <button class="nav-btn" onclick="goToPage(3)">
+            <span class="icon">📂</span>
+            <span>Rutas</span>
+        </button>
     </nav>
 
     <div id="toast" role="status" aria-live="polite"></div>
@@ -558,20 +654,27 @@
         </div>
     </div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         'use strict';
 
-        const MIN_STEP_M = 4;
-        const MAX_ACC_M = 30;
-        const MAX_SPEED_MS = 25;
-        const ELEV_STEP = 3;
-        const OFFROUTE_M = 60;
-        const BACKONROUTE_M = 30;
+        // ============================================================
+        //  CONFIGURACIÓN
+        // ============================================================
+        const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
+        const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
+        const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
+        const ELEV_STEP = 3;         // metros mínimos para contar una subida
+        const OFFROUTE_M = 60;       // aviso de desvío
+        const BACKONROUTE_M = 30;    // se considera que has vuelto a la ruta
 
+        // ============================================================
+        //  UTILIDADES
+        // ============================================================
         const $ = id => document.getElementById(id);
 
-        function dist(a, b) {
+        function dist(a, b) { // metros entre [lat, lon] y [lat, lon]
             const R = 6371000, r = Math.PI / 180;
             const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
             const s = Math.sin(dLat / 2) ** 2 +
@@ -603,6 +706,7 @@
             toastTimer = setTimeout(() => t.classList.remove('show'), ms);
         }
 
+        // Diálogo propio (sustituye a confirm/prompt). Con `input` devuelve texto o null.
         function modal({ message, input = null, ok = 'Aceptar', cancel = 'Cancelar' }) {
             return new Promise(resolve => {
                 const m = $('modal'), inp = $('modal-input'), bOk = $('modal-ok'), bCancel = $('modal-cancel');
@@ -626,6 +730,7 @@
         }
 
         async function download(name, text, mime) {
+            // Dentro del APK (Capacitor) las descargas por enlace no funcionan: se comparte el archivo
             const cap = window.Capacitor;
             if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem && cap.Plugins.Share) {
                 try {
@@ -647,11 +752,14 @@
             setTimeout(() => URL.revokeObjectURL(url), 2000);
         }
 
+        // ============================================================
+        //  ALMACENAMIENTO (IndexedDB)
+        // ============================================================
         const DB = {
             db: null,
             open() {
                 return new Promise((res, rej) => {
-                    if (!window.indexedDB) return res();
+                    if (!window.indexedDB) return rej(new Error('no-idb'));
                     const r = indexedDB.open('mtb_app', 1);
                     r.onupgradeneeded = () => {
                         const d = r.result;
@@ -659,7 +767,7 @@
                         d.createObjectStore('kv');
                     };
                     r.onsuccess = () => { this.db = r.result; res(); };
-                    r.onerror = () => { console.warn('IndexedDB no disponible:', r.error); this.db = null; res(); };
+                    r.onerror = () => rej(r.error);
                 });
             },
             run(store, mode, fn) {
@@ -669,36 +777,51 @@
                         const t = this.db.transaction(store, mode);
                         const req = fn(t.objectStore(store));
                         t.oncomplete = () => res(req ? req.result : undefined);
-                        t.onerror = () => rej(t.error || new Error('db-error'));
-                        t.onabort = () => rej(t.error || new Error('db-abort'));
+                        t.onerror = () => rej(t.error);
+                        t.onabort = () => rej(t.error || new Error('abort'));
                     } catch (e) { rej(e); }
                 });
             },
-            all() { return this.run('routes', 'readonly', s => s.getAll()); },
-            put(r) { return this.run('routes', 'readwrite', s => s.put(r)); },
-            del(id) { return this.run('routes', 'readwrite', s => s.delete(id)); },
-            kvGet(k) { return this.run('kv', 'readonly', s => s.get(k)); },
+            all()       { return this.run('routes', 'readonly',  s => s.getAll()); },
+            put(r)      { return this.run('routes', 'readwrite', s => s.put(r)); },
+            del(id)     { return this.run('routes', 'readwrite', s => s.delete(id)); },
+            kvGet(k)    { return this.run('kv', 'readonly',  s => s.get(k)); },
             kvSet(k, v) { return this.run('kv', 'readwrite', s => s.put(v, k)); },
-            kvDel(k) { return this.run('kv', 'readwrite', s => s.delete(k)); }
+            kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); }
         };
 
-        function makeElevTracker() {
-            const buf = [];
-            let ref = null, gain = 0;
+        /*
+         Modelo de ruta:
+         { id, kind: 'recorded' | 'imported', name, startedAt (ISO), movingTimeSec,
+           distanceKm (número), elevationGain (m), hrAvg,
+           points: [ [lat, lon, alt|null, tiempoMs|null, bpm|null, (1 = inicio de tramo nuevo)] ] }
+        */
+
+        // ============================================================
+        //  DESNIVEL SUAVIZADO
+        // ============================================================
+        function makeElevTracker(state = null) {
+            const buf = Array.isArray(state && state.buf) ? state.buf.slice(-5) : [];
+            let ref = Number.isFinite(state && state.ref) ? state.ref : null;
+            let gain = Number.isFinite(state && state.gain) ? state.gain : 0;
             return {
                 add(alt) {
                     if (alt == null || isNaN(alt)) return;
                     buf.push(alt);
                     if (buf.length > 5) buf.shift();
-                    const s = buf.reduce((x, y) => x + y, 0) / buf.length;
+                    const s = buf.reduce((x, y) => x + y, 0) / buf.length; // media móvil
                     if (ref === null) { ref = s; return; }
                     if (s - ref >= ELEV_STEP) { gain += s - ref; ref = s; }
                     else if (ref - s >= ELEV_STEP) { ref = s; }
                 },
-                get gain() { return gain; }
+                get gain() { return gain; },
+                snapshot() { return { buf: buf.slice(), ref, gain }; }
             };
         }
 
+        // ============================================================
+        //  NAVEGACIÓN ENTRE PÁGINAS
+        // ============================================================
         let currentPage = 0;
         const swiper = $('swiper');
         const navBtns = document.querySelectorAll('.nav-btn');
@@ -710,6 +833,7 @@
             if (index === 0 && map) setTimeout(() => map.invalidateSize(), 150);
         }
 
+        // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)
         let touchStartX = 0, touchStartY = 0, swipeBlocked = false;
 
         document.addEventListener('touchstart', e => {
@@ -729,12 +853,15 @@
             }
         }, { passive: true });
 
+        // ============================================================
+        //  ESTADO GLOBAL
+        // ============================================================
         let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null;
         let isRecording = false, isPaused = false;
         let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
-        let lastLat = null, lastLon = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -744,12 +871,14 @@
         const btnStart = $('btn-start'), btnStop = $('btn-stop');
         const lblStart = $('lbl-start'), icoStart = $('ico-start');
 
+        // ============================================================
+        //  MAPA
+        // ============================================================
         function initMap() {
             if (typeof L === 'undefined') {
                 $('map').innerHTML = '<div style="padding:90px 24px; text-align:center; color:#b0b0b0;">No se pudo cargar el mapa (sin conexión y sin copia guardada). Puedes seguir grabando; el track se guarda igualmente.</div>';
                 return;
             }
-
             let center = [40.4168, -3.7038];
             try {
                 const lp = JSON.parse(localStorage.getItem('mtb_last_pos'));
@@ -759,9 +888,15 @@
             map = L.map('map', { zoomControl: false }).setView(center, 15);
             window.map = map;
 
-            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Map data: © OpenStreetMap contributors | Map style: © OpenTopoMap' }).addTo(map);
+            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                maxZoom: 17,
+                attribution: 'Map data: © OpenStreetMap contributors | Map style: © OpenTopoMap'
+            }).addTo(map);
+
             routePolyline = L.polyline([], { color: '#ff9800', weight: 5 }).addTo(map);
             savedRouteLayer = L.polyline([], { color: '#29b6f6', weight: 4, dashArray: '5, 5' }).addTo(map);
+
+            // Al arrastrar el mapa se desactiva el seguimiento automático
             map.on('dragstart', () => { following = false; updateCenterBtn(); });
             setTimeout(() => map.invalidateSize(), 300);
         }
@@ -777,6 +912,9 @@
             if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
         });
 
+        // ============================================================
+        //  GPS
+        // ============================================================
         function startGps() {
             if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
             navigator.geolocation.watchPosition(pos => { if (!bgActive) onPos(pos); }, err => {
@@ -790,6 +928,7 @@
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
+            lastAccuracy = accuracy;
 
             if (Date.now() - lastPosSave > 15000) {
                 lastPosSave = Date.now();
@@ -805,6 +944,7 @@
                 if (!firstFix) { firstFix = true; map.setView(ll, 16); }
             }
 
+            // Velocidad (siempre visible; 0 en pausa o casi parado)
             let kmh = (speed != null && !isNaN(speed)) ? speed * 3.6 : 0;
             if (isPaused || kmh < 0.5) kmh = 0;
             $('m-speed').textContent = kmh.toFixed(1);
@@ -812,18 +952,19 @@
             if (!isRecording || isPaused) return;
 
             if (followedRoute) checkOffRoute(lat, lon);
-            if (accuracy > MAX_ACC_M) return;
+            if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
+            publishMyLocation();
 
             const t = pos.timestamp;
             let add = 0, brk = false;
 
             if (!lastAccepted || resumeBreak) {
-                brk = points.length > 0;
+                brk = points.length > 0; // primer punto tras una pausa: nuevo tramo, sin sumar distancia
             } else {
                 const d = dist(lastAccepted.ll, ll);
-                if (d < MIN_STEP_M) return;
+                if (d < MIN_STEP_M) return; // parado o ruido
                 const dt = Math.max((t - lastAccepted.t) / 1000, 0.001);
-                if (d / dt > MAX_SPEED_MS) return;
+                if (d / dt > MAX_SPEED_MS) return; // salto imposible
                 add = d / 1000;
             }
             resumeBreak = false;
@@ -850,9 +991,12 @@
             if (map && following) map.panTo(ll, { animate: true });
         }
 
+        // ============================================================
+        //  CONTROL DE GRABACIÓN
+        // ============================================================
         let wakeLock = null;
         async function acquireWake() {
-            if (bgActive) return;
+            if (bgActive) return; // con GPS en segundo plano no hace falta mantener la pantalla encendida
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
@@ -864,6 +1008,7 @@
             if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
         }
 
+        // ---- GPS en segundo plano (solo dentro del APK) ----
         let bgActive = false, bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
 
         function bgPlugin() {
@@ -872,9 +1017,9 @@
             return (cap.Plugins && cap.Plugins.BackgroundGeolocation) || null;
         }
 
-        async function ensureNotifPermission() {
+        async function ensureNotifPermission() { // Android 13+: para mostrar el aviso "Grabando tu ruta"
             try {
-                const ln = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+                const ln = window.Capacitor.Plugins.LocalNotifications;
                 if (!ln) return;
                 const st = await ln.checkPermissions();
                 if (st.display !== 'granted') await ln.requestPermissions();
@@ -896,7 +1041,7 @@
             const bg = bgPlugin();
             if (!bg || bgActive) return false;
             const my = ++bgToken;
-            bgActive = true;
+            bgActive = true; // desde ya, las posiciones llegan por el plugin y no por el GPS web
             try {
                 await ensureNotifPermission();
                 const id = await bg.addWatcher({
@@ -921,7 +1066,7 @@
                         timestamp: loc.time
                     });
                 });
-                if (my !== bgToken) {
+                if (my !== bgToken) { // se pausó o terminó mientras se activaba
                     try { await bg.removeWatcher({ id }); } catch (e) {}
                     return false;
                 }
@@ -929,10 +1074,7 @@
                 return true;
             } catch (e) {
                 console.warn('No se pudo iniciar el GPS en segundo plano:', e);
-                if (my === bgToken) {
-                    bgActive = false;
-                    bgWatcherId = null;
-                }
+                if (my === bgToken) { bgActive = false; bgWatcherId = null; }
                 return false;
             }
         }
@@ -946,6 +1088,7 @@
             if (bg && id != null) bg.removeWatcher({ id }).catch(() => {});
         }
 
+        // Empieza a recibir posiciones: en segundo plano si se puede; si no, pantalla encendida
         async function beginTracking(showToast) {
             const ok = await startBgWatcher();
             if (ok) {
@@ -960,10 +1103,22 @@
             }
         }
 
-        function elapsedSec() { return Math.floor((movingMs + (segStart ? Date.now() - segStart : 0)) / 1000); }
-        function updateTimerDisplay() { $('m-time').textContent = fmtClock(elapsedSec()); }
-        function startTimers() { updateTimerDisplay(); timerInterval = setInterval(updateTimerDisplay, 1000); draftInterval = setInterval(saveDraft, 10000); }
-        function stopTimers() { clearInterval(timerInterval); clearInterval(draftInterval); timerInterval = draftInterval = null; }
+        function elapsedSec() {
+            return Math.floor((movingMs + (segStart ? Date.now() - segStart : 0)) / 1000);
+        }
+        function updateTimerDisplay() {
+            $('m-time').textContent = fmtClock(elapsedSec());
+        }
+        function startTimers() {
+            updateTimerDisplay();
+            timerInterval = setInterval(updateTimerDisplay, 1000);
+            draftInterval = setInterval(saveDraft, 10000);
+        }
+        function stopTimers() {
+            clearInterval(timerInterval);
+            clearInterval(draftInterval);
+            timerInterval = draftInterval = null;
+        }
 
         function setBtnState(s) {
             btnStart.classList.toggle('recording', s !== 'idle');
@@ -997,6 +1152,7 @@
             startTimers();
             following = true;
             updateCenterBtn();
+            publishMyLocation(true);
             beginTracking(true);
         }
 
@@ -1007,6 +1163,7 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
+            removeMyLiveLocation();
             setBtnState('paused');
             $('m-speed').textContent = '0.0';
             saveDraft();
@@ -1015,9 +1172,10 @@
         function resumeRecording() {
             isPaused = false;
             segStart = Date.now();
-            resumeBreak = true;
+            resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
             setBtnState('recording');
             startTimers();
+            publishMyLocation(true);
             beginTracking(false);
         }
 
@@ -1040,6 +1198,7 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
+            removeMyLiveLocation();
             setBtnState('idle');
             $('m-speed').textContent = '0.0';
             DB.kvDel('draft').catch(() => {});
@@ -1057,22 +1216,31 @@
                     hrAvg: hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null,
                     points
                 };
-                await saveRoute(route);
-                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
+                if (await saveRoute(route)) {
+                    toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
+                }
             } else {
                 toast('La ruta es muy corta y no se ha guardado.');
             }
         }
 
         async function saveRoute(r) {
-            try { await DB.put(r); } catch (e) { console.warn('Error guardando:', e); toast('⚠️ No se pudo guardar en el dispositivo.', 7000); }
+            try {
+                await DB.put(r);
+            } catch (e) {
+                console.warn('Error guardando:', e);
+                toast('⚠️ No se guardó la ruta en el dispositivo. Libera espacio e inténtalo de nuevo.', 7000);
+                return false;
+            }
             savedRoutes.unshift(r);
             renderSavedRoutes();
             refreshStats();
             showProfile(r);
             syncRoutes();
+            return true;
         }
 
+        // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
         function saveDraft() {
             if (!isRecording) return;
             DB.kvSet('draft', {
@@ -1080,8 +1248,8 @@
                 movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
                 totalDistance,
                 points,
-                savedAt: Date.now(),
-                paused: isPaused
+                elevState: elev.snapshot(),
+                savedAt: Date.now()
             }).catch(() => {});
         }
 
@@ -1098,13 +1266,16 @@
             resetRecordingState();
             points = Array.isArray(d.points) ? d.points : [];
             startedAt = d.startedAt || new Date().toISOString();
-            movingMs = Number(d.movingMs) || 0;
-            totalDistance = Number(d.totalDistance) || 0;
-            points.forEach(p => elev.add(p[2]));
+            movingMs = d.movingMs || 0;
+            totalDistance = d.totalDistance || 0;
+            elev = makeElevTracker(d.elevState || null);
+            if (!d.elevState) points.forEach(p => elev.add(p[2]));
+            currentHr = points.length ? points[points.length - 1][4] : null;
             segments = buildSegments(points);
             isRecording = true;
-            isPaused = !!d.paused;
-            setBtnState(isPaused ? 'paused' : 'recording');
+            isPaused = true;
+            resumeBreak = true;
+            setBtnState('paused');
             $('m-dist').textContent = totalDistance.toFixed(2);
             $('m-elevation').textContent = Math.round(elev.gain);
             $('m-time').textContent = fmtClock(Math.floor(movingMs / 1000));
@@ -1137,12 +1308,15 @@
                 if (isRecording) saveDraft();
             } else if (isRecording && !isPaused) {
                 updateTimerDisplay();
-                acquireWake();
+                acquireWake(); // el wake lock se pierde al ocultar la página
             }
         });
         window.addEventListener('pagehide', () => { if (isRecording) saveDraft(); });
 
-        function pointSegDistM(p, a, b) {
+        // ============================================================
+        //  AVISO DE DESVÍO
+        // ============================================================
+        function pointSegDistM(p, a, b) { // metros de p al segmento a-b (proyección local)
             const k = Math.cos(p[0] * Math.PI / 180);
             const ax = (a[1] - p[1]) * k * 111320, ay = (a[0] - p[0]) * 110540;
             const bx = (b[1] - p[1]) * k * 111320, by = (b[0] - p[0]) * 110540;
@@ -1195,6 +1369,9 @@
         }
         $('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
 
+        // ============================================================
+        //  RUTAS GUARDADAS
+        // ============================================================
         function renderSavedRoutes() {
             const c = $('saved-routes-list');
             c.textContent = '';
@@ -1205,7 +1382,6 @@
                 c.appendChild(e);
                 return;
             }
-
             savedRoutes.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'route-item';
@@ -1256,9 +1432,10 @@
             } else if (btn.dataset.act === 'rename') {
                 const name = await modal({ message: 'Nombre de la ruta:', input: r.name, ok: 'Guardar' });
                 if (name && name.trim()) {
+                    const oldName = r.name;
                     r.name = name.trim();
                     if (r.remoteId) r.dirty = true;
-                    try { await DB.put(r); } catch (err) { toast('No se pudo guardar el cambio'); }
+                    try { await DB.put(r); } catch (err) { r.name = oldName; toast('No se pudo guardar el cambio'); return; }
                     renderSavedRoutes();
                     syncRoutes();
                 }
@@ -1268,7 +1445,7 @@
             } else if (btn.dataset.act === 'del') {
                 const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
                 if (!ok) return;
-                try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); }
+                try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); return; }
                 if (r.remoteId) await queueRemoteDelete(r.remoteId);
                 savedRoutes = savedRoutes.filter(x => x.id !== id);
                 if (followedRoute && followedRoute.id === id) unfollowRoute();
@@ -1279,6 +1456,9 @@
             }
         });
 
+        // ============================================================
+        //  EXPORTAR / IMPORTAR GPX, KML, GEOJSON
+        // ============================================================
         function routeToGpx(r) {
             const out = [
                 '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1302,12 +1482,13 @@
             return out.join('\n');
         }
 
+        // Devuelve { name, segs: [ [ [lat, lon, alt|null, tMs|null], ... ], ... ] }
         function parseTrack(text, fname) {
             let name = fname.replace(/\.[^.]+$/, '');
             const segs = [];
             const trimmed = text.trim();
 
-            if (trimmed.startsWith('{')) {
+            if (trimmed.startsWith('{')) { // GeoJSON
                 const geoms = [];
                 (function walk(o) {
                     if (!o) return;
@@ -1327,7 +1508,7 @@
                 const doc = new DOMParser().parseFromString(trimmed, 'application/xml');
                 if (doc.getElementsByTagName('parsererror').length) throw new Error('el archivo no es un XML válido');
 
-                if (/<kml[\s>]/i.test(trimmed)) {
+                if (/<kml[\s>]/i.test(trimmed)) { // KML
                     const n = doc.getElementsByTagName('name')[0];
                     if (n && n.textContent.trim()) name = n.textContent.trim();
                     Array.from(doc.getElementsByTagName('LineString')).forEach(ls => {
@@ -1338,12 +1519,11 @@
                             return [lat, lon, Number.isFinite(alt) && alt !== 0 ? alt : null, null];
                         }));
                     });
-                } else {
+                } else { // GPX
                     const n = doc.getElementsByTagName('trk')[0]
                         ? doc.getElementsByTagName('trk')[0].getElementsByTagName('name')[0]
                         : doc.getElementsByTagName('name')[0];
                     if (n && n.textContent.trim()) name = n.textContent.trim();
-
                     const readPt = e => {
                         const ele = e.getElementsByTagName('ele')[0];
                         const tm = e.getElementsByTagName('time')[0];
@@ -1353,7 +1533,6 @@
                             tm ? Date.parse(tm.textContent) : null
                         ];
                     };
-
                     const trksegs = Array.from(doc.getElementsByTagName('trkseg'));
                     if (trksegs.length) {
                         trksegs.forEach(s => segs.push(Array.from(s.getElementsByTagName('trkpt')).map(readPt)));
@@ -1387,11 +1566,10 @@
             if (full.length < 2) throw new Error('no contiene ningún track válido');
 
             let stored = full;
-            if (full.length > 20000) {
+            if (full.length > 20000) { // evita guardar tracks gigantes
                 const k = Math.ceil(full.length / 20000);
                 stored = full.filter((p, i) => i % k === 0 || p[5] === 1 || i === full.length - 1);
             }
-
             return {
                 id: Date.now(),
                 kind: 'imported',
@@ -1410,8 +1588,7 @@
             if (!f) { toast('Elige primero un archivo GPX, KML o GeoJSON'); return; }
             try {
                 const route = buildImportedRoute(parseTrack(await f.text(), f.name));
-                await saveRoute(route);
-                followRoute(route);
+                if (await saveRoute(route)) followRoute(route);
                 $('gpx-input').value = '';
             } catch (err) {
                 console.warn(err);
@@ -1419,24 +1596,27 @@
             }
         });
 
+        // ============================================================
+        //  ESTADÍSTICAS Y GRÁFICAS
+        // ============================================================
         function startOfWeek(d) {
             const x = new Date(d);
             x.setHours(0, 0, 0, 0);
-            x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+            x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // lunes
             return x;
         }
 
         function refreshStats() {
             const now = new Date();
-            let from, when;
-            if (statsPeriod === 'semanal') { from = startOfWeek(now); when = 'esta semana'; }
-            else { from = new Date(now.getFullYear(), now.getMonth(), 1); when = 'este mes'; }
-
+            const weekly = statsPeriod === 'semanal';
+            const from = weekly ? startOfWeek(now) : new Date(now.getFullYear(), now.getMonth(), 1);
             const rides = savedRoutes.filter(r => r.kind !== 'imported' && new Date(r.startedAt) >= from);
+
             const km = rides.reduce((a, r) => a + r.distanceKm, 0);
             const sec = rides.reduce((a, r) => a + (r.movingTimeSec || 0), 0);
             const gain = rides.reduce((a, r) => a + (r.elevationGain || 0), 0);
 
+            const when = weekly ? 'esta semana' : 'este mes';
             $('st-dist').textContent = km.toFixed(1) + ' km';
             $('st-time').textContent = fmtDur(sec);
             $('st-desnivel').textContent = '+' + Math.round(gain) + ' m';
@@ -1445,7 +1625,7 @@
             $('st-time-lbl').textContent = 'Tiempo ' + when;
 
             let labels, buckets;
-            if (statsPeriod === 'semanal') {
+            if (weekly) {
                 labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                 buckets = Array(7).fill(0);
                 rides.forEach(r => { buckets[(new Date(r.startedAt).getDay() + 6) % 7] += r.distanceKm; });
@@ -1456,7 +1636,6 @@
                 buckets = Array(n).fill(0);
                 rides.forEach(r => { buckets[Math.floor((new Date(r.startedAt).getDate() - 1) / 7)] += r.distanceKm; });
             }
-
             if (statsChart) {
                 statsChart.data.labels = labels;
                 statsChart.data.datasets[0].data = buckets.map(v => +v.toFixed(2));
@@ -1501,24 +1680,39 @@
 
             statsChart = new Chart($('statsChart').getContext('2d'), {
                 type: 'bar',
-                data: { labels: [], datasets: [{ label: 'km', data: [], backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1, borderRadius: 4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: true } } }
+                data: { labels: [], datasets: [{
+                    label: 'km', data: [],
+                    backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1, borderRadius: 4
+                }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: axis, y: { ...axis, beginAtZero: true } }
+                }
             });
 
             profileChart = new Chart($('profileChart').getContext('2d'), {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'Altitud (m)', data: [], borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.15)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
+                data: { labels: [], datasets: [{
+                    label: 'Altitud (m)', data: [],
+                    borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.15)',
+                    fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+                }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ...axis, title: { display: true, text: 'km', color: '#b0b0b0', font: { size: 10 } }, ticks: { ...axis.ticks, maxTicksLimit: 6 } },
+                        x: { ...axis, title: { display: true, text: 'km', color: '#b0b0b0', font: { size: 10 } },
+                             ticks: { ...axis.ticks, maxTicksLimit: 6 } },
                         y: axis
                     }
                 }
             });
         }
 
+        // ============================================================
+        //  PULSÓMETRO BLUETOOTH
+        // ============================================================
         let bleDevice = null, bleManual = false;
         const btnBle = $('btn-ble');
 
@@ -1556,104 +1750,12 @@
             reconnectHr(e.target);
         }
 
-        const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-        const sleep = ms => new Promise(r => setTimeout(r, ms));
-        let nativeBleLoading = null, nativeHrId = null, nativeHrConnected = false, nativeHrManual = false;
-
-        function loadNativeBle() {
-            if (window.MtbBle) return Promise.resolve(window.MtbBle);
-            if (!nativeBleLoading) {
-                nativeBleLoading = new Promise((res, rej) => {
-                    const sc = document.createElement('script');
-                    sc.src = 'lib/ble.js';
-                    sc.onload = () => window.MtbBle ? res(window.MtbBle) : rej(new Error('Falta el módulo Bluetooth'));
-                    sc.onerror = () => { nativeBleLoading = null; rej(new Error('No se pudo cargar el módulo Bluetooth')); };
-                    document.head.appendChild(sc);
-                });
-            }
-            return nativeBleLoading;
-        }
-
-        function setHrConnected(on) {
-            btnBle.classList.toggle('connected', on);
-            if (!on) { $('m-hr').textContent = '--'; currentHr = null; }
-        }
-
-        async function nativeHrConnect(id, name) {
-            const ble = await loadNativeBle();
-            await ble.connect(id, bpm => { currentHr = bpm; $('m-hr').textContent = bpm; }, () => onNativeHrDisconnected(id));
-            nativeHrId = id;
-            nativeHrConnected = true;
-            setHrConnected(true);
-            if (name !== undefined) {
-                try { localStorage.setItem('mtb_hr_device', JSON.stringify({ id, name: name || '' })); } catch (e) {}
-            }
-        }
-
-        function onNativeHrDisconnected(id) {
-            nativeHrConnected = false;
-            setHrConnected(false);
-            if (nativeHrManual || nativeHrId !== id) return;
-            toast('⚠️ Pulsómetro desconectado, reconectando…');
-            nativeHrReconnect(id);
-        }
-
-        async function nativeHrReconnect(id) {
-            for (let i = 0; i < 8; i++) {
-                await sleep(4000);
-                if (nativeHrManual || nativeHrId !== id || nativeHrConnected) return;
-                try { await nativeHrConnect(id); toast('❤️ Pulsómetro reconectado'); return; } catch (e) {}
-            }
-            toast('⚠️ No se pudo reconectar el pulsómetro. Pulsa 📶 para conectarlo de nuevo.', 6000);
-        }
-
-        async function nativeHrToggle() {
-            if (nativeHrConnected) {
-                nativeHrManual = true;
-                try { await (await loadNativeBle()).disconnect(nativeHrId); } catch (e) {}
-                nativeHrConnected = false;
-                nativeHrId = null;
-                setHrConnected(false);
-                toast('Pulsómetro desconectado');
-                return;
-            }
-            btnBle.style.opacity = '0.5';
-            nativeHrManual = false;
-            try {
-                const ble = await loadNativeBle();
-                await ble.init();
-                if (!(await ble.isEnabled())) { toast('Activa el Bluetooth del móvil', 5000); return; }
-
-                let saved = null;
-                try { saved = JSON.parse(localStorage.getItem('mtb_hr_device')); } catch (e) {}
-                if (saved && saved.id) {
-                    try {
-                        toast(`Conectando con ${saved.name || 'el último pulsómetro'}…`);
-                        await nativeHrConnect(saved.id, saved.name);
-                        toast('✅ Pulsómetro conectado');
-                        return;
-                    } catch (e) { console.warn('Último pulsómetro no disponible:', e); }
-                }
-
-                const dev = await ble.pick();
-                await nativeHrConnect(dev.deviceId, dev.name);
-                toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
-            } catch (err) {
-                console.warn('Bluetooth nativo:', err);
-                const msg = String((err && (err.message || err)) || '');
-                if (!/cancel|no device|not found|notfound/i.test(msg)) toast('No se pudo conectar el pulsómetro: ' + msg, 6000);
-            } finally {
-                btnBle.style.opacity = '1';
-            }
-        }
-
         btnBle.addEventListener('click', async () => {
-            if (isNativeApp()) { nativeHrToggle(); return; }
             if (!navigator.bluetooth) {
                 toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
                 return;
             }
-            if (bleDevice && bleDevice.gatt.connected) {
+            if (bleDevice && bleDevice.gatt.connected) { // un segundo toque lo desconecta
                 bleManual = true;
                 bleDevice.gatt.disconnect();
                 return;
@@ -1674,43 +1776,29 @@
             }
         });
 
+        // ============================================================
+        //  FUENTES DE AGUA
+        // ============================================================
         let savedFountains = [];
         try { savedFountains = JSON.parse(localStorage.getItem('mtb_saved_fountains') || '[]'); } catch (e) {}
         let fountainMarkers = [];
 
         function persistFountains() {
             try { localStorage.setItem('mtb_saved_fountains', JSON.stringify(savedFountains)); }
-            catch (e) { toast('No se pudo guardar el punto en el dispositivo'); }
-        }
-
-        const POI_TYPES = {
-            fountain: { emoji: '🚰', defaultName: 'Fuente de Agua', ask: false, confirm: '¿Eliminar esta fuente guardada?' },
-            bar: { emoji: '🍺', defaultName: 'Bar', ask: true, prompt: 'Nombre del bar donde paras:', confirm: '¿Eliminar esta parada?' }
-        };
-        const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain');
-
-        function poiIcon(type) {
-            if (type === 'bar') {
-                return L.divIcon({
-                    html: '<img src="estrella-galicia.svg" class="poi-bar-img" alt="">',
-                    className: 'poi-icon', iconSize: [40, 30], iconAnchor: [20, 15]
-                });
-            }
-            return L.divIcon({ html: '🚰', className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] });
+            catch (e) { toast('No se pudo guardar la fuente en el dispositivo'); }
         }
 
         function loadSavedFountains() {
             if (!map) return;
             fountainMarkers.forEach(m => map.removeLayer(m));
             fountainMarkers = [];
+            const icon = L.divIcon({ html: '🚰', className: 'fountain-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
 
             savedFountains.forEach(f => {
-                const type = poiType(f);
-                const meta = POI_TYPES[type];
                 const wrap = document.createElement('div');
                 wrap.style.cssText = 'text-align:center; color:#121212;';
                 const strong = document.createElement('strong');
-                strong.textContent = meta.emoji + ' ' + (f.name || meta.defaultName);
+                strong.textContent = '🚰 ' + (f.name || 'Fuente de Agua');
                 const small = document.createElement('small');
                 small.textContent = 'Guardada: ' + f.date;
                 const btn = document.createElement('button');
@@ -1719,64 +1807,182 @@
                 btn.addEventListener('click', () => removeFountain(f.id));
                 wrap.append(strong, document.createElement('br'), small, document.createElement('br'), btn);
 
-                fountainMarkers.push(L.marker([f.lat, f.lng], { icon: poiIcon(type) }).addTo(map).bindPopup(wrap));
+                fountainMarkers.push(L.marker([f.lat, f.lng], { icon }).addTo(map).bindPopup(wrap));
             });
         }
 
         async function removeFountain(id) {
-            const f = savedFountains.find(x => x.id === id);
-            if (!f) return;
-            const ok = await modal({ message: POI_TYPES[poiType(f)].confirm, ok: 'Eliminar' });
+            const ok = await modal({ message: '¿Eliminar esta fuente guardada?', ok: 'Eliminar' });
             if (!ok) return;
-            savedFountains = savedFountains.filter(x => x.id !== id);
+            savedFountains = savedFountains.filter(f => f.id !== id);
             persistFountains();
             loadSavedFountains();
         }
 
-        let lastPoiAt = 0;
-        async function addPoi(type) {
-            const meta = POI_TYPES[type];
+        $('btn-fountain').addEventListener('click', async () => {
             if (lastLat === null || lastLon === null) { toast('Buscando señal GPS para marcar tu ubicación exacta...'); return; }
-            if (Date.now() - lastPoiAt < 1500) return;
-            lastPoiAt = Date.now();
-            const lat = lastLat, lng = lastLon;
-
-            let name = meta.defaultName;
-            if (meta.ask) {
-                const n = await modal({ message: meta.prompt, input: meta.defaultName, ok: 'Guardar' });
-                if (n === null) return;
-                name = n.trim() || meta.defaultName;
-            }
-
-            savedFountains.push({ id: Date.now(), type, name, lat, lng, date: new Date().toLocaleDateString('es-ES') });
+            const name = await modal({ message: 'Nombre o referencia de la fuente:', input: 'Fuente de Agua', ok: 'Guardar' });
+            if (name === null) return;
+            const f = {
+                id: Date.now(),
+                name: name.trim() || 'Fuente de Agua',
+                lat: lastLat,
+                lng: lastLon,
+                date: new Date().toLocaleDateString('es-ES')
+            };
+            savedFountains.push(f);
             persistFountains();
             loadSavedFountains();
-            if (navigator.vibrate) navigator.vibrate(60);
-            if (currentPage !== 0) { goToPage(0); if (map) map.setView([lat, lng], 17); }
-            toast(`${meta.emoji} «${name}» marcado en tu posición`);
-        }
-
-        $('btn-poi-fountain').addEventListener('click', () => addPoi('fountain'));
-        $('btn-poi-bar').addEventListener('click', () => addPoi('bar'));
-        $('btn-fountain').addEventListener('click', () => addPoi('fountain'));
-        $('btn-bar').addEventListener('click', () => addPoi('bar'));
-
-        $('btn-join').addEventListener('click', () => {
-            toast('Esta función necesita un servidor y todavía no está disponible.', 4500);
+            goToPage(0);
+            if (map) map.setView([f.lat, f.lng], 17);
+            toast(`Fuente «${f.name}» marcada en tu posición`);
         });
 
+        // ============================================================
+        //  POSICIONES DEL GRUPO (PocketBase)
+        // ============================================================
+        let groupJoined = false, friendsTimer = null, lastLivePush = 0, livePushPending = false;
+        let myLiveRecordId = null;
+        const friendMarkers = new Map();
+        const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
+
+        function groupName() { return $('group-code').value.trim(); }
+
+        function renderFriends(items = []) {
+            const box = $('friends-list');
+            box.textContent = '';
+            const now = Date.now();
+            const live = items.filter(x => x.owner !== Cloud.uid && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lon)) && now - Date.parse(x.updated) < FRIEND_STALE_MS);
+            const ids = new Set(live.map(x => x.id));
+            for (const [id, marker] of friendMarkers) {
+                if (!ids.has(id)) { if (map) map.removeLayer(marker); friendMarkers.delete(id); }
+            }
+            if (!live.length) {
+                const p = document.createElement('p');
+                p.className = 'hint'; p.style.textAlign = 'center';
+                p.textContent = groupJoined ? 'No hay compañeros compartiendo ubicación ahora.' : 'Únete al grupo para consultar las posiciones activas.';
+                box.appendChild(p);
+                return;
+            }
+            live.forEach(rec => {
+                const name = rec.name || 'Compañero';
+                const ll = [Number(rec.lat), Number(rec.lon)];
+                let marker = friendMarkers.get(rec.id);
+                if (map) {
+                    if (!marker) {
+                        marker = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 2, fillColor: '#ab47bc', fillOpacity: 1 }).addTo(map);
+                        friendMarkers.set(rec.id, marker);
+                    } else marker.setLatLng(ll);
+                    const popup = document.createElement('div');
+                    const popupName = document.createElement('strong');
+                    popupName.textContent = name;
+                    const popupTime = document.createElement('div');
+                    popupTime.textContent = `Actualizado ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
+                    popup.append(popupName, popupTime);
+                    marker.bindPopup(popup);
+                }
+                const row = document.createElement('p');
+                row.className = 'hint'; row.textContent = `🚴 ${name} · ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
+                box.appendChild(row);
+            });
+        }
+
+        async function refreshFriends() {
+            if (!groupJoined || !Cloud.loggedIn()) return;
+            try {
+                const f = encodeURIComponent(`groupCode = "${groupName()}"`);
+                const res = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=200&sort=-updated`);
+                const own = res.items.find(x => x.owner === Cloud.uid);
+                myLiveRecordId = own ? own.id : null;
+                renderFriends(res.items);
+            } catch (e) {
+                console.warn('Posiciones del grupo:', e);
+                if (e.status !== undefined && e.status !== 404) $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa live_locations y sus reglas en PocketBase.';
+            }
+        }
+
+        async function publishMyLocation(force = false) {
+            if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
+            if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
+            livePushPending = true;
+            try {
+                const payload = { owner: Cloud.uid, groupCode: groupName(), name: Cloud.email || 'Compañero', lat: lastLat, lon: lastLon, accuracy: Number.isFinite(lastAccuracy) ? lastAccuracy : 0 };
+                if (!myLiveRecordId) {
+                    const f = encodeURIComponent(`owner = "${Cloud.uid}"`);
+                    const own = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=1`);
+                    myLiveRecordId = own.items[0] ? own.items[0].id : null;
+                }
+                if (myLiveRecordId) await cloudApi(`/api/collections/live_locations/records/${myLiveRecordId}`, 'PATCH', payload);
+                else {
+                    const rec = await cloudApi('/api/collections/live_locations/records', 'POST', payload);
+                    myLiveRecordId = rec.id;
+                }
+                if (!groupJoined || !isRecording || isPaused) { await removeMyLiveLocation(); return; }
+                lastLivePush = Date.now();
+                refreshFriends();
+            } catch (e) {
+                console.warn('No se pudo compartir la posición:', e);
+                if (e.status === 404) myLiveRecordId = null;
+                if (e.status !== undefined) $('group-status').textContent = `Error al compartir posición: ${e.message}`;
+            } finally { livePushPending = false; }
+        }
+
+        async function removeMyLiveLocation() {
+            const id = myLiveRecordId;
+            myLiveRecordId = null;
+            if (id && Cloud.loggedIn()) {
+                try { await cloudApi(`/api/collections/live_locations/records/${id}`, 'DELETE'); }
+                catch (e) { console.warn('No se pudo retirar la posición:', e); }
+            }
+            renderFriends();
+        }
+
+        $('btn-join').addEventListener('click', async () => {
+            if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
+            if (groupJoined) {
+                groupJoined = false;
+                clearInterval(friendsTimer); friendsTimer = null;
+                await removeMyLiveLocation();
+                $('btn-join').textContent = 'Unirse al Grupo';
+                $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
+                renderFriends();
+                return;
+            }
+            try {
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                renderAccount();
+            } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
+            const code = groupName();
+            if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
+                toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
+            }
+            groupJoined = true;
+            $('btn-join').textContent = 'Salir del Grupo';
+            $('group-status').textContent = isRecording ? 'Grupo activo: compartiendo tu posición al grabar.' : 'Grupo activo: tu posición se compartirá cuando empieces a grabar.';
+            await refreshFriends();
+            friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+            if (isRecording && !isPaused) publishMyLocation(true);
+        });
+
+        // ============================================================
+        //  INICIO
+        // ============================================================
+        // ============================================================
+        //  VISTA AMPLIADA DE MÉTRICAS (toca una métrica para verla grande)
+        // ============================================================
         const METRICS = {
-            speed: { src: 'm-speed', label: 'Velocidad', unit: 'km/h' },
-            dist: { src: 'm-dist', label: 'Distancia', unit: 'km' },
-            elev: { src: 'm-elevation', label: 'Desnivel positivo', unit: 'm' },
-            hr: { src: 'm-hr', label: 'Pulso', unit: 'bpm', color: '#ef5350' },
-            time: { src: 'm-time', label: 'Tiempo', unit: '' }
+            speed: { src: 'm-speed',     label: 'Velocidad',          unit: 'km/h' },
+            dist:  { src: 'm-dist',      label: 'Distancia',          unit: 'km' },
+            elev:  { src: 'm-elevation', label: 'Desnivel positivo',  unit: 'm' },
+            hr:    { src: 'm-hr',        label: 'Pulso',              unit: 'bpm', color: '#ef5350' },
+            time:  { src: 'm-time',      label: 'Tiempo',             unit: '' }
         };
         let expandedMetric = null;
 
         function updateGauge(v) {
             const LEN = 282.74;
-            const max = Math.max(50, Math.ceil(v / 10) * 10);
+            const max = Math.max(50, Math.ceil(v / 10) * 10); // la escala crece si pasas de 50 km/h
             $('gauge-arc').style.strokeDashoffset = LEN * (1 - Math.min(v / max, 1));
             $('gauge-max').textContent = max;
         }
@@ -1793,7 +1999,6 @@
         function collapseMetric() {
             expandedMetric = null;
             $('big-metric').classList.remove('show');
-            $('page-map').classList.remove('metric-open');
             document.querySelectorAll('.m-box').forEach(b => b.classList.remove('active'));
         }
 
@@ -1806,7 +2011,6 @@
             $('big-gauge').classList.toggle('show', key === 'speed');
             document.querySelectorAll('.m-box').forEach(b => b.classList.toggle('active', b.dataset.metric === key));
             $('big-metric').classList.add('show');
-            $('page-map').classList.add('metric-open');
             syncBigMetric();
         }
 
@@ -1815,57 +2019,59 @@
                 const box = e.target.closest('.m-box');
                 if (!box) return;
                 const key = box.dataset.metric;
-                if (expandedMetric === key) collapseMetric();
+                if (expandedMetric === key) collapseMetric(); // segundo toque: vuelve
                 else expandMetric(key);
             });
             $('big-metric').addEventListener('click', collapseMetric);
+
+            // La vista grande copia en vivo el valor de la métrica original
             const obs = new MutationObserver(syncBigMetric);
-            Object.values(METRICS).forEach(m => obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
+            Object.values(METRICS).forEach(m =>
+                obs.observe($(m.src), { childList: true, characterData: true, subtree: true }));
         }
 
+        // ============================================================
+        //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
+        // ============================================================
         const Cloud = {
             get server() { return localStorage.getItem('mtb_server') || ''; },
-            get token() { return localStorage.getItem('mtb_token') || ''; },
-            get uid() { return localStorage.getItem('mtb_uid') || ''; },
-            get email() { return localStorage.getItem('mtb_email') || ''; },
-            loggedIn() { return !!(this.server && this.token && this.uid); },
+            get token()  { return localStorage.getItem('mtb_token') || ''; },
+            get uid()    { return localStorage.getItem('mtb_uid') || ''; },
+            get email()  { return localStorage.getItem('mtb_email') || ''; },
+            get groupCode() { return localStorage.getItem('mtb_group_code') || ''; },
+            loggedIn()   { return !!(this.server && this.token && this.uid); },
             setSession(token, rec) {
                 localStorage.setItem('mtb_token', token);
                 localStorage.setItem('mtb_uid', rec.id);
                 localStorage.setItem('mtb_email', rec.email || '');
+                localStorage.setItem('mtb_group_code', rec.groupCode || '');
             },
             clearSession() {
-                ['mtb_token', 'mtb_uid', 'mtb_email'].forEach(k => localStorage.removeItem(k));
+                ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
             }
         };
 
+        // body: objeto (JSON), FormData (archivos) o null
         async function cloudApi(path, method = 'GET', body = null) {
             const headers = {};
             if (Cloud.token) headers.Authorization = Cloud.token;
             let payload;
             if (body instanceof FormData) payload = body;
             else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
-
             const res = await fetch(Cloud.server + path, { method, headers, body: payload });
             if (!res.ok) {
-                let raw = '';
-                try { raw = await res.text(); } catch (e) {}
                 let msg = '';
                 try {
-                    const j = JSON.parse(raw);
+                    const j = await res.json();
                     msg = j.message || '';
                     const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
                     if (f) msg += ` (${f})`;
-                } catch (e) {
-                    msg = raw || ('Error ' + res.status);
-                }
+                } catch (e) {}
                 const err = new Error(msg || ('Error ' + res.status));
-                err.status = res.status;
+                err.status = res.status; // sin status = no se pudo conectar
                 throw err;
             }
-            const txt = await res.text();
-            if (!txt) return null;
-            try { return JSON.parse(txt); } catch (e) { return txt; }
+            return res.status === 204 ? null : res.json();
         }
 
         function normalizeServer(v) {
@@ -1881,7 +2087,7 @@
             $('acc-server').value = Cloud.server;
             const last = localStorage.getItem('mtb_lastsync');
             $('acc-status').textContent = on
-                ? `Conectado como ${Cloud.email}` + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
+                ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
                 : 'Sin sesión: tus rutas se guardan solo en este móvil.';
         }
 
@@ -1904,7 +2110,9 @@
                 syncRoutes(true);
             } catch (e) {
                 console.warn('Auth:', e);
-                toast(e.status === undefined ? 'No se pudo conectar con el servidor. Revisa la dirección.' : 'No se pudo entrar: ' + e.message, 6000);
+                toast(e.status === undefined
+                    ? 'No se pudo conectar con el servidor. Revisa la dirección.'
+                    : 'No se pudo entrar: ' + e.message, 6000);
             }
         }
 
@@ -1937,12 +2145,11 @@
         async function syncRoutes(manual = false) {
             if (!Cloud.loggedIn() || syncing) return;
             if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
-
             syncing = true;
             $('acc-status').textContent = 'Sincronizando…';
             let pushed = 0, pulled = 0;
-
             try {
+                // 0) renovar la sesión (si ha caducado, se cierra)
                 try {
                     const ar = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                     Cloud.setSession(ar.token, ar.record);
@@ -1955,16 +2162,15 @@
                     throw e;
                 }
 
+                // 1) rutas que ya hay en el servidor
                 const remote = [];
-                let page = 1;
-                while (page) {
+                for (let page = 1; ; page++) {
                     const r = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=clientId`);
-                    if (!r || !r.items) break;
                     remote.push(...r.items);
-                    if (!r.totalPages || page >= r.totalPages) break;
-                    page++;
+                    if (page >= r.totalPages) break;
                 }
 
+                // 2) borrados pendientes
                 let pend = [];
                 try { pend = (await DB.kvGet('pendingDeletes')) || []; } catch (e) {}
                 const rest = [];
@@ -1975,6 +2181,7 @@
                 try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
                 const skip = new Set(pend);
 
+                // 3) subir lo nuevo y los cambios de nombre
                 const byClient = new Map(remote.map(x => [Number(x.clientId), x]));
                 for (const r of savedRoutes) {
                     const found = byClient.get(r.id);
@@ -1989,11 +2196,12 @@
                         await putLocal(r);
                         pushed++;
                     } catch (e) {
-                        if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); }
+                        if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); } // desaparecida del servidor: se subirá de nuevo
                         else throw e;
                     }
                 }
 
+                // 4) bajar las que faltan en este móvil
                 const localIds = new Set(savedRoutes.map(r => r.id));
                 const missing = remote.filter(x => !skip.has(x.id) && x.track && !localIds.has(Number(x.clientId)));
                 if (missing.length) {
@@ -2001,9 +2209,7 @@
                     for (const rec of missing) {
                         const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
                         if (!res.ok) continue;
-                        const txt = await res.text();
-                        let points;
-                        try { points = JSON.parse(txt); } catch (e) { continue; }
+                        const points = await res.json();
                         if (!Array.isArray(points) || points.length < 2) continue;
                         const r = {
                             id: Number(rec.clientId), remoteId: rec.id, dirty: false,
@@ -2037,9 +2243,13 @@
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
-            $('acc-logout').addEventListener('click', () => {
+            $('acc-logout').addEventListener('click', async () => {
+                groupJoined = false;
+                clearInterval(friendsTimer); friendsTimer = null;
+                await removeMyLiveLocation();
                 Cloud.clearSession();
                 renderAccount();
+                renderFriends();
                 toast('Sesión cerrada. Tus rutas siguen en este móvil.');
             });
             window.addEventListener('online', () => syncRoutes());
@@ -2064,7 +2274,7 @@
             try {
                 for (const r of migrated) await DB.put(r);
                 savedRoutes = savedRoutes.concat(migrated).sort((a, b) => b.id - a.id);
-                localStorage.removeItem('mtb_saved_routes');
+                localStorage.removeItem('mtb_saved_routes'); // solo se borra si todo se copió bien
             } catch (e) { console.warn('Migración incompleta', e); }
         }
 
@@ -2096,6 +2306,7 @@
 
         init();
 
+        // Service Worker: abre la app sin conexión y guarda las teselas ya vistas
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('sw.js').catch(() => {});
         }
