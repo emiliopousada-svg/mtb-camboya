@@ -1,5 +1,5 @@
 {
-  "appId": "com.mtbcamboya.app",
+  "appId": "com.emiliopousada.mtbcamboya",
   "appName": "MTB CAMBOYA",
   "webDir": "www",
   "server": { "androidScheme": "https" },
