@@ -1275,6 +1275,7 @@
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
+            if (followedRoute && followedRoute.kind === 'imported') drawLiveElevation();
 
             // El rumbo GPS solo es fiable en movimiento. Parado, conservamos el último.
             const movingSpeed = (speed != null && Number.isFinite(speed)) ? speed : 0;
@@ -1347,39 +1348,58 @@
             if (map && following) map.panTo(ll, { animate: true });
         }
 
-        // Perfil de desnivel en directo: el punto muestra el avance en el track.
+        // Perfil de altitud de la ruta importada que se está siguiendo.
         function drawLiveElevation() {
-            const canvas = $('elevation-live');
-            if (!canvas) return;
+            const wrap = $('elevation-live-wrap'), canvas = $('elevation-live');
+            if (!wrap || !canvas) return;
+            const route = followedRoute && followedRoute.kind === 'imported' ? followedRoute : null;
+            wrap.style.display = route ? 'block' : 'none';
+            if (!route) return;
             const rect = canvas.getBoundingClientRect();
             if (!rect.width) return;
             const dpr = Math.max(1, window.devicePixelRatio || 1);
             canvas.width = Math.round(rect.width * dpr);
             canvas.height = Math.round(rect.height * dpr);
             const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const w = rect.width, h = rect.height, pad = 4;
             ctx.clearRect(0, 0, w, h);
-            const samples = points.map((p, i) => ({ i, alt: p[2] })).filter(p => p.alt !== null && Number.isFinite(p.alt));
+            const routePoints = route.points || [];
+            const samples = routePoints.map((p, i) => ({ i, alt: p[2] }))
+                .filter(p => p.alt !== null && p.alt !== undefined && Number.isFinite(Number(p.alt)));
             if (samples.length < 2) {
-                $('elevation-live-title').textContent = isRecording ? 'PERFIL DE DESNIVEL · Recogiendo altitud GPS…' : 'PERFIL DE DESNIVEL · Esperando grabación';
+                $('elevation-live-title').textContent = 'PERFIL DE DESNIVEL · Esta ruta no contiene altitudes';
                 return;
             }
-            const min = Math.min(...samples.map(p => p.alt)), max = Math.max(...samples.map(p => p.alt));
+            const min = Math.min(...samples.map(p => Number(p.alt)));
+            const max = Math.max(...samples.map(p => Number(p.alt)));
             const span = Math.max(8, max - min);
-            const xAt = i => pad + (w - pad * 2) * (points.length > 1 ? i / (points.length - 1) : 0);
-            const yAt = alt => h - pad - ((alt - min) / span) * (h - pad * 2);
+            const xAt = i => pad + (w - pad * 2) * i / Math.max(1, routePoints.length - 1);
+            const yAt = alt => h - pad - ((Number(alt) - min) / span) * (h - pad * 2);
             ctx.beginPath();
             samples.forEach((p, n) => n ? ctx.lineTo(xAt(p.i), yAt(p.alt)) : ctx.moveTo(xAt(p.i), yAt(p.alt)));
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#ff9800';
             ctx.stroke();
-            const last = samples[samples.length - 1];
-            const x = xAt(points.length - 1), y = yAt(last.alt);
-            ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#29b6f6'; ctx.fill();
-            ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-            $('elevation-live-title').textContent = 'PERFIL DE DESNIVEL · ' + Math.round(last.alt) + ' m · Punto azul: posición actual';
+
+            let nearest = -1, nearestDist = Infinity;
+            if (lastLat !== null && lastLon !== null) {
+                routePoints.forEach((p, i) => {
+                    const d = dist([lastLat, lastLon], [p[0], p[1]]);
+                    if (d < nearestDist) { nearestDist = d; nearest = i; }
+                });
+            }
+            if (nearest >= 0) {
+                let markerSample = samples.reduce((best, p) =>
+                    Math.abs(p.i - nearest) < Math.abs(best.i - nearest) ? p : best, samples[0]);
+                const x = xAt(markerSample.i), y = yAt(markerSample.alt);
+                ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#29b6f6'; ctx.fill();
+                ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+                $('elevation-live-title').textContent = 'PERFIL DE DESNIVEL · ' + Math.round(Number(markerSample.alt)) + ' m · Punto azul: tu posición';
+            } else {
+                $('elevation-live-title').textContent = 'PERFIL DE DESNIVEL · Esperando GPS';
+            }
         }
         window.addEventListener('resize', drawLiveElevation);
 
@@ -1733,7 +1753,7 @@
         }
 
         function followRoute(r) {
-            followedRoute = { id: r.id, pts: r.points.map(p => [p[0], p[1]]) };
+            followedRoute = { id: r.id, kind: r.kind, points: r.points, pts: r.points.map(p => [p[0], p[1]]) };
             offRouteState = false;
             if (map) {
                 savedRouteLayer.setLatLngs(buildSegments(r.points));
@@ -1743,6 +1763,7 @@
                 updateCenterBtn();
             }
             $('btn-unfollow').style.display = 'block';
+            drawLiveElevation();
             showProfile(r);
             goToPage(0);
             toast(`Siguiendo «${r.name}». Te aviso si te desvías.`, 4500);
@@ -1751,6 +1772,7 @@
         function unfollowRoute() {
             followedRoute = null;
             offRouteState = false;
+            drawLiveElevation();
             if (savedRouteLayer) savedRouteLayer.setLatLngs([]);
             $('btn-unfollow').style.display = 'none';
         }
