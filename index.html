@@ -662,7 +662,7 @@
                 <h2>👥 Posición de Amigos (Live)</h2>
                 <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
                 <input type="text" id="group-code" placeholder="Código de grupo asignado">
-                <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32">
+                <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32" value="">
                 <button class="btn" id="btn-join">Unirse al Grupo</button>
                 <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
             </div>
@@ -953,7 +953,7 @@
         let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
-        let lastLat = null, lastLon = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -2465,6 +2465,7 @@
             renderFriends();
         }
 
+        $('group-name').value = localStorage.getItem('mtb_group_name') || '';
         $('btn-join').addEventListener('click', async () => {
             if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
             if (groupJoined) {
@@ -2482,6 +2483,8 @@
                 renderAccount();
             } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
             const code = groupName();
+            const displayName = $('group-name').value.trim().slice(0, 32);
+            if (displayName) localStorage.setItem('mtb_group_name', displayName);
             if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
                 toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
             }
