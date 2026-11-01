@@ -467,12 +467,6 @@
         .modal-actions .btn { margin-top: 8px; }
 
         /* Gestión de mapas sin conexión */
-        #btn-offline-maps {
-            position: absolute; top: 91px; right: 10px; z-index: 1100;
-            background: rgba(30,30,30,.94); color: #fff; border: 1px solid rgba(255,255,255,.22);
-            border-radius: 11px; padding: 10px 12px; font-size: .78rem; font-weight: 700;
-            box-shadow: 0 3px 12px rgba(0,0,0,.4);
-        }
         #offline-panel {
             display: none; position: fixed; z-index: 4500; left: 50%; top: 50%;
             transform: translate(-50%, -50%); width: min(440px, calc(100vw - 28px));
@@ -489,7 +483,6 @@
         #offline-panel .offline-actions { display: flex; gap: 8px; margin-top: 12px; }
         #offline-panel .offline-actions .btn { margin-top: 0; padding: 11px 8px; }
         #offline-panel select { width: 100%; padding: 11px; background: #111; color: white; border: 1px solid #555; border-radius: 9px; margin-top: 5px; }
-        #page-map.metric-open #btn-offline-maps { display: none; }
         #offline-panel .btn.danger { background: #5a2020; }
 
         .leaflet-popup-content-wrapper { color: #121212; }
@@ -526,7 +519,6 @@
             </div>
 
             <div id="map"></div>
-            <button id="btn-offline-maps" type="button">⬇️ Mapas offline</button>
   </section>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
@@ -740,6 +732,10 @@
         <button class="nav-btn" onclick="goToPage(3)">
             <span class="icon">📂</span>
             <span>Rutas</span>
+        </button>
+        <button class="nav-btn nav-action" id="btn-open-offline" type="button">
+            <span class="icon">⬇️</span>
+            <span>Mapas</span>
         </button>
     </nav>
 
@@ -1147,7 +1143,7 @@
                 $('btn-download-galicia').disabled = false;
             }
         }
-        $('btn-offline-maps').addEventListener('click', async () => {
+        async function openOfflineMaps() {
             $('offline-panel').classList.add('show');
             try {
                 const count = await countOfflineTiles();
@@ -1160,7 +1156,8 @@
                 } catch (e) {}
                 $('offline-storage-note').textContent = `${count.toLocaleString('es-ES')} teselas ya guardadas en este teléfono.${usado} Puedes reanudar una descarga incompleta.`;
             } catch (e) { $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.'; }
-        });
+        }
+        $('btn-open-offline').addEventListener('click', openOfflineMaps);
         $('btn-close-offline').addEventListener('click', () => $('offline-panel').classList.remove('show'));
         $('btn-download-galicia').addEventListener('click', downloadProvinceOffline);
         $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
