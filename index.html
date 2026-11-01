@@ -386,6 +386,11 @@
 
         .btn-small.secondary { background: #3a3a3a; }
         .btn-small.danger { background: #5a2020; }
+        .group-led {
+            display:inline-block;width:11px;height:11px;border-radius:50%;
+            background:#4caf50;box-shadow:0 0 9px rgba(76,175,80,.9);
+            flex:0 0 11px;
+        }
 
         /* Navegación Inferior */
         nav {
@@ -653,9 +658,15 @@
             <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
                 <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
-                <input type="text" id="group-code" placeholder="Código de grupo asignado">
-                <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32" value="">
-                <button class="btn" id="btn-join">Unirse al Grupo</button>
+                <div id="group-setup">
+                    <input type="text" id="group-code" placeholder="Código de grupo asignado">
+                    <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32" value="">
+                    <button class="btn" id="btn-join">Unirse al Grupo</button>
+                </div>
+                <div id="group-connected" style="display:none;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;">
+                    <span style="display:flex;align-items:center;gap:9px;font-weight:700;"><span class="group-led" aria-hidden="true"></span> Conectado al grupo</span>
+                    <button class="btn-small danger" id="btn-leave" type="button" aria-label="Salir del grupo" title="Salir del grupo" style="font-size:1.15rem;padding:9px 14px;">↪</button>
+                </div>
                 <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
             </div>
 
@@ -754,6 +765,7 @@
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/tomickigrzegorz/leaflet-rotate@v0.3.0/dist/leaflet-rotate.umd.min.js"></script>
     <script>
         'use strict';
 
@@ -958,6 +970,7 @@
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
         let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastHeading = null; // Último rumbo GPS válido; se conserva al detenerse.
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -1201,7 +1214,7 @@
                 if (Array.isArray(lp) && lp.length === 2) center = lp;
             } catch (e) {}
 
-            map = L.map('map', { zoomControl: false }).setView(center, 15);
+            map = L.map('map', { zoomControl: false, rotate: typeof L.Map.prototype.setHeading === 'function' }).setView(center, 15);
             window.map = map;
 
             // Cartografía topográfica oficial IGN, con las teselas guardadas en el dispositivo
@@ -1224,7 +1237,10 @@
             if (lastLat === null) { toast('Buscando señal GPS...'); return; }
             following = true;
             updateCenterBtn();
-            if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
+            if (map) {
+                map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
+                if (lastHeading !== null && typeof map.setHeading === 'function') map.setHeading(lastHeading, { ease: 0.2, deadzone: 1 });
+            }
         });
 
         // ============================================================
@@ -1239,11 +1255,20 @@
         }
 
         function onPos(pos) {
-            const { latitude: lat, longitude: lon, accuracy, altitude, speed } = pos.coords;
+            const { latitude: lat, longitude: lon, accuracy, altitude, speed, heading } = pos.coords;
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
+
+            // El rumbo GPS solo es fiable en movimiento. Parado, conservamos el último.
+            const movingSpeed = (speed != null && Number.isFinite(speed)) ? speed : 0;
+            if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
+                lastHeading = heading;
+                if (map && following && typeof map.setHeading === 'function') {
+                    map.setHeading(heading, { ease: 0.2, deadzone: 1 });
+                }
+            }
 
             if (Date.now() - lastPosSave > 15000) {
                 lastPosSave = Date.now();
@@ -2390,7 +2415,49 @@
         const friendMarkers = new Map();
         const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
 
-        function groupName() { return $('group-code').value.trim(); }
+        function groupName() { return Cloud.groupCode || $('group-code').value.trim(); }
+
+        function renderGroupState(connected) {
+            $('group-setup').style.display = connected ? 'none' : 'block';
+            $('group-connected').style.display = connected ? 'flex' : 'none';
+            $('group-status').textContent = connected
+                ? (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Grupo conectado. Tu posición se compartirá cuando grabes.')
+                : 'La ubicación solo se comparte al grabar y estar unido al grupo.';
+        }
+
+        async function stopGroup() {
+            groupJoined = false;
+            localStorage.removeItem('mtb_group_joined');
+            if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+            await removeMyLiveLocation();
+            renderGroupState(false);
+            renderFriends();
+        }
+
+        async function restoreGroup() {
+            if (localStorage.getItem('mtb_group_joined') !== '1' || !Cloud.loggedIn() || !Cloud.groupCode) return;
+            $('group-code').value = Cloud.groupCode;
+            try {
+                const expectedGroup = Cloud.groupCode;
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                if (!auth.record.groupCode || auth.record.groupCode !== expectedGroup) {
+                    localStorage.removeItem('mtb_group_joined');
+                    return;
+                }
+                $('group-code').value = auth.record.groupCode;
+                groupJoined = true;
+                renderGroupState(true);
+                await refreshFriends();
+                if (friendsTimer) clearInterval(friendsTimer);
+                friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+                if (isRecording && !isPaused) publishMyLocation(true);
+            } catch (e) {
+                console.warn('No se pudo restaurar el grupo:', e);
+                // No se borra la pertenencia por un fallo temporal de red.
+                $('group-status').textContent = 'Grupo guardado. Esperando conexión para verificarlo…';
+            }
+        }
 
         function renderFriends(items = []) {
             const box = $('friends-list');
@@ -2431,7 +2498,7 @@
             });
         }
 
-        async function refreshFriends() {
+        async function refreshFriends(retryAuth = true) {
             if (!groupJoined || !Cloud.loggedIn()) return;
             try {
                 const f = encodeURIComponent(`groupCode = "${groupName()}"`);
@@ -2441,7 +2508,18 @@
                 renderFriends(res.items);
             } catch (e) {
                 console.warn('Posiciones del grupo:', e);
-                if (e.status !== undefined && e.status !== 404) $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa live_locations y sus reglas en PocketBase.';
+                if ((e.status === 401 || e.status === 403) && retryAuth) {
+                    try {
+                        const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                        Cloud.setSession(auth.token, auth.record);
+                        await refreshFriends(false);
+                    } catch (refreshError) {
+                        console.warn('No se pudo renovar la sesión del grupo:', refreshError);
+                        $('group-status').textContent = 'Conexión pendiente: no se pudo verificar el grupo.';
+                    }
+                } else if (e.status !== undefined && e.status !== 404) {
+                    $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa la conexión y PocketBase.';
+                }
             }
         }
 
@@ -2484,32 +2562,29 @@
         $('group-name').value = localStorage.getItem('mtb_group_name') || '';
         $('btn-join').addEventListener('click', async () => {
             if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
-            if (groupJoined) {
-                groupJoined = false;
-                clearInterval(friendsTimer); friendsTimer = null;
-                await removeMyLiveLocation();
-                $('btn-join').textContent = 'Unirse al Grupo';
-                $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
-                renderFriends();
-                return;
-            }
             try {
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
                 renderAccount();
             } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
-            const code = groupName();
+            const code = $('group-code').value.trim();
             const displayName = $('group-name').value.trim().slice(0, 32);
             if (displayName) localStorage.setItem('mtb_group_name', displayName);
             if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
                 toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
             }
             groupJoined = true;
-            $('btn-join').textContent = 'Salir del Grupo';
-            $('group-status').textContent = isRecording ? 'Grupo activo: compartiendo tu posición al grabar.' : 'Grupo activo: tu posición se compartirá cuando empieces a grabar.';
+            localStorage.setItem('mtb_group_joined', '1');
+            $('group-code').value = Cloud.groupCode;
+            renderGroupState(true);
             await refreshFriends();
+            if (friendsTimer) clearInterval(friendsTimer);
             friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
             if (isRecording && !isPaused) publishMyLocation(true);
+        });
+        $('btn-leave').addEventListener('click', async () => {
+            await stopGroup();
+            $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
         });
 
         // ============================================================
@@ -2795,9 +2870,7 @@
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
             $('acc-logout').addEventListener('click', async () => {
-                groupJoined = false;
-                if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
-                await removeMyLiveLocation();
+                await stopGroup();
                 Cloud.clearSession();
                 renderFriends();
                 renderAccount();
@@ -2850,6 +2923,7 @@
             refreshStats();
             showProfile(savedRoutes[0] || null);
             initAccount();
+            await restoreGroup();
             initWeight();
             syncRoutes();
             startGps();
