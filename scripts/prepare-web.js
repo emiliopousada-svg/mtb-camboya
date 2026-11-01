@@ -18,6 +18,7 @@ for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 
 
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/leaflet/leaflet.css'));
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.js'), path.join(www, 'lib/leaflet/leaflet.js'));
+fs.copyFileSync(path.join(root, 'vendor/leaflet-rotate.umd.min.js'), path.join(www, 'lib/leaflet/leaflet-rotate.umd.min.js'));
 fs.cpSync(path.join(nm, 'leaflet/dist/images'), path.join(www, 'lib/leaflet/images'), { recursive: true });
 fs.copyFileSync(path.join(nm, 'chart.js/dist/chart.umd.js'), path.join(www, 'lib/chart.umd.js'));
 
@@ -36,6 +37,7 @@ let html = fs.readFileSync(file, 'utf8');
 const swaps = [
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'lib/leaflet/leaflet.css'],
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'lib/leaflet/leaflet.js'],
+  ['https://cdn.jsdelivr.net/gh/tomickigrzegorz/leaflet-rotate@v0.3.0/dist/leaflet-rotate.umd.min.js', 'lib/leaflet/leaflet-rotate.umd.min.js'],
   ['https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js', 'lib/chart.umd.js']
 ];
 for (const [from, to] of swaps) {
