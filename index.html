@@ -95,6 +95,42 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
+        #map-route-profile {
+            display: none;
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 102px);
+            left: 8px;
+            right: 8px;
+            z-index: 999;
+            padding: 7px 10px 5px;
+            border-radius: 12px;
+            background: rgba(18, 18, 18, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+            pointer-events: none;
+        }
+        #map-route-profile.show { display: block; }
+        .route-profile-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            min-width: 0;
+            font-size: 0.68rem;
+        }
+        #map-route-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #fff;
+        }
+        #map-route-alt { color: #b0b0b0; white-space: nowrap; }
+        #map-route-svg { display: block; width: 100%; height: 48px; overflow: visible; }
+        #map-route-area { fill: rgba(255, 152, 0, 0.2); }
+        #map-route-line { fill: none; stroke: #ffb74d; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+        #map-route-cursor-line { stroke: #fff; stroke-width: 1.5; stroke-dasharray: 3 3; opacity: 0.8; }
+        #map-route-cursor { fill: #fff; stroke: #ff9800; stroke-width: 2; }
+
         .m-box {
             text-align: center;
             cursor: pointer;
@@ -521,6 +557,19 @@
                     <div class="m-val" id="m-time">00:00</div>
                     <div class="m-lbl">TIEMPO</div>
                 </div>
+            </div>
+
+            <div id="map-route-profile" aria-live="polite">
+                <div class="route-profile-head">
+                    <strong id="map-route-name"></strong>
+                    <span id="map-route-alt"></span>
+                </div>
+                <svg id="map-route-svg" viewBox="0 0 320 64" preserveAspectRatio="none" role="img" aria-label="Perfil de altitud y posición actual en la ruta">
+                    <path id="map-route-area"></path>
+                    <path id="map-route-line"></path>
+                    <line id="map-route-cursor-line" x1="0" y1="7" x2="0" y2="60" style="display:none"></line>
+                    <circle id="map-route-cursor" cx="0" cy="0" r="5" style="display:none"></circle>
+                </svg>
             </div>
 
             <div id="map"></div>
@@ -984,6 +1033,7 @@
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
+        let routeProfileCoords = [], routeProfilePointCount = 0;
         let statsPeriod = 'semanal';
         let statsChart = null, profileChart = null;
 
@@ -1279,6 +1329,7 @@
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
+            if (followedRoute) updateMapRouteProfilePosition(lat, lon);
 
             // El GPS nativo puede no incluir rumbo: en ese caso lo calculamos
             // con el desplazamiento entre posiciones fiables mientras avanzamos.
@@ -1714,8 +1765,71 @@
             }
         }
 
+        function renderMapRouteProfile(r) {
+            const panel = $('map-route-profile');
+            const points = Array.isArray(r.points) ? r.points : [];
+            routeProfileCoords = [];
+            routeProfilePointCount = points.length;
+            $('map-route-name').textContent = r.name || 'Ruta cargada';
+
+            const valid = points.map((p, i) => ({ i, z: Number(p[2]) }))
+                .filter(p => Number.isFinite(p.z));
+            if (valid.length < 2) {
+                $('map-route-alt').textContent = 'Sin datos de altitud';
+                $('map-route-area').setAttribute('d', '');
+                $('map-route-line').setAttribute('d', '');
+                $('map-route-cursor-line').style.display = 'none';
+                $('map-route-cursor').style.display = 'none';
+                panel.classList.add('show');
+                return;
+            }
+
+            const min = Math.min(...valid.map(p => p.z));
+            const max = Math.max(...valid.map(p => p.z));
+            const range = Math.max(max - min, 1);
+            routeProfileCoords = valid.map(p => ({
+                i: p.i,
+                x: routeProfilePointCount > 1 ? p.i / (routeProfilePointCount - 1) * 320 : 0,
+                y: 53 - ((p.z - min) / range) * 42
+            }));
+            const line = routeProfileCoords.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            $('map-route-line').setAttribute('d', line);
+            $('map-route-area').setAttribute('d', `${line} L320,60 L0,60 Z`);
+            const gain = Number(r.elevationGain) || 0;
+            $('map-route-alt').textContent = `${Math.round(min)}–${Math.round(max)} m · +${Math.round(gain)} m`;
+            panel.classList.add('show');
+        }
+
+        function updateMapRouteProfilePosition(lat, lon) {
+            if (!followedRoute || !routeProfileCoords.length || !routeProfilePointCount) return;
+            let bestIndex = 0, bestDistance = Infinity;
+            for (let i = 0; i < followedRoute.pts.length; i++) {
+                const d = dist([lat, lon], followedRoute.pts[i]);
+                if (d < bestDistance) { bestDistance = d; bestIndex = i; }
+            }
+            const x = bestIndex / Math.max(routeProfilePointCount - 1, 1) * 320;
+            let before = routeProfileCoords[0], after = routeProfileCoords[routeProfileCoords.length - 1];
+            for (let i = 1; i < routeProfileCoords.length; i++) {
+                if (routeProfileCoords[i].i >= bestIndex) {
+                    before = routeProfileCoords[i - 1];
+                    after = routeProfileCoords[i];
+                    break;
+                }
+            }
+            const span = after.i - before.i;
+            const t = span ? Math.max(0, Math.min(1, (bestIndex - before.i) / span)) : 0;
+            const y = before.y + (after.y - before.y) * t;
+            const line = $('map-route-cursor-line'), dot = $('map-route-cursor');
+            line.setAttribute('x1', x.toFixed(1)); line.setAttribute('x2', x.toFixed(1));
+            dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+            line.style.display = 'block';
+            dot.style.display = 'block';
+        }
+
         function followRoute(r) {
             followedRoute = { id: r.id, pts: r.points.map(p => [p[0], p[1]]) };
+            renderMapRouteProfile(r);
+            if (lastLat !== null && lastLon !== null) updateMapRouteProfilePosition(lastLat, lastLon);
             offRouteState = false;
             if (map) {
                 savedRouteLayer.setLatLngs(buildSegments(r.points));
@@ -1732,8 +1846,11 @@
 
         function unfollowRoute() {
             followedRoute = null;
+            routeProfileCoords = [];
+            routeProfilePointCount = 0;
             offRouteState = false;
             if (savedRouteLayer) savedRouteLayer.setLatLngs([]);
+            $('map-route-profile').classList.remove('show');
             $('btn-unfollow').style.display = 'none';
         }
         $('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
