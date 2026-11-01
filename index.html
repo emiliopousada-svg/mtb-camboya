@@ -13,6 +13,8 @@
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Rotate: permite orientar el mapa según el rumbo GPS -->
+    <script src="https://cdn.jsdelivr.net/gh/tomickigrzegorz/leaflet-rotate@v0.3.0/dist/leaflet-rotate.umd.min.js"></script>
     <!-- Chart.js (versión fijada) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 
@@ -958,6 +960,7 @@
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
         let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastHeading = null; // Último rumbo GPS válido; se conserva al detenerse.
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -1201,7 +1204,7 @@
                 if (Array.isArray(lp) && lp.length === 2) center = lp;
             } catch (e) {}
 
-            map = L.map('map', { zoomControl: false }).setView(center, 15);
+            map = L.map('map', { zoomControl: false, rotate: typeof L.Map.prototype.setHeading === 'function' }).setView(center, 15);
             window.map = map;
 
             // Cartografía topográfica oficial IGN, con las teselas guardadas en el dispositivo
@@ -1224,7 +1227,10 @@
             if (lastLat === null) { toast('Buscando señal GPS...'); return; }
             following = true;
             updateCenterBtn();
-            if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
+            if (map) {
+                map.setView([lastLat, lastLon], Math.max(map.getZoom(), 16));
+                if (lastHeading !== null && typeof map.setHeading === 'function') map.setHeading(lastHeading, { ease: 0.2, deadzone: 1 });
+            }
         });
 
         // ============================================================
@@ -1239,11 +1245,20 @@
         }
 
         function onPos(pos) {
-            const { latitude: lat, longitude: lon, accuracy, altitude, speed } = pos.coords;
+            const { latitude: lat, longitude: lon, accuracy, altitude, speed, heading } = pos.coords;
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
+
+            // El rumbo GPS solo es fiable en movimiento. Parado, conservamos el último.
+            const movingSpeed = (speed != null && Number.isFinite(speed)) ? speed : 0;
+            if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
+                lastHeading = heading;
+                if (map && following && typeof map.setHeading === 'function') {
+                    map.setHeading(heading, { ease: 0.2, deadzone: 1 });
+                }
+            }
 
             if (Date.now() - lastPosSave > 15000) {
                 lastPosSave = Date.now();
