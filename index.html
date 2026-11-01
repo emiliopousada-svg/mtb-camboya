@@ -490,6 +490,9 @@
         #offline-panel select { width: 100%; padding: 11px; background: #111; color: white; border: 1px solid #555; border-radius: 9px; margin-top: 5px; }
         #offline-panel .btn.danger { background: #5a2020; }
 
+        #elevation-live-wrap { height: 58px; padding: 4px 12px 6px; background: #151515; border-bottom: 1px solid #333; }
+        #elevation-live-title { font-size: .65rem; color: #aaa; line-height: 14px; }
+        #elevation-live { display: block; width: 100%; height: 38px; }
         .leaflet-popup-content-wrapper { color: #121212; }
     </style>
 </head>
@@ -523,6 +526,10 @@
                 </div>
             </div>
 
+            <div id="elevation-live-wrap">
+                <div id="elevation-live-title">PERFIL DE DESNIVEL · Esperando grabación</div>
+                <canvas id="elevation-live" aria-label="Perfil de desnivel de la ruta y posición actual"></canvas>
+            </div>
             <div id="map"></div>
   </section>
 
@@ -1327,6 +1334,7 @@
             ];
             if (brk) pt.push(1);
             points.push(pt);
+            drawLiveElevation();
 
             if (brk || segments.length === 0) segments.push([]);
             segments[segments.length - 1].push(ll);
@@ -1338,6 +1346,42 @@
 
             if (map && following) map.panTo(ll, { animate: true });
         }
+
+        // Perfil de desnivel en directo: el punto muestra el avance en el track.
+        function drawLiveElevation() {
+            const canvas = $('elevation-live');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            if (!rect.width) return;
+            const dpr = Math.max(1, window.devicePixelRatio || 1);
+            canvas.width = Math.round(rect.width * dpr);
+            canvas.height = Math.round(rect.height * dpr);
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            const w = rect.width, h = rect.height, pad = 4;
+            ctx.clearRect(0, 0, w, h);
+            const samples = points.map((p, i) => ({ i, alt: p[2] })).filter(p => p.alt !== null && Number.isFinite(p.alt));
+            if (samples.length < 2) {
+                $('elevation-live-title').textContent = isRecording ? 'PERFIL DE DESNIVEL · Recogiendo altitud GPS…' : 'PERFIL DE DESNIVEL · Esperando grabación';
+                return;
+            }
+            const min = Math.min(...samples.map(p => p.alt)), max = Math.max(...samples.map(p => p.alt));
+            const span = Math.max(8, max - min);
+            const xAt = i => pad + (w - pad * 2) * (points.length > 1 ? i / (points.length - 1) : 0);
+            const yAt = alt => h - pad - ((alt - min) / span) * (h - pad * 2);
+            ctx.beginPath();
+            samples.forEach((p, n) => n ? ctx.lineTo(xAt(p.i), yAt(p.alt)) : ctx.moveTo(xAt(p.i), yAt(p.alt)));
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ff9800';
+            ctx.stroke();
+            const last = samples[samples.length - 1];
+            const x = xAt(points.length - 1), y = yAt(last.alt);
+            ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#29b6f6'; ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+            $('elevation-live-title').textContent = 'PERFIL DE DESNIVEL · ' + Math.round(last.alt) + ' m · Punto azul: posición actual';
+        }
+        window.addEventListener('resize', drawLiveElevation);
 
         // ============================================================
         //  CONTROL DE GRABACIÓN
