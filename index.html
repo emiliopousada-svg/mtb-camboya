@@ -1034,6 +1034,7 @@
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
         let routeProfileCoords = [], routeProfilePointCount = 0;
+        let offRouteAudioContext = null;
         let statsPeriod = 'semanal';
         let statsChart = null, profileChart = null;
 
@@ -1565,6 +1566,7 @@
         }
 
         function startRecording() {
+            unlockOffRouteSound();
             resetRecordingState();
             isRecording = true;
             isPaused = false;
@@ -1595,6 +1597,7 @@
         }
 
         function resumeRecording() {
+            unlockOffRouteSound();
             isPaused = false;
             segStart = Date.now();
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
@@ -1746,6 +1749,35 @@
             return Math.hypot(ax + t * dx, ay + t * dy);
         }
 
+        function unlockOffRouteSound() {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) return;
+            try {
+                if (!offRouteAudioContext) offRouteAudioContext = new AudioContextCtor();
+                if (offRouteAudioContext.state === 'suspended') offRouteAudioContext.resume().catch(() => {});
+            } catch (e) {}
+        }
+
+        function playOffRouteSound() {
+            const ctx = offRouteAudioContext;
+            if (!ctx || ctx.state !== 'running') return;
+            const start = ctx.currentTime;
+            [880, 660].forEach((frequency, i) => {
+                const at = start + i * 0.22;
+                const oscillator = ctx.createOscillator();
+                const gain = ctx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(frequency, at);
+                gain.gain.setValueAtTime(0.0001, at);
+                gain.gain.linearRampToValueAtTime(0.18, at + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+                oscillator.connect(gain);
+                gain.connect(ctx.destination);
+                oscillator.start(at);
+                oscillator.stop(at + 0.17);
+            });
+        }
+
         function checkOffRoute(lat, lon) {
             const pts = followedRoute.pts;
             if (pts.length < 2) return;
@@ -1758,6 +1790,7 @@
             if (!offRouteState && min > OFFROUTE_M) {
                 offRouteState = true;
                 toast(`⚠️ Te has salido de la ruta (${Math.round(min)} m)`, 5000);
+                playOffRouteSound();
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             } else if (offRouteState && min < BACKONROUTE_M) {
                 offRouteState = false;
@@ -1827,6 +1860,7 @@
         }
 
         function followRoute(r) {
+            unlockOffRouteSound();
             followedRoute = { id: r.id, pts: r.points.map(p => [p[0], p[1]]) };
             renderMapRouteProfile(r);
             if (lastLat !== null && lastLon !== null) updateMapRouteProfilePosition(lastLat, lastLon);
@@ -2071,6 +2105,7 @@
         }
 
         $('btn-load-file').addEventListener('click', async () => {
+            unlockOffRouteSound();
             const f = $('gpx-input').files[0];
             if (!f) { toast('Elige primero un archivo GPX, KML o GeoJSON'); return; }
             try {
