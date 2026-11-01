@@ -11,7 +11,7 @@ const nm = path.join(root, 'node_modules');
 fs.rmSync(www, { recursive: true, force: true });
 fs.mkdirSync(path.join(www, 'lib', 'leaflet'), { recursive: true });
 
-for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png']) {
+for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'estrella-galicia.svg']) {
   fs.copyFileSync(path.join(root, f), path.join(www, f));
 }
 // sw.js no se copia: dentro del APK los archivos ya van empaquetados.
@@ -20,6 +20,16 @@ fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/l
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.js'), path.join(www, 'lib/leaflet/leaflet.js'));
 fs.cpSync(path.join(nm, 'leaflet/dist/images'), path.join(www, 'lib/leaflet/images'), { recursive: true });
 fs.copyFileSync(path.join(nm, 'chart.js/dist/chart.umd.js'), path.join(www, 'lib/chart.umd.js'));
+
+// El módulo BLE usa imports de npm: se empaqueta como script clásico para Capacitor.
+require('esbuild').buildSync({
+  entryPoints: [path.join(root, 'src', 'ble.js')],
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  target: 'es2019',
+  outfile: path.join(www, 'lib/ble.js')
+});
 
 const file = path.join(www, 'index.html');
 let html = fs.readFileSync(file, 'utf8');
