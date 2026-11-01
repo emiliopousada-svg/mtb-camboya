@@ -80,7 +80,7 @@
         /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
-            top: 12px;
+            top: calc(env(safe-area-inset-top, 0px) + 30px);
             left: 8px;
             right: 8px;
             background: rgba(18, 18, 18, 0.88);
@@ -234,7 +234,7 @@
         .side-controls {
             position: absolute;
             left: 10px;
-            top: calc(env(safe-area-inset-top, 0px) + 96px);
+            top: calc(env(safe-area-inset-top, 0px) + 114px);
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -697,13 +697,21 @@
     </div>
 
     <section id="offline-panel" role="dialog" aria-modal="true" aria-label="Mapas sin conexión">
-    <h3>🗺️ Mapas offline de Galicia</h3>
-    <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y la descarga se puede reanudar si se interrumpe.</p>
+    <h3>🗺️ Mapas offline por provincia</h3>
+    <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y puedes parar y reanudar la descarga cuando quieras.</p>
+    <label for="offline-province" style="font-size:.8rem;color:#ddd;">Provincia</label>
+    <select id="offline-province">
+        <option value="pontevedra" selected>Pontevedra</option>
+        <option value="acoruna">A Coruña</option>
+        <option value="lugo">Lugo</option>
+        <option value="ourense">Ourense</option>
+    </select>
     <label for="offline-detail" style="font-size:.8rem;color:#ddd;">Nivel de detalle</label>
     <select id="offline-detail">
-        <option value="13" selected>Galicia completa · detalle estándar (zoom 7–13)</option>
-        <option value="14">Galicia completa · más detalle (zoom 7–14, ocupa mucho más)</option>
+        <option value="13" selected>Estándar (zoom 7–13)</option>
+        <option value="14">Alto (zoom 7–14, ocupa bastante más)</option>
     </select>
+    <p class="hint">La descarga cubre el área geográfica aproximada de la provincia y puede incluir pequeñas zonas limítrofes.</p>
     <div id="offline-progress"><div id="offline-progress-fill"></div></div>
     <div id="offline-progress-text">Preparado para descargar</div>
     <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga.</p>
@@ -1071,8 +1079,16 @@
         }
 
         // Rectángulo de cobertura aproximado de Galicia; se descargan niveles 7–13 por defecto.
-        function galiciaTiles(maxZoom) {
-            const west = -9.30, east = -6.70, south = 41.80, north = 43.80;
+        function provinceTiles(province, maxZoom) {
+            // Rectángulos geográficos aproximados; pueden incluir pequeñas zonas limítrofes.
+            const bounds = {
+                acoruna:    { west: -9.30, east: -7.55, south: 42.70, north: 43.80 },
+                lugo:       { west: -7.95, east: -6.70, south: 42.20, north: 43.80 },
+                ourense:    { west: -8.25, east: -6.75, south: 41.80, north: 42.70 },
+                pontevedra: { west: -9.30, east: -7.85, south: 41.80, north: 43.00 }
+            };
+            const area = bounds[province] || bounds.pontevedra;
+            const { west, east, south, north } = area;
             const out = [];
             const xt = (lon, z) => Math.floor((lon + 180) / 360 * Math.pow(2, z));
             const yt = (lat, z) => Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z));
@@ -1087,14 +1103,17 @@
             $('offline-progress-fill').style.width = pct + '%';
             $('offline-progress-text').textContent = `${done.toLocaleString('es-ES')} / ${total.toLocaleString('es-ES')} teselas (${pct}%)${errors ? ` · ${errors} errores` : ''}`;
         }
-        async function downloadGaliciaOffline() {
+        async function downloadProvinceOffline() {
             if (offlineDownloadRunning) return;
             offlineDownloadRunning = true; stopOfflineDownload = false;
+            const provinceSelect = $('offline-province');
+            const province = provinceSelect.value;
+            const provinceName = provinceSelect.options[provinceSelect.selectedIndex].text;
             const maxZoom = Number($('offline-detail').value) || 13;
-            const tiles = galiciaTiles(maxZoom);
+            const tiles = provinceTiles(province, maxZoom);
             let done = 0, errors = 0, cursor = 0;
             $('btn-download-galicia').disabled = true;
-            $('offline-storage-note').textContent = 'Descarga en curso. Mantén la app abierta y conectada a Wi‑Fi. Si la paras, pulsa reanudar más tarde: las teselas ya guardadas se conservan.';
+            $('offline-storage-note').textContent = 'Descargando ' + provinceName + '. Mantén la app abierta y conectada a Wi‑Fi. Si la paras, selecciona la misma provincia para reanudar; las teselas ya guardadas se conservan.';
             setOfflineProgress(0, tiles.length, 0);
             try {
                 await openOfflineDb();
@@ -1117,7 +1136,7 @@
                 } else {
                     setOfflineProgress(done, tiles.length, errors);
                     $('offline-storage-note').textContent = `Proceso terminado. Teselas guardadas en este móvil: ${stored.toLocaleString('es-ES')}. Los errores se pueden reintentar volviendo a pulsar descargar.`;
-                    toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : 'Mapa de Galicia guardado para usar sin conexión', 5000);
+                    toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : 'Mapa de ' + provinceName + ' guardado para usar sin conexión', 5000);
                 }
             } catch (e) {
                 console.error(e);
@@ -1143,7 +1162,7 @@
             } catch (e) { $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.'; }
         });
         $('btn-close-offline').addEventListener('click', () => $('offline-panel').classList.remove('show'));
-        $('btn-download-galicia').addEventListener('click', downloadGaliciaOffline);
+        $('btn-download-galicia').addEventListener('click', downloadProvinceOffline);
         $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
 
         async function clearOfflineTiles() {
