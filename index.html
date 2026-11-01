@@ -474,8 +474,9 @@
             box-shadow: 0 3px 12px rgba(0,0,0,.4);
         }
         #offline-panel {
-            display: none; position: fixed; z-index: 4500; left: 14px; right: 14px;
-            top: 50%; transform: translateY(-50%); max-width: 440px; margin: auto;
+            display: none; position: fixed; z-index: 4500; left: 50%; top: 50%;
+            transform: translate(-50%, -50%); width: min(440px, calc(100vw - 28px));
+            max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain;
             background: #242424; color: #fff; border: 1px solid rgba(255,255,255,.18);
             border-radius: 16px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.65);
         }
@@ -526,24 +527,7 @@
 
             <div id="map"></div>
             <button id="btn-offline-maps" type="button">⬇️ Mapas offline</button>
-            <section id="offline-panel" role="dialog" aria-modal="true" aria-label="Mapas sin conexión">
-                <h3>🗺️ Mapas offline de Galicia</h3>
-                <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y la descarga se puede reanudar si se interrumpe.</p>
-                <label for="offline-detail" style="font-size:.8rem;color:#ddd;">Nivel de detalle</label>
-                <select id="offline-detail">
-                    <option value="13" selected>Galicia completa · detalle estándar (zoom 7–13)</option>
-                    <option value="14">Galicia completa · más detalle (zoom 7–14, ocupa mucho más)</option>
-                </select>
-                <div id="offline-progress"><div id="offline-progress-fill"></div></div>
-                <div id="offline-progress-text">Preparado para descargar</div>
-                <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga.</p>
-                <div class="offline-actions">
-                    <button class="btn" id="btn-download-galicia" type="button">Descargar / reanudar</button>
-                    <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
-                </div>
-                <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
-                <button class="btn secondary" id="btn-close-offline" type="button">Cerrar</button>
-            </section>
+  </section>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
                 <div id="big-label"></div>
@@ -676,9 +660,11 @@
 
             <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
-                <p class="hint">Unirse a un pelotón para ver a tus compañeros en el mapa en vivo. Próximamente: necesita un servidor.</p>
-                <input type="text" id="group-code" value="MTB-CAMBOYA-GRUPO" placeholder="Código de Grupo">
+                <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
+                <input type="text" id="group-code" placeholder="Código de grupo asignado">
+                <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32" value="">
                 <button class="btn" id="btn-join">Unirse al Grupo</button>
+                <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
             </div>
 
             <div class="card">
@@ -706,15 +692,28 @@
                 <button class="btn secondary" id="btn-load-file">Cargar Archivo</button>
             </div>
 
-            <div class="card">
-                <h2>📍 Fuentes y paradas</h2>
-                <p class="hint">También puedes marcarlas con los iconos de la izquierda del mapa.</p>
-                <button class="btn" id="btn-fountain">🚰 Marcar fuente aquí</button>
-                <button class="btn secondary" id="btn-bar">🍺 Marcar parada en un bar</button>
-            </div>
         </div>
 
     </div>
+
+    <section id="offline-panel" role="dialog" aria-modal="true" aria-label="Mapas sin conexión">
+    <h3>🗺️ Mapas offline de Galicia</h3>
+    <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y la descarga se puede reanudar si se interrumpe.</p>
+    <label for="offline-detail" style="font-size:.8rem;color:#ddd;">Nivel de detalle</label>
+    <select id="offline-detail">
+        <option value="13" selected>Galicia completa · detalle estándar (zoom 7–13)</option>
+        <option value="14">Galicia completa · más detalle (zoom 7–14, ocupa mucho más)</option>
+    </select>
+    <div id="offline-progress"><div id="offline-progress-fill"></div></div>
+    <div id="offline-progress-text">Preparado para descargar</div>
+    <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga.</p>
+    <div class="offline-actions">
+        <button class="btn" id="btn-download-galicia" type="button">Descargar / reanudar</button>
+        <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
+    </div>
+    <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
+    <button class="btn secondary" id="btn-close-offline" type="button">Cerrar</button>
+    </section>
 
     <!-- NAVEGACIÓN DE PESTAÑAS INFERIOR -->
     <nav>
@@ -954,7 +953,7 @@
         let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
-        let lastLat = null, lastLon = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -1228,6 +1227,7 @@
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
+            lastAccuracy = accuracy;
 
             if (Date.now() - lastPosSave > 15000) {
                 lastPosSave = Date.now();
@@ -1252,6 +1252,7 @@
 
             if (followedRoute) checkOffRoute(lat, lon);
             if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
+            publishMyLocation();
 
             const t = pos.timestamp;
             let add = 0, brk = false;
@@ -1450,6 +1451,7 @@
             startTimers();
             following = true;
             updateCenterBtn();
+            publishMyLocation(true);
             beginTracking(true);
         }
 
@@ -1460,6 +1462,7 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
+            removeMyLiveLocation();
             setBtnState('paused');
             $('m-speed').textContent = '0.0';
             saveDraft();
@@ -1471,6 +1474,7 @@
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
             setBtnState('recording');
             startTimers();
+            publishMyLocation(true);
             beginTracking(false);
         }
 
@@ -1493,6 +1497,7 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
+            removeMyLiveLocation();
             setBtnState('idle');
             $('m-speed').textContent = '0.0';
             DB.kvDel('draft').catch(() => {});
@@ -2361,15 +2366,137 @@
 
         $('btn-poi-fountain').addEventListener('click', () => addPoi('fountain'));
         $('btn-poi-bar').addEventListener('click', () => addPoi('bar'));
-        $('btn-fountain').addEventListener('click', () => addPoi('fountain'));
-        $('btn-bar').addEventListener('click', () => addPoi('bar'));
+
+        //  POSICIONES DEL GRUPO (PocketBase)
+        // ============================================================
+        let groupJoined = false, friendsTimer = null, lastLivePush = 0, livePushPending = false;
+        let myLiveRecordId = null;
+        const friendMarkers = new Map();
+        const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
+
+        function groupName() { return $('group-code').value.trim(); }
+
+        function renderFriends(items = []) {
+            const box = $('friends-list');
+            box.textContent = '';
+            const now = Date.now();
+            const live = items.filter(x => x.owner !== Cloud.uid && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lon)) && now - Date.parse(x.updated) < FRIEND_STALE_MS);
+            const ids = new Set(live.map(x => x.id));
+            for (const [id, marker] of friendMarkers) {
+                if (!ids.has(id)) { if (map) map.removeLayer(marker); friendMarkers.delete(id); }
+            }
+            if (!live.length) {
+                const p = document.createElement('p');
+                p.className = 'hint'; p.style.textAlign = 'center';
+                p.textContent = groupJoined ? 'No hay compañeros compartiendo ubicación ahora.' : 'Únete al grupo para consultar las posiciones activas.';
+                box.appendChild(p);
+                return;
+            }
+            live.forEach(rec => {
+                const name = rec.name || 'Compañero';
+                const ll = [Number(rec.lat), Number(rec.lon)];
+                let marker = friendMarkers.get(rec.id);
+                if (map) {
+                    if (!marker) {
+                        marker = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 2, fillColor: '#ab47bc', fillOpacity: 1 }).addTo(map);
+                        friendMarkers.set(rec.id, marker);
+                    } else marker.setLatLng(ll);
+                    const popup = document.createElement('div');
+                    const popupName = document.createElement('strong');
+                    popupName.textContent = name;
+                    const popupTime = document.createElement('div');
+                    popupTime.textContent = `Actualizado ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
+                    popup.append(popupName, popupTime);
+                    marker.bindPopup(popup);
+                }
+                const row = document.createElement('p');
+                row.className = 'hint'; row.textContent = `🚴 ${name} · ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
+                box.appendChild(row);
+            });
+        }
+
+        async function refreshFriends() {
+            if (!groupJoined || !Cloud.loggedIn()) return;
+            try {
+                const f = encodeURIComponent(`groupCode = "${groupName()}"`);
+                const res = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=200&sort=-updated`);
+                const own = res.items.find(x => x.owner === Cloud.uid);
+                myLiveRecordId = own ? own.id : null;
+                renderFriends(res.items);
+            } catch (e) {
+                console.warn('Posiciones del grupo:', e);
+                if (e.status !== undefined && e.status !== 404) $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa live_locations y sus reglas en PocketBase.';
+            }
+        }
+
+        async function publishMyLocation(force = false) {
+            if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
+            if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
+            livePushPending = true;
+            try {
+                const payload = { owner: Cloud.uid, groupCode: groupName(), name: localStorage.getItem('mtb_group_name') || 'Compañero', lat: lastLat, lon: lastLon, accuracy: Number.isFinite(lastAccuracy) ? lastAccuracy : 0 };
+                if (!myLiveRecordId) {
+                    const f = encodeURIComponent(`owner = "${Cloud.uid}"`);
+                    const own = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=1`);
+                    myLiveRecordId = own.items[0] ? own.items[0].id : null;
+                }
+                if (myLiveRecordId) await cloudApi(`/api/collections/live_locations/records/${myLiveRecordId}`, 'PATCH', payload);
+                else {
+                    const rec = await cloudApi('/api/collections/live_locations/records', 'POST', payload);
+                    myLiveRecordId = rec.id;
+                }
+                if (!groupJoined || !isRecording || isPaused) { await removeMyLiveLocation(); return; }
+                lastLivePush = Date.now();
+                refreshFriends();
+            } catch (e) {
+                console.warn('No se pudo compartir la posición:', e);
+                if (e.status === 404) myLiveRecordId = null;
+                if (e.status !== undefined) $('group-status').textContent = `Error al compartir posición: ${e.message}`;
+            } finally { livePushPending = false; }
+        }
+
+        async function removeMyLiveLocation() {
+            const id = myLiveRecordId;
+            myLiveRecordId = null;
+            if (id && Cloud.loggedIn()) {
+                try { await cloudApi(`/api/collections/live_locations/records/${id}`, 'DELETE'); }
+                catch (e) { console.warn('No se pudo retirar la posición:', e); }
+            }
+            renderFriends();
+        }
+
+        $('group-name').value = localStorage.getItem('mtb_group_name') || '';
+        $('btn-join').addEventListener('click', async () => {
+            if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
+            if (groupJoined) {
+                groupJoined = false;
+                clearInterval(friendsTimer); friendsTimer = null;
+                await removeMyLiveLocation();
+                $('btn-join').textContent = 'Unirse al Grupo';
+                $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
+                renderFriends();
+                return;
+            }
+            try {
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                renderAccount();
+            } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
+            const code = groupName();
+            const displayName = $('group-name').value.trim().slice(0, 32);
+            if (displayName) localStorage.setItem('mtb_group_name', displayName);
+            if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
+                toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
+            }
+            groupJoined = true;
+            $('btn-join').textContent = 'Salir del Grupo';
+            $('group-status').textContent = isRecording ? 'Grupo activo: compartiendo tu posición al grabar.' : 'Grupo activo: tu posición se compartirá cuando empieces a grabar.';
+            await refreshFriends();
+            friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+            if (isRecording && !isPaused) publishMyLocation(true);
+        });
 
         // ============================================================
-        //  AMIGOS (pendiente de servidor)
-        // ============================================================
-        $('btn-join').addEventListener('click', () => {
-            toast('Esta función necesita un servidor y todavía no está disponible.', 4500);
-        });
 
         // ============================================================
         //  INICIO
@@ -2446,14 +2573,16 @@
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
+            get groupCode() { return localStorage.getItem('mtb_group_code') || ''; },
             loggedIn()   { return !!(this.server && this.token && this.uid); },
             setSession(token, rec) {
                 localStorage.setItem('mtb_token', token);
                 localStorage.setItem('mtb_uid', rec.id);
                 localStorage.setItem('mtb_email', rec.email || '');
+                localStorage.setItem('mtb_group_code', rec.groupCode || '');
             },
             clearSession() {
-                ['mtb_token', 'mtb_uid', 'mtb_email'].forEach(k => localStorage.removeItem(k));
+                ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
             }
         };
 
@@ -2493,7 +2622,7 @@
             $('acc-server').value = Cloud.server;
             const last = localStorage.getItem('mtb_lastsync');
             $('acc-status').textContent = on
-                ? `Conectado como ${Cloud.email}` + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
+                ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
                 : 'Sin sesión: tus rutas se guardan solo en este móvil.';
         }
 
@@ -2649,8 +2778,12 @@
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
-            $('acc-logout').addEventListener('click', () => {
+            $('acc-logout').addEventListener('click', async () => {
+                groupJoined = false;
+                if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+                await removeMyLiveLocation();
                 Cloud.clearSession();
+                renderFriends();
                 renderAccount();
                 toast('Sesión cerrada. Tus rutas siguen en este móvil.');
             });
