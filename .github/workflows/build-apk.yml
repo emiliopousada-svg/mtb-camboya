@@ -26,13 +26,10 @@ jobs:
       - name: Preparar la web (copias locales de Leaflet y Chart.js)
         run: node scripts/prepare-web.js
 
-      - name: Crear proyecto Android
+      - name: Crear proyecto Android limpio con la versión de Capacitor del proyecto
         run: |
-          if [ -d android ]; then
-            echo "Se reutiliza el proyecto Android existente"
-          else
-            npx cap add android
-          fi
+          rm -rf android
+          npx cap add android
 
       - name: Permisos (ubicación, notificación y servicio en segundo plano)
         run: |
