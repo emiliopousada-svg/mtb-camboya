@@ -1,0 +1,34 @@
+[
+  {
+    "name": "live_locations",
+    "type": "base",
+    "system": false,
+    "listRule": "@request.auth.id != '' && @request.auth.groupCode != '' && groupCode = @request.auth.groupCode",
+    "viewRule": "@request.auth.id != '' && @request.auth.groupCode != '' && groupCode = @request.auth.groupCode",
+    "createRule": "@request.auth.id != '' && @request.auth.groupCode != '' && @request.body.owner = @request.auth.id && @request.body.groupCode = @request.auth.groupCode",
+    "updateRule": "@request.auth.id != '' && owner = @request.auth.id && @request.body.owner:changed = false && @request.body.groupCode:changed = false",
+    "deleteRule": "@request.auth.id != '' && owner = @request.auth.id",
+    "fields": [
+      {
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      { "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
+      { "name": "groupCode", "type": "text", "required": true },
+      { "name": "name", "type": "text" },
+      { "name": "lat", "type": "number", "required": true },
+      { "name": "lon", "type": "number", "required": true },
+      { "name": "accuracy", "type": "number" },
+      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
+      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+    ],
+    "indexes": []
+  }
+]

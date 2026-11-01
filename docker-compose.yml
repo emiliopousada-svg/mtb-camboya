@@ -1,0 +1,15 @@
+# Proyecto «pocketbase» de Container Manager (carpeta docker/pocketbase del NAS).
+# Cambia el correo y la contraseña antes de arrancarlo por primera vez.
+services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:0.36.2
+    container_name: pocketbase
+    restart: unless-stopped
+    environment:
+      PB_ADMIN_EMAIL: "PON-AQUI-TU-CORREO"
+      PB_ADMIN_PASSWORD: "PON-AQUI-UNA-CONTRASEÑA-LARGA"
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pb_data:/pb_data
+      - ./pb_hooks:/pb_hooks

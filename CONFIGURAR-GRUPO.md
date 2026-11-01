@@ -1,49 +1,49 @@
-# Posiciones de amigos en MTB CAMBOYA
+# Posición de amigos en vivo: configuración del servidor
 
-La función comparte la ubicación únicamente mientras la persona está grabando y se ha unido al grupo. La app actualiza las posiciones aproximadamente cada 10 segundos y oculta las que llevan más de 2 minutos sin actualizarse. Al pausar, finalizar o salir del grupo, intenta borrar la posición activa.
+La app comparte tu ubicación **solo mientras grabas y estás unido al grupo**. Cada 10 segundos envía tu posición y consulta la de los demás; oculta a quien lleve más de 2 minutos sin actualizar. Al pausar, terminar la ruta, salir del grupo o cerrar sesión, borra tu posición del servidor.
 
-## 1. Asignar miembros al grupo
+Los archivos de esta carpeta (`servidor/`) son para el NAS, no forman parte del APK.
 
-En PocketBase, abre la colección de autenticación `users` y añade un campo de texto `groupCode`. Asigna exactamente el mismo código a cada cuenta que pertenezca al grupo, por ejemplo un código largo y difícil de adivinar usando solo letras, números, guion y guion bajo (de 6 a 64 caracteres). Los usuarios no deben poder cambiar este campo desde la app; mantenlo editable solo por administradores. La app actualiza la sesión al unirse al grupo para cargar el valor más reciente.
+## 1. Cuentas y código de grupo (colección `users`)
 
-La app también pide que la persona escriba ese código en la pantalla **Posición de Amigos**. El código escrito debe coincidir con el que PocketBase devuelve para su cuenta.
+1. En el panel de PocketBase (`http://IP-DEL-NAS:8090/_/`) abre **Collections → users → engranaje → Edit collection**.
+2. Añade un campo **Plain text** llamado exactamente `groupCode`. Guarda.
+3. **Importante: impide que los usuarios cambien su propio grupo.** En la pestaña **API Rules**, pon en **Update rule**:
+   ```
+   id = @request.auth.id && @request.body.groupCode:isset = false
+   ```
+   Sin esta regla, cualquier usuario podría ponerse el código de otro grupo desde la API y ver sus posiciones.
+4. En la misma pestaña, deja la **Create rule** bloqueada (solo superusuarios), como ya hiciste, para que nadie pueda registrarse.
+5. Abre cada usuario del grupo y escribe en `groupCode` **el mismo código**: entre 6 y 64 caracteres, solo letras, números, guion y guion bajo. Elige uno largo y difícil de adivinar.
 
-## 2. Crear `live_locations`
+## 2. Colección `live_locations`
 
-Crea una colección de tipo **Base** llamada exactamente `live_locations` con estos campos:
+1. **Settings → Import collections**, pega el contenido de `live_locations.json` y pulsa **Review**.
+2. Comprueba que solo aparece `live_locations` como colección **nueva**. Si propone borrar `users` o `routes`, no confirmes.
+3. Confirma. El archivo ya incluye los campos automáticos `created` y `updated`, que la app necesita para ordenar y ocultar posiciones antiguas.
 
-| Campo | Tipo | Opciones |
-|---|---|---|
-| `owner` | Relation | Colección `users`, una relación, obligatorio |
-| `groupCode` | Text | Obligatorio |
-| `name` | Text | |
-| `lat` | Number | Obligatorio |
-| `lon` | Number | Obligatorio |
-| `accuracy` | Number | |
+Las reglas hacen que cada persona solo pueda crear, modificar y borrar **su** posición, y solo vea las posiciones de **su** grupo.
 
-No uses una regla pública. Configura las reglas API así:
+## 3. Limpieza automática (recomendado)
 
-- **List** y **View**:
-  ```text
-  @request.auth.id != "" && @request.auth.groupCode != "" && groupCode = @request.auth.groupCode
-  ```
-- **Create**:
-  ```text
-  @request.auth.id != "" && owner = @request.auth.id && groupCode = @request.auth.groupCode
-  ```
-- **Update**:
-  ```text
-  @request.auth.id != "" && owner = @request.auth.id && @request.body.owner:changed = false && @request.body.groupCode:changed = false
-  ```
-- **Delete**:
-  ```text
-  @request.auth.id != "" && owner = @request.auth.id
-  ```
+Si el móvil pierde la señal o se cierra la app, la posición queda guardada en el servidor. La app la oculta a los 2 minutos, pero seguiría consultable por la API. Esta tarea la borra a los 5 minutos:
 
-La regla de actualización impide que el dueño cambie el usuario o el grupo de una posición existente. La app vuelve a enviar esos valores sin cambiarlos al actualizar coordenadas. PocketBase documenta el modificador `:changed` para validar que esos campos no hayan cambiado en la petición.
+1. En File Station crea la carpeta `docker/pocketbase/pb_hooks` y copia dentro `live_cleanup.pb.js`.
+2. Sustituye el `docker-compose.yml` del proyecto por el de esta carpeta (añade la línea `./pb_hooks:/pb_hooks`), o simplemente añade esa línea al tuyo.
+3. En Container Manager → Proyecto → `pocketbase`: **Acción → Detener**, y luego **Compilar** o **Iniciar** para recrearlo.
+4. Comprueba en **Registro** del contenedor que no hay errores al arrancar.
 
-## 3. Uso
+Este archivo no está probado en tu servidor. Si el contenedor no carga la carpeta de hooks, las posiciones antiguas seguirán sin borrarse.
 
-Cada usuario inicia sesión, escribe el código de su grupo y pulsa **Unirse al Grupo**. Al empezar una grabación, su posición aparece en el mapa de los miembros. Pausar o detener la grabación deja de compartirla. Las posiciones antiguas se ocultan automáticamente tras 2 minutos por si el móvil pierde conexión antes de poder borrarlas.
+## 4. Uso en la app
 
-Las rutas grabadas siguen siendo privadas según las reglas de `routes`; esta función usa una colección separada solo para la posición activa.
+1. En la pestaña **Amigos**, inicia sesión en la tarjeta **Cuenta**.
+2. Escribe tu apodo (es lo que verán los demás; no se comparte tu correo) y el código de grupo, y pulsa **Unirse al Grupo**.
+3. Se acuerda del grupo: al abrir la app se une solo. Para dejar de compartir, pulsa **Salir del Grupo**.
+4. Cuando empieces a grabar, tu posición aparece en el mapa de los miembros como un punto morado.
+
+## Privacidad
+
+- Solo se comparte tu posición durante la grabación y estando unido.
+- Los miembros del grupo ven tu apodo y tu posición; no ven tu correo.
+- Como administrador, tú puedes ver todos los datos desde el panel de PocketBase.

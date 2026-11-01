@@ -1,0 +1,38 @@
+[
+  {
+    "name": "routes",
+    "type": "base",
+    "system": false,
+    "listRule": "owner = @request.auth.id",
+    "viewRule": "owner = @request.auth.id",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id",
+    "updateRule": "owner = @request.auth.id",
+    "deleteRule": "owner = @request.auth.id",
+    "fields": [
+      {
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      { "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
+      { "name": "clientId", "type": "number", "required": true },
+      { "name": "name", "type": "text" },
+      { "name": "kind", "type": "text" },
+      { "name": "startedAt", "type": "text" },
+      { "name": "movingTimeSec", "type": "number" },
+      { "name": "distanceKm", "type": "number" },
+      { "name": "elevationGain", "type": "number" },
+      { "name": "hrAvg", "type": "number" },
+      { "name": "track", "type": "file", "maxSelect": 1, "maxSize": 52428800, "protected": true }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_routes_owner_client` ON `routes` (`owner`, `clientId`)"
+    ]
+  }
+]
