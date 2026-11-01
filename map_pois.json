@@ -1,0 +1,35 @@
+[
+  {
+    "name": "map_pois",
+    "type": "base",
+    "system": false,
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": "@request.auth.id != '' && owner = @request.auth.id",
+    "fields": [
+      {
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      { "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
+      { "name": "clientId", "type": "text", "required": true },
+      { "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar"] },
+      { "name": "name", "type": "text", "required": true },
+      { "name": "lat", "type": "number", "required": true },
+      { "name": "lng", "type": "number", "required": true },
+      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_map_pois_owner_client` ON `map_pois` (`owner`, `clientId`)"
+    ]
+  }
+]
