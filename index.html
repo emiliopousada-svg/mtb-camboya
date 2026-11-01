@@ -1772,7 +1772,7 @@
             routeProfilePointCount = points.length;
             $('map-route-name').textContent = r.name || 'Ruta cargada';
 
-            const valid = points.map((p, i) => ({ i, z: Number(p[2]) }))
+            const valid = points.map((p, i) => ({ i, z: p[2] == null ? NaN : Number(p[2]) }))
                 .filter(p => Number.isFinite(p.z));
             if (valid.length < 2) {
                 $('map-route-alt').textContent = 'Sin datos de altitud';
