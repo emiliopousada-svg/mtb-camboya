@@ -1758,11 +1758,11 @@
             } catch (e) {}
         }
 
-        function playOffRouteSound() {
+        function playRouteSound(frequencies) {
             const ctx = offRouteAudioContext;
             if (!ctx || ctx.state !== 'running') return;
             const start = ctx.currentTime;
-            [880, 660].forEach((frequency, i) => {
+            frequencies.forEach((frequency, i) => {
                 const at = start + i * 0.22;
                 const oscillator = ctx.createOscillator();
                 const gain = ctx.createGain();
@@ -1777,6 +1777,9 @@
                 oscillator.stop(at + 0.17);
             });
         }
+
+        function playOffRouteSound() { playRouteSound([880, 660]); }
+        function playBackOnRouteSound() { playRouteSound([660, 880, 1040]); }
 
         function checkOffRoute(lat, lon) {
             const pts = followedRoute.pts;
@@ -1795,6 +1798,7 @@
             } else if (offRouteState && min < BACKONROUTE_M) {
                 offRouteState = false;
                 toast('✅ De nuevo en la ruta');
+                playBackOnRouteSound();
             }
         }
 
