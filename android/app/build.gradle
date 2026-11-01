@@ -1,5 +1,28 @@
 apply plugin: 'com.android.application'
 
+// Usa el número de commits del historial completo como versionCode.
+// Cada commit nuevo en main produce un código mayor para las siguientes APK.
+def autoVersionCode
+try {
+    def repoDir = rootProject.projectDir.absolutePath
+    def shallowCheck = new ProcessBuilder('git', '-C', repoDir, 'rev-parse', '--is-shallow-repository')
+        .redirectErrorStream(true).start()
+    def shallowResult = shallowCheck.inputStream.getText('UTF-8').trim()
+    if (shallowCheck.waitFor() != 0 || shallowResult != 'false') {
+        throw new GradleException('La compilación necesita un clon Git con el historial completo.')
+    }
+
+    def versionProcess = new ProcessBuilder('git', '-C', repoDir, 'rev-list', '--count', 'HEAD')
+        .redirectErrorStream(true).start()
+    def versionOutput = versionProcess.inputStream.getText('UTF-8').trim()
+    if (versionProcess.waitFor() != 0 || !versionOutput.isInteger()) {
+        throw new GradleException('No se pudo calcular versionCode desde el historial Git.')
+    }
+    autoVersionCode = versionOutput.toInteger()
+} catch (Exception e) {
+    throw new GradleException('No se pudo generar el versionCode automático. Abre el proyecto desde un clon Git completo.', e)
+}
+
 android {
     namespace = "com.emiliopousada.mtbcamboya"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +30,7 @@ android {
         applicationId "com.emiliopousada.mtbcamboya"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode autoVersionCode
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
