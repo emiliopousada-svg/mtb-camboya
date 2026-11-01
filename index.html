@@ -1181,7 +1181,7 @@
                 if (Array.isArray(lp) && lp.length === 2) center = lp;
             } catch (e) {}
 
-            map = L.map('map', { zoomControl: false }).setView(center, 16);
+            map = L.map('map', { zoomControl: false }).setView(center, 18);
             window.map = map;
 
             // Cartografía topográfica oficial IGN, con las teselas guardadas en el dispositivo
@@ -1204,7 +1204,7 @@
             if (lastLat === null) { toast('Buscando señal GPS...'); return; }
             following = true;
             updateCenterBtn();
-            if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 17));
+            if (map) map.setView([lastLat, lastLon], Math.max(map.getZoom(), 18));
         });
 
         // ============================================================
@@ -1236,7 +1236,7 @@
                 } else {
                     userMarker.setLatLng(ll);
                 }
-                if (!firstFix) { firstFix = true; map.setView(ll, 17); }
+                if (!firstFix) { firstFix = true; map.setView(ll, 18); }
             }
 
             // Velocidad (siempre visible; 0 en pausa o casi parado)
