@@ -603,17 +603,25 @@
 
             <div class="card">
                 <h2>🔥 Calorías</h2>
-                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
-                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
-                    <select id="sex-input">
-                        <option value="">Sexo (opcional)</option>
-                        <option value="m">Hombre</option>
-                        <option value="f">Mujer</option>
-                    </select>
+                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel. Si la ruta tiene pulso, tu edad y sexo ayudan a ajustar el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
+                <div id="calorie-profile-summary" hidden>
+                    <p id="calorie-profile-values" class="hint" style="margin:8px 0;"></p>
+                    <button type="button" id="edit-calorie-profile" class="btn btn-secondary">✏️ Editar mis datos</button>
                 </div>
-                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
+                <div id="calorie-profile-form">
+                    <p class="hint">Configura tu perfil una sola vez. Podrás modificarlo cuando cambie tu peso u otro dato.</p>
+                    <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad en años">
+                        <select id="sex-input">
+                            <option value="">Selecciona sexo</option>
+                            <option value="m">Hombre</option>
+                            <option value="f">Mujer</option>
+                        </select>
+                    </div>
+                    <button type="button" id="save-calorie-profile" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar mis datos</button>
+                    <p class="hint">Los datos se guardan únicamente en este móvil.</p>
+                </div>
             </div>
 
             <div class="card">
@@ -2019,24 +2027,43 @@
             const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
 
             const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
-            const w = getWeightKg(), a = getAge(), sx = getSex();
-            if (w) wIn.value = w;
-            if (a) aIn.value = a;
-            if (sx) sIn.value = sx;
+            const form = $('calorie-profile-form');
+            const summary = $('calorie-profile-summary');
+            const values = $('calorie-profile-values');
+            const saveBtn = $('save-calorie-profile');
+            const editBtn = $('edit-calorie-profile');
 
-            wIn.addEventListener('change', () => {
-                const v = parseFloat(String(wIn.value).replace(',', '.'));
-                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
-                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
-                refresh();
+            const profileIsComplete = () => !!getWeightKg() && !!getAge() && !!getSex();
+            const showProfile = () => {
+                const w = getWeightKg(), a = getAge(), sx = getSex();
+                if (w) wIn.value = w;
+                if (a) aIn.value = a;
+                if (sx) sIn.value = sx;
+                const complete = profileIsComplete();
+                form.hidden = complete;
+                summary.hidden = !complete;
+                if (complete) values.textContent = `Peso: ${w} kg · Edad: ${a} años · Sexo: ${sx === 'm' ? 'Hombre' : 'Mujer'}`;
+            };
+
+            showProfile();
+            editBtn.addEventListener('click', () => {
+                form.hidden = false;
+                summary.hidden = true;
             });
-            aIn.addEventListener('change', () => {
-                const v = parseInt(aIn.value, 10);
-                if (v >= 14 && v <= 90) save('mtb_age', v);
-                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
+            saveBtn.addEventListener('click', () => {
+                const w = parseFloat(String(wIn.value).replace(',', '.'));
+                const a = parseInt(aIn.value, 10);
+                const sx = sIn.value;
+                if (!isFinite(w) || w < 30 || w > 250) { toast('Introduce un peso entre 30 y 250 kg'); wIn.focus(); return; }
+                if (!Number.isInteger(a) || a < 14 || a > 90) { toast('Introduce una edad entre 14 y 90 años'); aIn.focus(); return; }
+                if (sx !== 'm' && sx !== 'f') { toast('Selecciona hombre o mujer'); sIn.focus(); return; }
+                save('mtb_weight_kg', w);
+                save('mtb_age', a);
+                save('mtb_sex', sx);
+                showProfile();
                 refresh();
+                toast('Perfil de calorías guardado');
             });
-            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
         }
 
         function startOfWeek(d) {
