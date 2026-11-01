@@ -2438,9 +2438,10 @@
             if (localStorage.getItem('mtb_group_joined') !== '1' || !Cloud.loggedIn() || !Cloud.groupCode) return;
             $('group-code').value = Cloud.groupCode;
             try {
+                const expectedGroup = Cloud.groupCode;
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
-                if (!auth.record.groupCode || auth.record.groupCode !== Cloud.groupCode) {
+                if (!auth.record.groupCode || auth.record.groupCode !== expectedGroup) {
                     localStorage.removeItem('mtb_group_joined');
                     return;
                 }
@@ -2497,7 +2498,7 @@
             });
         }
 
-        async function refreshFriends() {
+        async function refreshFriends(retryAuth = true) {
             if (!groupJoined || !Cloud.loggedIn()) return;
             try {
                 const f = encodeURIComponent(`groupCode = "${groupName()}"`);
@@ -2507,11 +2508,11 @@
                 renderFriends(res.items);
             } catch (e) {
                 console.warn('Posiciones del grupo:', e);
-                if (e.status === 401 || e.status === 403) {
+                if ((e.status === 401 || e.status === 403) && retryAuth) {
                     try {
                         const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                         Cloud.setSession(auth.token, auth.record);
-                        await refreshFriends();
+                        await refreshFriends(false);
                     } catch (refreshError) {
                         console.warn('No se pudo renovar la sesión del grupo:', refreshError);
                         $('group-status').textContent = 'Conexión pendiente: no se pudo verificar el grupo.';
