@@ -95,6 +95,42 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
+        #map-route-profile {
+            display: none;
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 102px);
+            left: 8px;
+            right: 8px;
+            z-index: 999;
+            padding: 7px 10px 5px;
+            border-radius: 12px;
+            background: rgba(18, 18, 18, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+            pointer-events: none;
+        }
+        #map-route-profile.show { display: block; }
+        .route-profile-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            min-width: 0;
+            font-size: 0.68rem;
+        }
+        #map-route-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #fff;
+        }
+        #map-route-alt { color: #b0b0b0; white-space: nowrap; }
+        #map-route-svg { display: block; width: 100%; height: 48px; overflow: visible; }
+        #map-route-area { fill: rgba(255, 152, 0, 0.2); }
+        #map-route-line { fill: none; stroke: #ffb74d; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+        #map-route-cursor-line { stroke: #fff; stroke-width: 1.5; stroke-dasharray: 3 3; opacity: 0.8; }
+        #map-route-cursor { fill: #fff; stroke: #ff9800; stroke-width: 2; }
+
         .m-box {
             text-align: center;
             cursor: pointer;
@@ -234,7 +270,7 @@
         .side-controls {
             position: absolute;
             left: 10px;
-            top: calc(env(safe-area-inset-top, 0px) + 114px);
+            top: calc(env(safe-area-inset-top, 0px) + 190px);
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -523,6 +559,19 @@
                 </div>
             </div>
 
+            <div id="map-route-profile" aria-live="polite">
+                <div class="route-profile-head">
+                    <strong id="map-route-name"></strong>
+                    <span id="map-route-alt"></span>
+                </div>
+                <svg id="map-route-svg" viewBox="0 0 320 64" preserveAspectRatio="none" role="img" aria-label="Perfil de altitud y posición actual en la ruta">
+                    <path id="map-route-area"></path>
+                    <path id="map-route-line"></path>
+                    <line id="map-route-cursor-line" x1="0" y1="7" x2="0" y2="60" style="display:none"></line>
+                    <circle id="map-route-cursor" cx="0" cy="0" r="5" style="display:none"></circle>
+                </svg>
+            </div>
+
             <div id="map"></div>
   </section>
 
@@ -601,20 +650,7 @@
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
             </div>
 
-            <div class="card">
-                <h2>🔥 Calorías</h2>
-                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
-                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
-                    <select id="sex-input">
-                        <option value="">Sexo (opcional)</option>
-                        <option value="m">Hombre</option>
-                        <option value="f">Mujer</option>
-                    </select>
-                </div>
-                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
-            </div>
+
 
             <div class="card">
                 <div class="card-header">
@@ -634,6 +670,28 @@
                     <canvas id="profileChart"></canvas>
                 </div>
                 <p class="hint" id="profile-empty" style="display:none; text-align:center;">Esta ruta no tiene datos de altitud.</p>
+            </div>
+
+            <div class="card">
+                <h2>🔥 Calorías</h2>
+                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
+                <div id="weight-summary" style="display:none;">
+                    <p class="hint" id="weight-summary-text"></p>
+                    <button type="button" class="btn secondary" id="weight-edit">Modificar</button>
+                </div>
+                <div id="weight-form">
+                    <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
+                        <select id="sex-input">
+                            <option value="">Sexo (opcional)</option>
+                            <option value="m">Hombre</option>
+                            <option value="f">Mujer</option>
+                        </select>
+                    </div>
+                    <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
+                    <button type="button" class="btn" id="weight-save">Guardar datos</button>
+                </div>
             </div>
         </div>
 
@@ -971,9 +1029,12 @@
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
         let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
         let lastHeading = null; // Último rumbo GPS válido; se conserva al detenerse.
+        let lastCourseFix = null; // Posición de referencia para calcular el rumbo si el GPS nativo no lo da.
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
+        let routeProfileCoords = [], routeProfilePointCount = 0;
+        let offRouteAudioContext = null;
         let statsPeriod = 'semanal';
         let statsChart = null, profileChart = null;
 
@@ -1254,15 +1315,40 @@
             }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
         }
 
+        function bearingBetween(from, to) {
+            const rad = Math.PI / 180;
+            const lat1 = from[0] * rad, lat2 = to[0] * rad;
+            const dLon = (to[1] - from[1]) * rad;
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
         function onPos(pos) {
-            const { latitude: lat, longitude: lon, accuracy, altitude, speed, heading } = pos.coords;
+            const { latitude: lat, longitude: lon, accuracy, altitude, speed } = pos.coords;
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
+            if (followedRoute) updateMapRouteProfilePosition(lat, lon);
 
-            // El rumbo GPS solo es fiable en movimiento. Parado, conservamos el último.
+            // El GPS nativo puede no incluir rumbo: en ese caso lo calculamos
+            // con el desplazamiento entre posiciones fiables mientras avanzamos.
             const movingSpeed = (speed != null && Number.isFinite(speed)) ? speed : 0;
+            let heading = pos.coords.heading;
+            if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
+                lastCourseFix = ll;
+            } else if (movingSpeed >= 1.2 && accuracy <= MAX_ACC_M) {
+                if (lastCourseFix) {
+                    const moved = dist(lastCourseFix, ll);
+                    if (moved >= 4) {
+                        heading = bearingBetween(lastCourseFix, ll);
+                        lastCourseFix = ll;
+                    }
+                } else {
+                    lastCourseFix = ll;
+                }
+            }
             if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
                 lastHeading = heading;
                 if (map && following && typeof map.setHeading === 'function') {
@@ -1401,7 +1487,7 @@
                     onPos({
                         coords: {
                             latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy,
-                            altitude: loc.altitude, speed: loc.speed
+                            altitude: loc.altitude, speed: loc.speed, heading: loc.heading ?? loc.bearing
                         },
                         timestamp: loc.time
                     });
@@ -1480,6 +1566,7 @@
         }
 
         function startRecording() {
+            unlockOffRouteSound();
             resetRecordingState();
             isRecording = true;
             isPaused = false;
@@ -1510,6 +1597,7 @@
         }
 
         function resumeRecording() {
+            unlockOffRouteSound();
             isPaused = false;
             segStart = Date.now();
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
@@ -1661,6 +1749,38 @@
             return Math.hypot(ax + t * dx, ay + t * dy);
         }
 
+        function unlockOffRouteSound() {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) return;
+            try {
+                if (!offRouteAudioContext) offRouteAudioContext = new AudioContextCtor();
+                if (offRouteAudioContext.state === 'suspended') offRouteAudioContext.resume().catch(() => {});
+            } catch (e) {}
+        }
+
+        function playRouteSound(frequencies) {
+            const ctx = offRouteAudioContext;
+            if (!ctx || ctx.state !== 'running') return;
+            const start = ctx.currentTime;
+            frequencies.forEach((frequency, i) => {
+                const at = start + i * 0.22;
+                const oscillator = ctx.createOscillator();
+                const gain = ctx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(frequency, at);
+                gain.gain.setValueAtTime(0.0001, at);
+                gain.gain.linearRampToValueAtTime(0.18, at + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+                oscillator.connect(gain);
+                gain.connect(ctx.destination);
+                oscillator.start(at);
+                oscillator.stop(at + 0.17);
+            });
+        }
+
+        function playOffRouteSound() { playRouteSound([880, 660]); }
+        function playBackOnRouteSound() { playRouteSound([660, 880, 1040]); }
+
         function checkOffRoute(lat, lon) {
             const pts = followedRoute.pts;
             if (pts.length < 2) return;
@@ -1673,15 +1793,81 @@
             if (!offRouteState && min > OFFROUTE_M) {
                 offRouteState = true;
                 toast(`⚠️ Te has salido de la ruta (${Math.round(min)} m)`, 5000);
+                playOffRouteSound();
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             } else if (offRouteState && min < BACKONROUTE_M) {
                 offRouteState = false;
                 toast('✅ De nuevo en la ruta');
+                playBackOnRouteSound();
             }
         }
 
+        function renderMapRouteProfile(r) {
+            const panel = $('map-route-profile');
+            const points = Array.isArray(r.points) ? r.points : [];
+            routeProfileCoords = [];
+            routeProfilePointCount = points.length;
+            $('map-route-name').textContent = r.name || 'Ruta cargada';
+
+            const valid = points.map((p, i) => ({ i, z: p[2] == null ? NaN : Number(p[2]) }))
+                .filter(p => Number.isFinite(p.z));
+            if (valid.length < 2) {
+                $('map-route-alt').textContent = 'Sin datos de altitud';
+                $('map-route-area').setAttribute('d', '');
+                $('map-route-line').setAttribute('d', '');
+                $('map-route-cursor-line').style.display = 'none';
+                $('map-route-cursor').style.display = 'none';
+                panel.classList.add('show');
+                return;
+            }
+
+            const min = Math.min(...valid.map(p => p.z));
+            const max = Math.max(...valid.map(p => p.z));
+            const range = Math.max(max - min, 1);
+            routeProfileCoords = valid.map(p => ({
+                i: p.i,
+                x: routeProfilePointCount > 1 ? p.i / (routeProfilePointCount - 1) * 320 : 0,
+                y: 53 - ((p.z - min) / range) * 42
+            }));
+            const line = routeProfileCoords.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            $('map-route-line').setAttribute('d', line);
+            $('map-route-area').setAttribute('d', `${line} L320,60 L0,60 Z`);
+            const gain = Number(r.elevationGain) || 0;
+            $('map-route-alt').textContent = `${Math.round(min)}–${Math.round(max)} m · +${Math.round(gain)} m`;
+            panel.classList.add('show');
+        }
+
+        function updateMapRouteProfilePosition(lat, lon) {
+            if (!followedRoute || !routeProfileCoords.length || !routeProfilePointCount) return;
+            let bestIndex = 0, bestDistance = Infinity;
+            for (let i = 0; i < followedRoute.pts.length; i++) {
+                const d = dist([lat, lon], followedRoute.pts[i]);
+                if (d < bestDistance) { bestDistance = d; bestIndex = i; }
+            }
+            const x = bestIndex / Math.max(routeProfilePointCount - 1, 1) * 320;
+            let before = routeProfileCoords[0], after = routeProfileCoords[routeProfileCoords.length - 1];
+            for (let i = 1; i < routeProfileCoords.length; i++) {
+                if (routeProfileCoords[i].i >= bestIndex) {
+                    before = routeProfileCoords[i - 1];
+                    after = routeProfileCoords[i];
+                    break;
+                }
+            }
+            const span = after.i - before.i;
+            const t = span ? Math.max(0, Math.min(1, (bestIndex - before.i) / span)) : 0;
+            const y = before.y + (after.y - before.y) * t;
+            const line = $('map-route-cursor-line'), dot = $('map-route-cursor');
+            line.setAttribute('x1', x.toFixed(1)); line.setAttribute('x2', x.toFixed(1));
+            dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+            line.style.display = 'block';
+            dot.style.display = 'block';
+        }
+
         function followRoute(r) {
+            unlockOffRouteSound();
             followedRoute = { id: r.id, pts: r.points.map(p => [p[0], p[1]]) };
+            renderMapRouteProfile(r);
+            if (lastLat !== null && lastLon !== null) updateMapRouteProfilePosition(lastLat, lastLon);
             offRouteState = false;
             if (map) {
                 savedRouteLayer.setLatLngs(buildSegments(r.points));
@@ -1698,8 +1884,11 @@
 
         function unfollowRoute() {
             followedRoute = null;
+            routeProfileCoords = [];
+            routeProfilePointCount = 0;
             offRouteState = false;
             if (savedRouteLayer) savedRouteLayer.setLatLngs([]);
+            $('map-route-profile').classList.remove('show');
             $('btn-unfollow').style.display = 'none';
         }
         $('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
@@ -1920,6 +2109,7 @@
         }
 
         $('btn-load-file').addEventListener('click', async () => {
+            unlockOffRouteSound();
             const f = $('gpx-input').files[0];
             if (!f) { toast('Elige primero un archivo GPX, KML o GeoJSON'); return; }
             try {
@@ -2017,26 +2207,48 @@
         function initWeight() {
             const refresh = () => { renderSavedRoutes(); refreshStats(); };
             const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
-
             const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
+            const form = $('weight-form'), summary = $('weight-summary'), summaryText = $('weight-summary-text');
+
+            const showSummary = () => {
+                const w = getWeightKg(), a = getAge(), sx = getSex();
+                if (!w) { form.style.display = 'block'; summary.style.display = 'none'; return; }
+                const details = [`${w} kg`];
+                if (a) details.push(`${a} años`);
+                if (sx) details.push(sx === 'm' ? 'Hombre' : 'Mujer');
+                summaryText.textContent = details.join(' · ');
+                form.style.display = 'none';
+                summary.style.display = 'block';
+            };
+
             const w = getWeightKg(), a = getAge(), sx = getSex();
             if (w) wIn.value = w;
             if (a) aIn.value = a;
             if (sx) sIn.value = sx;
+            showSummary();
 
-            wIn.addEventListener('change', () => {
-                const v = parseFloat(String(wIn.value).replace(',', '.'));
-                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
-                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
-                refresh();
+            $('weight-edit').addEventListener('click', () => {
+                form.style.display = 'block';
+                summary.style.display = 'none';
             });
-            aIn.addEventListener('change', () => {
-                const v = parseInt(aIn.value, 10);
-                if (v >= 14 && v <= 90) save('mtb_age', v);
-                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
+            $('weight-save').addEventListener('click', () => {
+                const weight = parseFloat(String(wIn.value).replace(',', '.'));
+                const age = aIn.value ? parseInt(aIn.value, 10) : null;
+                if (!isFinite(weight) || weight < 30 || weight > 250) {
+                    toast('Introduce un peso entre 30 y 250 kg');
+                    return;
+                }
+                if (age !== null && (!Number.isFinite(age) || age < 14 || age > 90)) {
+                    toast('Introduce una edad entre 14 y 90 años');
+                    return;
+                }
+                save('mtb_weight_kg', weight);
+                save('mtb_age', age);
+                save('mtb_sex', sIn.value || null);
+                showSummary();
                 refresh();
+                toast('Datos guardados');
             });
-            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
         }
 
         function startOfWeek(d) {
