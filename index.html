@@ -2752,8 +2752,13 @@
         // ============================================================
         //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
         // ============================================================
+        const DEFAULT_CLOUD_SERVER = 'https://vamp69.ddns.net';
+        // Guarda la dirección oficial en este dispositivo si aún no existe.
+        if (!localStorage.getItem('mtb_server')) {
+            localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
+        }
         const Cloud = {
-            get server() { return localStorage.getItem('mtb_server') || ''; },
+            get server() { return localStorage.getItem('mtb_server') || DEFAULT_CLOUD_SERVER; },
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
