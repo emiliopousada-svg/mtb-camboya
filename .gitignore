@@ -1,0 +1,13 @@
+# Dependencias y resultados de compilación (se regeneran en cada build)
+node_modules/
+www/
+android/
+
+# Claves y secretos: no deben subirse nunca
+*.keystore
+*.jks
+*.b64
+DEBUG_KEYSTORE_B64.txt
+.env
+.env.*
+local.properties
