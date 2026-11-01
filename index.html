@@ -971,6 +971,7 @@
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
         let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
         let lastHeading = null; // Último rumbo GPS válido; se conserva al detenerse.
+        let lastCourseFix = null; // Posición de referencia para calcular el rumbo si el GPS nativo no lo da.
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -1254,15 +1255,39 @@
             }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
         }
 
+        function bearingBetween(from, to) {
+            const rad = Math.PI / 180;
+            const lat1 = from[0] * rad, lat2 = to[0] * rad;
+            const dLon = (to[1] - from[1]) * rad;
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
         function onPos(pos) {
-            const { latitude: lat, longitude: lon, accuracy, altitude, speed, heading } = pos.coords;
+            const { latitude: lat, longitude: lon, accuracy, altitude, speed } = pos.coords;
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
             lastAccuracy = accuracy;
 
-            // El rumbo GPS solo es fiable en movimiento. Parado, conservamos el último.
+            // El GPS nativo puede no incluir rumbo: en ese caso lo calculamos
+            // con el desplazamiento entre posiciones fiables mientras avanzamos.
             const movingSpeed = (speed != null && Number.isFinite(speed)) ? speed : 0;
+            let heading = pos.coords.heading;
+            if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
+                lastCourseFix = ll;
+            } else if (movingSpeed >= 1.2 && accuracy <= MAX_ACC_M) {
+                if (lastCourseFix) {
+                    const moved = dist(lastCourseFix, ll);
+                    if (moved >= 4) {
+                        heading = bearingBetween(lastCourseFix, ll);
+                        lastCourseFix = ll;
+                    }
+                } else {
+                    lastCourseFix = ll;
+                }
+            }
             if (heading != null && Number.isFinite(heading) && movingSpeed >= 1.2) {
                 lastHeading = heading;
                 if (map && following && typeof map.setHeading === 'function') {
@@ -1401,7 +1426,7 @@
                     onPos({
                         coords: {
                             latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy,
-                            altitude: loc.altitude, speed: loc.speed
+                            altitude: loc.altitude, speed: loc.speed, heading: loc.heading ?? loc.bearing
                         },
                         timestamp: loc.time
                     });
