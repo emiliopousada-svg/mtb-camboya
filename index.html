@@ -77,6 +77,26 @@
             background: #1a1a1a;
         }
 
+        .map-poi-actions {
+            position: absolute;
+            top: 104px;
+            right: 12px;
+            z-index: 1100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .map-poi-actions button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(30,30,30,0.94);
+            color: white;
+            font-size: 1.35rem;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+        }
+
         /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
@@ -483,6 +503,10 @@
             </div>
 
             <div id="map"></div>
+            <div class="map-poi-actions" aria-label="Añadir punto de interés">
+                <button id="map-add-fountain" title="Añadir fuente aquí" aria-label="Añadir fuente aquí">🚰</button>
+                <button id="map-add-bar" title="Añadir bar aquí" aria-label="Añadir bar aquí">🍺</button>
+            </div>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
                 <div id="big-label"></div>
@@ -614,8 +638,11 @@
             </div>
 
             <div class="card">
-                <h2>🚰 Fuentes de Agua</h2>
-                <button class="btn" id="btn-fountain">📍 Marcar Fuente Aquí</button>
+                <h2>📍 Puntos de interés</h2>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <button class="btn" id="btn-fountain">🚰 Marcar Fuente</button>
+                    <button class="btn" id="btn-bar">🍺 Marcar Bar</button>
+                </div>
             </div>
         </div>
 
@@ -1792,13 +1819,16 @@
             if (!map) return;
             fountainMarkers.forEach(m => map.removeLayer(m));
             fountainMarkers = [];
-            const icon = L.divIcon({ html: '🚰', className: 'fountain-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
 
             savedFountains.forEach(f => {
+                const kind = f.kind === 'bar' ? 'bar' : 'fountain';
+                const iconEmoji = kind === 'bar' ? '🍺' : '🚰';
+                const label = kind === 'bar' ? 'Bar' : 'Fuente de Agua';
+                const icon = L.divIcon({ html: iconEmoji, className: 'fountain-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
                 const wrap = document.createElement('div');
                 wrap.style.cssText = 'text-align:center; color:#121212;';
                 const strong = document.createElement('strong');
-                strong.textContent = '🚰 ' + (f.name || 'Fuente de Agua');
+                strong.textContent = iconEmoji + ' ' + (f.name || label);
                 const small = document.createElement('small');
                 small.textContent = 'Guardada: ' + f.date;
                 const btn = document.createElement('button');
@@ -1812,20 +1842,23 @@
         }
 
         async function removeFountain(id) {
-            const ok = await modal({ message: '¿Eliminar esta fuente guardada?', ok: 'Eliminar' });
+            const ok = await modal({ message: '¿Eliminar este punto guardado?', ok: 'Eliminar' });
             if (!ok) return;
             savedFountains = savedFountains.filter(f => f.id !== id);
             persistFountains();
             loadSavedFountains();
         }
 
-        $('btn-fountain').addEventListener('click', async () => {
+        async function addPlace(kind) {
             if (lastLat === null || lastLon === null) { toast('Buscando señal GPS para marcar tu ubicación exacta...'); return; }
-            const name = await modal({ message: 'Nombre o referencia de la fuente:', input: 'Fuente de Agua', ok: 'Guardar' });
+            const isBar = kind === 'bar';
+            const defaultName = isBar ? 'Bar' : 'Fuente de Agua';
+            const name = await modal({ message: `Nombre o referencia del ${isBar ? 'bar' : 'punto de agua'}:`, input: defaultName, ok: 'Guardar' });
             if (name === null) return;
             const f = {
                 id: Date.now(),
-                name: name.trim() || 'Fuente de Agua',
+                kind: isBar ? 'bar' : 'fountain',
+                name: name.trim() || defaultName,
                 lat: lastLat,
                 lng: lastLon,
                 date: new Date().toLocaleDateString('es-ES')
@@ -1835,8 +1868,13 @@
             loadSavedFountains();
             goToPage(0);
             if (map) map.setView([f.lat, f.lng], 17);
-            toast(`Fuente «${f.name}» marcada en tu posición`);
-        });
+            toast(`${isBar ? 'Bar' : 'Fuente'} «${f.name}» marcado en tu posición`);
+        }
+
+        $('btn-fountain').addEventListener('click', () => addPlace('fountain'));
+        $('btn-bar').addEventListener('click', () => addPlace('bar'));
+        $('map-add-fountain').addEventListener('click', () => addPlace('fountain'));
+        $('map-add-bar').addEventListener('click', () => addPlace('bar'));
 
         // ============================================================
         //  POSICIONES DEL GRUPO (PocketBase)
