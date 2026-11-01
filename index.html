@@ -662,17 +662,6 @@
             </div>
 
             <div class="card">
-                <div class="card-header">
-                    <h2>⛰️ Perfil de altitud</h2>
-                </div>
-                <p class="hint" id="profile-title" style="margin-top:0;">Sin ruta seleccionada</p>
-                <div style="height: 170px; position:relative; margin-top:6px;">
-                    <canvas id="profileChart"></canvas>
-                </div>
-                <p class="hint" id="profile-empty" style="display:none; text-align:center;">Esta ruta no tiene datos de altitud.</p>
-            </div>
-
-            <div class="card">
                 <h2>🔥 Calorías</h2>
                 <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
                 <div id="weight-summary" style="display:none;">
@@ -1036,7 +1025,7 @@
         let routeProfileCoords = [], routeProfilePointCount = 0;
         let offRouteAudioContext = null;
         let statsPeriod = 'semanal';
-        let statsChart = null, profileChart = null;
+        let statsChart = null;
 
         const btnStart = $('btn-start'), btnStop = $('btn-stop');
         const lblStart = $('lbl-start'), icoStart = $('ico-start');
@@ -1662,7 +1651,6 @@
             savedRoutes.unshift(r);
             renderSavedRoutes();
             refreshStats();
-            showProfile(r);
             syncRoutes();
         }
 
@@ -1877,7 +1865,6 @@
                 updateCenterBtn();
             }
             $('btn-unfollow').style.display = 'block';
-            showProfile(r);
             goToPage(0);
             toast(`Siguiendo «${r.name}». Te aviso si te desvías.`, 4500);
         }
@@ -1976,8 +1963,7 @@
                 if (followedRoute && followedRoute.id === id) unfollowRoute();
                 renderSavedRoutes();
                 refreshStats();
-                showProfile(savedRoutes[0] || null);
-                syncRoutes();
+                    syncRoutes();
             }
         });
 
@@ -2311,30 +2297,6 @@
             refreshStats();
         }
 
-        function showProfile(r) {
-            $('profile-title').textContent = r ? r.name : 'Sin ruta seleccionada';
-            const labels = [], data = [];
-            if (r) {
-                const step = Math.max(1, Math.floor(r.points.length / 150));
-                let acc = 0, prev = null;
-                r.points.forEach((p, i) => {
-                    if (prev && p[5] !== 1) acc += dist(prev, p) / 1000;
-                    prev = p;
-                    if (p[2] != null && i % step === 0) {
-                        labels.push(acc.toFixed(1));
-                        data.push(p[2]);
-                    }
-                });
-            }
-            const empty = data.length < 2;
-            $('profile-empty').style.display = empty ? 'block' : 'none';
-            if (profileChart) {
-                profileChart.data.labels = empty ? [] : labels;
-                profileChart.data.datasets[0].data = empty ? [] : data;
-                profileChart.update();
-            }
-        }
-
         function initCharts() {
             if (typeof Chart === 'undefined') return;
             const axis = { ticks: { color: '#b0b0b0', font: { size: 10 } }, grid: { color: '#2a2a2a' } };
@@ -2352,23 +2314,6 @@
                 }
             });
 
-            profileChart = new Chart($('profileChart').getContext('2d'), {
-                type: 'line',
-                data: { labels: [], datasets: [{
-                    label: 'Altitud (m)', data: [],
-                    borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.15)',
-                    fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
-                }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ...axis, title: { display: true, text: 'km', color: '#b0b0b0', font: { size: 10 } },
-                             ticks: { ...axis.ticks, maxTicksLimit: 6 } },
-                        y: axis
-                    }
-                }
-            });
         }
 
         // ============================================================
@@ -3133,7 +3078,6 @@
 
             renderSavedRoutes();
             refreshStats();
-            showProfile(savedRoutes[0] || null);
             initAccount();
             await restoreGroup();
             initWeight();
