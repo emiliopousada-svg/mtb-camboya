@@ -601,20 +601,7 @@
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
             </div>
 
-            <div class="card">
-                <h2>🔥 Calorías</h2>
-                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
-                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
-                    <select id="sex-input">
-                        <option value="">Sexo (opcional)</option>
-                        <option value="m">Hombre</option>
-                        <option value="f">Mujer</option>
-                    </select>
-                </div>
-                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
-            </div>
+
 
             <div class="card">
                 <div class="card-header">
@@ -634,6 +621,28 @@
                     <canvas id="profileChart"></canvas>
                 </div>
                 <p class="hint" id="profile-empty" style="display:none; text-align:center;">Esta ruta no tiene datos de altitud.</p>
+            </div>
+
+            <div class="card">
+                <h2>🔥 Calorías</h2>
+                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
+                <div id="weight-summary" style="display:none;">
+                    <p class="hint" id="weight-summary-text"></p>
+                    <button type="button" class="btn secondary" id="weight-edit">Modificar</button>
+                </div>
+                <div id="weight-form">
+                    <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
+                        <select id="sex-input">
+                            <option value="">Sexo (opcional)</option>
+                            <option value="m">Hombre</option>
+                            <option value="f">Mujer</option>
+                        </select>
+                    </div>
+                    <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
+                    <button type="button" class="btn" id="weight-save">Guardar datos</button>
+                </div>
             </div>
         </div>
 
@@ -2042,26 +2051,48 @@
         function initWeight() {
             const refresh = () => { renderSavedRoutes(); refreshStats(); };
             const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
-
             const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
+            const form = $('weight-form'), summary = $('weight-summary'), summaryText = $('weight-summary-text');
+
+            const showSummary = () => {
+                const w = getWeightKg(), a = getAge(), sx = getSex();
+                if (!w) { form.style.display = 'block'; summary.style.display = 'none'; return; }
+                const details = [`${w} kg`];
+                if (a) details.push(`${a} años`);
+                if (sx) details.push(sx === 'm' ? 'Hombre' : 'Mujer');
+                summaryText.textContent = details.join(' · ');
+                form.style.display = 'none';
+                summary.style.display = 'block';
+            };
+
             const w = getWeightKg(), a = getAge(), sx = getSex();
             if (w) wIn.value = w;
             if (a) aIn.value = a;
             if (sx) sIn.value = sx;
+            showSummary();
 
-            wIn.addEventListener('change', () => {
-                const v = parseFloat(String(wIn.value).replace(',', '.'));
-                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
-                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
-                refresh();
+            $('weight-edit').addEventListener('click', () => {
+                form.style.display = 'block';
+                summary.style.display = 'none';
             });
-            aIn.addEventListener('change', () => {
-                const v = parseInt(aIn.value, 10);
-                if (v >= 14 && v <= 90) save('mtb_age', v);
-                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
+            $('weight-save').addEventListener('click', () => {
+                const weight = parseFloat(String(wIn.value).replace(',', '.'));
+                const age = aIn.value ? parseInt(aIn.value, 10) : null;
+                if (!isFinite(weight) || weight < 30 || weight > 250) {
+                    toast('Introduce un peso entre 30 y 250 kg');
+                    return;
+                }
+                if (age !== null && (!Number.isFinite(age) || age < 14 || age > 90)) {
+                    toast('Introduce una edad entre 14 y 90 años');
+                    return;
+                }
+                save('mtb_weight_kg', weight);
+                save('mtb_age', age);
+                save('mtb_sex', sIn.value || null);
+                showSummary();
                 refresh();
+                toast('Datos guardados');
             });
-            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
         }
 
         function startOfWeek(d) {
