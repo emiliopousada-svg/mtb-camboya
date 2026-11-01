@@ -1,6 +1,6 @@
 {
   "name": "mtb-camboya",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "App de MTB: grabación de rutas, GPX y estadísticas",
   "scripts": {
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor-community/bluetooth-le": "^6.0.0",
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
     "@capacitor/core": "^6.0.0",
@@ -16,5 +17,8 @@
     "@capacitor/share": "^6.0.0",
     "chart.js": "4.4.1",
     "leaflet": "1.9.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.21.5"
   }
 }

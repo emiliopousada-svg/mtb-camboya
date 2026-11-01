@@ -77,26 +77,6 @@
             background: #1a1a1a;
         }
 
-        .map-poi-actions {
-            position: absolute;
-            top: 104px;
-            right: 12px;
-            z-index: 1100;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .map-poi-actions button {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.25);
-            background: rgba(30,30,30,0.94);
-            color: white;
-            font-size: 1.35rem;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.45);
-        }
-
         /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
@@ -250,6 +230,23 @@
             display: none;
         }
 
+        /* Botones laterales del mapa (marcar fuente / parada en bar) */
+        .side-controls {
+            position: absolute;
+            left: 10px;
+            top: calc(env(safe-area-inset-top, 0px) + 96px);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 1000;
+        }
+        #page-map.metric-open .side-controls { display: none; }
+
+        .btn-logo { width: 34px; height: auto; display: block; }
+
+        .poi-icon { font-size: 22px; line-height: 30px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+        .poi-bar-img { width: 40px; height: auto; display: block; }
+
         /* Paneles de Contenido Secundarios */
         .content-panel {
             padding: 20px 16px 80px 16px;
@@ -330,7 +327,7 @@
         .btn.secondary { background: #444; }
         .btn:disabled { opacity: 0.5; }
 
-        input[type="file"], input[type="text"], input[type="password"] {
+        input[type="file"], input[type="text"], input[type="password"], input[type="number"], select {
             width: 100%;
             padding: 12px;
             border-radius: 10px;
@@ -469,6 +466,31 @@
         .modal-actions { display: flex; gap: 10px; margin-top: 10px; }
         .modal-actions .btn { margin-top: 8px; }
 
+        /* Gestión de mapas sin conexión */
+        #btn-offline-maps {
+            position: absolute; top: 91px; right: 10px; z-index: 1100;
+            background: rgba(30,30,30,.94); color: #fff; border: 1px solid rgba(255,255,255,.22);
+            border-radius: 11px; padding: 10px 12px; font-size: .78rem; font-weight: 700;
+            box-shadow: 0 3px 12px rgba(0,0,0,.4);
+        }
+        #offline-panel {
+            display: none; position: fixed; z-index: 4500; left: 14px; right: 14px;
+            top: 50%; transform: translateY(-50%); max-width: 440px; margin: auto;
+            background: #242424; color: #fff; border: 1px solid rgba(255,255,255,.18);
+            border-radius: 16px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.65);
+        }
+        #offline-panel.show { display: block; }
+        #offline-panel h3 { color: #81c784; margin-bottom: 8px; font-size: 1.05rem; }
+        #offline-panel p { color: #ccc; font-size: .82rem; line-height: 1.45; margin: 8px 0; }
+        #offline-progress { width: 100%; height: 12px; background: #111; border-radius: 8px; overflow: hidden; margin: 12px 0 6px; }
+        #offline-progress-fill { width: 0%; height: 100%; background: #4caf50; transition: width .15s; }
+        #offline-progress-text { font-size: .78rem; color: #ddd; text-align: center; }
+        #offline-panel .offline-actions { display: flex; gap: 8px; margin-top: 12px; }
+        #offline-panel .offline-actions .btn { margin-top: 0; padding: 11px 8px; }
+        #offline-panel select { width: 100%; padding: 11px; background: #111; color: white; border: 1px solid #555; border-radius: 9px; margin-top: 5px; }
+        #page-map.metric-open #btn-offline-maps { display: none; }
+        #offline-panel .btn.danger { background: #5a2020; }
+
         .leaflet-popup-content-wrapper { color: #121212; }
     </style>
 </head>
@@ -503,10 +525,25 @@
             </div>
 
             <div id="map"></div>
-            <div class="map-poi-actions" aria-label="Añadir punto de interés">
-                <button id="map-add-fountain" title="Añadir fuente aquí" aria-label="Añadir fuente aquí">🚰</button>
-                <button id="map-add-bar" title="Añadir bar aquí" aria-label="Añadir bar aquí">🍺</button>
-            </div>
+            <button id="btn-offline-maps" type="button">⬇️ Mapas offline</button>
+            <section id="offline-panel" role="dialog" aria-modal="true" aria-label="Mapas sin conexión">
+                <h3>🗺️ Mapas offline de Galicia</h3>
+                <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y la descarga se puede reanudar si se interrumpe.</p>
+                <label for="offline-detail" style="font-size:.8rem;color:#ddd;">Nivel de detalle</label>
+                <select id="offline-detail">
+                    <option value="13" selected>Galicia completa · detalle estándar (zoom 7–13)</option>
+                    <option value="14">Galicia completa · más detalle (zoom 7–14, ocupa mucho más)</option>
+                </select>
+                <div id="offline-progress"><div id="offline-progress-fill"></div></div>
+                <div id="offline-progress-text">Preparado para descargar</div>
+                <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga.</p>
+                <div class="offline-actions">
+                    <button class="btn" id="btn-download-galicia" type="button">Descargar / reanudar</button>
+                    <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
+                </div>
+                <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
+                <button class="btn secondary" id="btn-close-offline" type="button">Cerrar</button>
+            </section>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
                 <div id="big-label"></div>
@@ -520,6 +557,13 @@
                 <div id="big-value">0.0</div>
                 <div id="big-unit"></div>
                 <div id="big-hint">Toca para volver</div>
+            </div>
+
+            <div class="side-controls">
+                <button class="btn-icon-only" id="btn-poi-fountain" title="Marcar fuente de agua aquí">🚰</button>
+                <button class="btn-icon-only" id="btn-poi-bar" title="Marcar parada en un bar">
+                    <img src="estrella-galicia.svg" alt="Parada en un bar" class="btn-logo">
+                </button>
             </div>
 
             <div class="controls-overlay">
@@ -540,6 +584,7 @@
                     <div class="pill-selector">
                         <button class="pill-btn active" onclick="setStatsPeriod('semanal', this)">Semanal</button>
                         <button class="pill-btn" onclick="setStatsPeriod('mensual', this)">Mensual</button>
+                        <button class="pill-btn" onclick="setStatsPeriod('anual', this)">Anual</button>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
@@ -562,7 +607,32 @@
                         <div class="l">Salidas realizadas</div>
                     </div>
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                    <div class="stat-box">
+                        <div class="v" style="color:#ffb74d; font-size:1.15rem;" id="st-kcal">Indica tu peso</div>
+                        <div class="l" id="st-kcal-lbl">Calorías estimadas</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="v" style="color:#4dd0e1;" id="st-vel">0.0 km/h</div>
+                        <div class="l">Velocidad media</div>
+                    </div>
+                </div>
                 <p class="hint">Solo cuentan las rutas grabadas por ti; las importadas no suman.</p>
+            </div>
+
+            <div class="card">
+                <h2>🔥 Calorías</h2>
+                <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel, con los valores del Compendio de Actividades Físicas para MTB. Si la ruta tiene pulso y has indicado tu edad y sexo, el pulso ajusta el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
+                <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Tu peso en kg">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="number" id="age-input" inputmode="numeric" min="14" max="90" step="1" placeholder="Edad (opcional)">
+                    <select id="sex-input">
+                        <option value="">Sexo (opcional)</option>
+                        <option value="m">Hombre</option>
+                        <option value="f">Mujer</option>
+                    </select>
+                </div>
+                <p class="hint">Solo para ajustar con el pulso. Se guardan únicamente en este móvil.</p>
             </div>
 
             <div class="card">
@@ -606,10 +676,9 @@
 
             <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
-                <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
-                <input type="text" id="group-code" placeholder="Código de grupo asignado">
+                <p class="hint">Unirse a un pelotón para ver a tus compañeros en el mapa en vivo. Próximamente: necesita un servidor.</p>
+                <input type="text" id="group-code" value="MTB-CAMBOYA-GRUPO" placeholder="Código de Grupo">
                 <button class="btn" id="btn-join">Unirse al Grupo</button>
-                <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
             </div>
 
             <div class="card">
@@ -638,11 +707,10 @@
             </div>
 
             <div class="card">
-                <h2>📍 Puntos de interés</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <button class="btn" id="btn-fountain">🚰 Marcar Fuente</button>
-                    <button class="btn" id="btn-bar">🍺 Marcar Bar</button>
-                </div>
+                <h2>📍 Fuentes y paradas</h2>
+                <p class="hint">También puedes marcarlas con los iconos de la izquierda del mapa.</p>
+                <button class="btn" id="btn-fountain">🚰 Marcar fuente aquí</button>
+                <button class="btn secondary" id="btn-bar">🍺 Marcar parada en un bar</button>
             </div>
         </div>
 
@@ -827,10 +895,9 @@
         // ============================================================
         //  DESNIVEL SUAVIZADO
         // ============================================================
-        function makeElevTracker(state = null) {
-            const buf = Array.isArray(state && state.buf) ? state.buf.slice(-5) : [];
-            let ref = Number.isFinite(state && state.ref) ? state.ref : null;
-            let gain = Number.isFinite(state && state.gain) ? state.gain : 0;
+        function makeElevTracker() {
+            const buf = [];
+            let ref = null, gain = 0;
             return {
                 add(alt) {
                     if (alt == null || isNaN(alt)) return;
@@ -841,8 +908,7 @@
                     if (s - ref >= ELEV_STEP) { gain += s - ref; ref = s; }
                     else if (ref - s >= ELEV_STEP) { ref = s; }
                 },
-                get gain() { return gain; },
-                snapshot() { return { buf: buf.slice(), ref, gain }; }
+                get gain() { return gain; }
             };
         }
 
@@ -865,7 +931,7 @@
 
         document.addEventListener('touchstart', e => {
             const t = e.target;
-            swipeBlocked = !!(t.closest && t.closest('#map, canvas, input, #modal'));
+            swipeBlocked = !!(t.closest && t.closest('#map, canvas, input, select, #modal, #offline-panel'));
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
         }, { passive: true });
@@ -883,12 +949,12 @@
         // ============================================================
         //  ESTADO GLOBAL
         // ============================================================
-        let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null;
+        let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null, offlineTileLayer = null;
         let isRecording = false, isPaused = false;
         let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
         let totalDistance = 0, elev = makeElevTracker();
         let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
-        let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
+        let lastLat = null, lastLon = null, following = true, firstFix = false, lastPosSave = 0;
         let currentHr = null;
         let savedRoutes = [];
         let followedRoute = null, offRouteState = false;
@@ -899,6 +965,214 @@
         const lblStart = $('lbl-start'), icoStart = $('ico-start');
 
         // ============================================================
+        //  MAPAS OFFLINE (teselas IGN guardadas en IndexedDB)
+        // ============================================================
+        const OFFLINE_DB = 'mtb-camboya-mapas-v1';
+        const OFFLINE_STORE = 'tiles';
+        const IGN_TILE_URL = 'https://tms-mapa-raster.ign.es/1.0.0/mapa-raster/{z}/{x}/{ty}.jpeg';
+        let offlineDbPromise = null;
+        let stopOfflineDownload = false;
+        let offlineDownloadRunning = false;
+
+        function openOfflineDb() {
+            if (offlineDbPromise) return offlineDbPromise;
+            offlineDbPromise = new Promise((resolve, reject) => {
+                if (!('indexedDB' in window)) { reject(new Error('Este navegador no permite almacenamiento offline')); return; }
+                const req = indexedDB.open(OFFLINE_DB, 1);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(OFFLINE_STORE)) db.createObjectStore(OFFLINE_STORE, { keyPath: 'id' });
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error('No se pudo abrir el almacenamiento de mapas'));
+            });
+            return offlineDbPromise;
+        }
+
+        function tileKey(z, x, y) { return `${z}/${x}/${y}`; }
+        async function getOfflineTile(z, x, y) {
+            const db = await openOfflineDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OFFLINE_STORE, 'readonly');
+                const req = tx.objectStore(OFFLINE_STORE).get(tileKey(z, x, y));
+                req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function saveOfflineTile(z, x, y, blob) {
+            const db = await openOfflineDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+                tx.objectStore(OFFLINE_STORE).put({ id: tileKey(z, x, y), blob, savedAt: Date.now() });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('No se pudo guardar la tesela'));
+            });
+        }
+        async function countOfflineTiles() {
+            const db = await openOfflineDb();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(OFFLINE_STORE, 'readonly');
+                const req = tx.objectStore(OFFLINE_STORE).count();
+                req.onsuccess = () => resolve(req.result || 0);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        function ignTileUrl(z, x, y) { const tmsY = Math.pow(2, z) - 1 - y; return IGN_TILE_URL.replace('{z}', z).replace('{x}', x).replace('{ty}', tmsY); }
+        async function fetchAndStoreTile(z, x, y) {
+            const cached = await getOfflineTile(z, x, y);
+            if (cached) return cached;
+            const response = await fetch(ignTileUrl(z, x, y), { mode: 'cors', cache: 'force-cache' });
+            if (!response.ok) throw new Error(`IGN respondió ${response.status}`);
+            const blob = await response.blob();
+            if (!blob || !blob.size) throw new Error('Tesela vacía');
+            await saveOfflineTile(z, x, y, blob);
+            return blob;
+        }
+
+        function createOfflineTileLayer() {
+            const Layer = L.GridLayer.extend({
+                createTile: function(coords, done) {
+                    const img = document.createElement('img');
+                    img.alt = '';
+                    img.setAttribute('role', 'presentation');
+                    img.style.width = '256px'; img.style.height = '256px';
+                    let finished = false;
+                    const finish = err => { if (finished) return; finished = true; done(err, img); };
+                    (async () => {
+                        try {
+                            const blob = await getOfflineTile(coords.z, coords.x, coords.y);
+                            if (blob) {
+                                const objectUrl = URL.createObjectURL(blob);
+                                img.onload = () => { URL.revokeObjectURL(objectUrl); finish(null); };
+                                img.onerror = () => { URL.revokeObjectURL(objectUrl); finish(new Error('Error mostrando mapa guardado')); };
+                                img.src = objectUrl;
+                                return;
+                            }
+                            const response = await fetch(ignTileUrl(coords.z, coords.x, coords.y), { mode: 'cors' });
+                            if (!response.ok) throw new Error('Tesela no disponible');
+                            const blobOnline = await response.blob();
+                            // Guarda automáticamente las teselas que se van viendo, además de las descargadas manualmente.
+                            saveOfflineTile(coords.z, coords.x, coords.y, blobOnline).catch(() => {});
+                            const objectUrl = URL.createObjectURL(blobOnline);
+                            img.onload = () => { URL.revokeObjectURL(objectUrl); finish(null); };
+                            img.onerror = () => { URL.revokeObjectURL(objectUrl); finish(new Error('Error mostrando mapa')); };
+                            img.src = objectUrl;
+                        } catch (err) {
+                            // Último intento directo: permite ver el mapa si el servidor admite la carga como imagen.
+                            img.onload = () => finish(null);
+                            img.onerror = () => finish(err);
+                            img.src = ignTileUrl(coords.z, coords.x, coords.y);
+                        }
+                    })();
+                    return img;
+                }
+            });
+            return new Layer({ tileSize: 256, minZoom: 5, maxZoom: 17, attribution: 'Cartografía: © Instituto Geográfico Nacional (IGN), CC BY 4.0' });
+        }
+
+        // Rectángulo de cobertura aproximado de Galicia; se descargan niveles 7–13 por defecto.
+        function galiciaTiles(maxZoom) {
+            const west = -9.30, east = -6.70, south = 41.80, north = 43.80;
+            const out = [];
+            const xt = (lon, z) => Math.floor((lon + 180) / 360 * Math.pow(2, z));
+            const yt = (lat, z) => Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z));
+            for (let z = 7; z <= maxZoom; z++) {
+                const x1 = xt(west, z), x2 = xt(east, z), y1 = yt(north, z), y2 = yt(south, z);
+                for (let x = x1; x <= x2; x++) for (let y = y1; y <= y2; y++) out.push({ z, x, y });
+            }
+            return out;
+        }
+        function setOfflineProgress(done, total, errors) {
+            const pct = total ? Math.round(done / total * 100) : 0;
+            $('offline-progress-fill').style.width = pct + '%';
+            $('offline-progress-text').textContent = `${done.toLocaleString('es-ES')} / ${total.toLocaleString('es-ES')} teselas (${pct}%)${errors ? ` · ${errors} errores` : ''}`;
+        }
+        async function downloadGaliciaOffline() {
+            if (offlineDownloadRunning) return;
+            offlineDownloadRunning = true; stopOfflineDownload = false;
+            const maxZoom = Number($('offline-detail').value) || 13;
+            const tiles = galiciaTiles(maxZoom);
+            let done = 0, errors = 0, cursor = 0;
+            $('btn-download-galicia').disabled = true;
+            $('offline-storage-note').textContent = 'Descarga en curso. Mantén la app abierta y conectada a Wi‑Fi. Si la paras, pulsa reanudar más tarde: las teselas ya guardadas se conservan.';
+            setOfflineProgress(0, tiles.length, 0);
+            try {
+                await openOfflineDb();
+                const workers = Array.from({ length: 3 }, async () => {
+                    while (!stopOfflineDownload) {
+                        const i = cursor++;
+                        if (i >= tiles.length) break;
+                        const t = tiles[i];
+                        try { await fetchAndStoreTile(t.z, t.x, t.y); }
+                        catch (e) { errors++; console.warn('No se pudo descargar tesela', t, e); }
+                        done++;
+                        if (done % 10 === 0 || done === tiles.length) setOfflineProgress(done, tiles.length, errors);
+                    }
+                });
+                await Promise.all(workers);
+                const stored = await countOfflineTiles();
+                if (stopOfflineDownload) {
+                    $('offline-progress-text').textContent += ' · Pausado';
+                    toast('Descarga pausada. Puedes reanudarla más tarde.');
+                } else {
+                    setOfflineProgress(done, tiles.length, errors);
+                    $('offline-storage-note').textContent = `Proceso terminado. Teselas guardadas en este móvil: ${stored.toLocaleString('es-ES')}. Los errores se pueden reintentar volviendo a pulsar descargar.`;
+                    toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : 'Mapa de Galicia guardado para usar sin conexión', 5000);
+                }
+            } catch (e) {
+                console.error(e);
+                $('offline-storage-note').textContent = 'No se pudo iniciar el almacenamiento offline: ' + (e.message || e);
+                toast('No se pudo iniciar la descarga de mapas', 5000);
+            } finally {
+                offlineDownloadRunning = false;
+                $('btn-download-galicia').disabled = false;
+            }
+        }
+        $('btn-offline-maps').addEventListener('click', async () => {
+            $('offline-panel').classList.add('show');
+            try {
+                const count = await countOfflineTiles();
+                let usado = '';
+                try {
+                    if (navigator.storage && navigator.storage.estimate) {
+                        const est = await navigator.storage.estimate();
+                        usado = ` Espacio usado por la app: ${Math.round((est.usage || 0) / 1048576)} MB.`;
+                    }
+                } catch (e) {}
+                $('offline-storage-note').textContent = `${count.toLocaleString('es-ES')} teselas ya guardadas en este teléfono.${usado} Puedes reanudar una descarga incompleta.`;
+            } catch (e) { $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.'; }
+        });
+        $('btn-close-offline').addEventListener('click', () => $('offline-panel').classList.remove('show'));
+        $('btn-download-galicia').addEventListener('click', downloadGaliciaOffline);
+        $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
+
+        async function clearOfflineTiles() {
+            if (offlineDownloadRunning) { toast('Para antes la descarga'); return; }
+            const ok = await modal({ message: '¿Borrar todos los mapas guardados en este móvil? Tus rutas no se borran.', ok: 'Borrar' });
+            if (!ok) return;
+            try {
+                const db = await openOfflineDb();
+                await new Promise((res, rej) => {
+                    const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+                    tx.objectStore(OFFLINE_STORE).clear();
+                    tx.oncomplete = res;
+                    tx.onerror = () => rej(tx.error);
+                    tx.onabort = () => rej(tx.error || new Error('abort'));
+                });
+                setOfflineProgress(0, 0, 0);
+                $('offline-progress-text').textContent = 'Preparado para descargar';
+                $('offline-storage-note').textContent = 'Mapas guardados borrados.';
+                toast('Mapas borrados');
+            } catch (e) {
+                console.warn(e);
+                toast('No se pudieron borrar los mapas');
+            }
+        }
+        $('btn-clear-offline').addEventListener('click', clearOfflineTiles);
+
+
+        // ============================================================
         //  MAPA
         // ============================================================
         function initMap() {
@@ -906,7 +1180,7 @@
                 $('map').innerHTML = '<div style="padding:90px 24px; text-align:center; color:#b0b0b0;">No se pudo cargar el mapa (sin conexión y sin copia guardada). Puedes seguir grabando; el track se guarda igualmente.</div>';
                 return;
             }
-            let center = [40.4168, -3.7038];
+            let center = [42.55, -8.15];
             try {
                 const lp = JSON.parse(localStorage.getItem('mtb_last_pos'));
                 if (Array.isArray(lp) && lp.length === 2) center = lp;
@@ -915,10 +1189,9 @@
             map = L.map('map', { zoomControl: false }).setView(center, 15);
             window.map = map;
 
-            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                maxZoom: 17,
-                attribution: 'Map data: © OpenStreetMap contributors | Map style: © OpenTopoMap'
-            }).addTo(map);
+            // Cartografía topográfica oficial IGN, con las teselas guardadas en el dispositivo
+            offlineTileLayer = createOfflineTileLayer();
+            offlineTileLayer.addTo(map);
 
             routePolyline = L.polyline([], { color: '#ff9800', weight: 5 }).addTo(map);
             savedRouteLayer = L.polyline([], { color: '#29b6f6', weight: 4, dashArray: '5, 5' }).addTo(map);
@@ -955,7 +1228,6 @@
             const ll = [lat, lon];
             lastLat = lat;
             lastLon = lon;
-            lastAccuracy = accuracy;
 
             if (Date.now() - lastPosSave > 15000) {
                 lastPosSave = Date.now();
@@ -980,7 +1252,6 @@
 
             if (followedRoute) checkOffRoute(lat, lon);
             if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
-            publishMyLocation();
 
             const t = pos.timestamp;
             let add = 0, brk = false;
@@ -1179,7 +1450,6 @@
             startTimers();
             following = true;
             updateCenterBtn();
-            publishMyLocation(true);
             beginTracking(true);
         }
 
@@ -1190,7 +1460,6 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
-            removeMyLiveLocation();
             setBtnState('paused');
             $('m-speed').textContent = '0.0';
             saveDraft();
@@ -1202,7 +1471,6 @@
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
             setBtnState('recording');
             startTimers();
-            publishMyLocation(true);
             beginTracking(false);
         }
 
@@ -1225,7 +1493,6 @@
             stopTimers();
             releaseWake();
             stopBgWatcher();
-            removeMyLiveLocation();
             setBtnState('idle');
             $('m-speed').textContent = '0.0';
             DB.kvDel('draft').catch(() => {});
@@ -1243,9 +1510,9 @@
                     hrAvg: hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null,
                     points
                 };
-                if (await saveRoute(route)) {
-                    toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
-                }
+                await saveRoute(route);
+                const kc = estimateKcal(route);
+                toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m` + (kc ? ` · ~${kc} kcal` : ''), 5000);
             } else {
                 toast('La ruta es muy corta y no se ha guardado.');
             }
@@ -1256,15 +1523,13 @@
                 await DB.put(r);
             } catch (e) {
                 console.warn('Error guardando:', e);
-                toast('⚠️ No se guardó la ruta en el dispositivo. Libera espacio e inténtalo de nuevo.', 7000);
-                return false;
+                toast('⚠️ No se pudo guardar en el dispositivo (¿almacenamiento lleno?). Exporta el GPX ahora desde Rutas.', 7000);
             }
             savedRoutes.unshift(r);
             renderSavedRoutes();
             refreshStats();
             showProfile(r);
             syncRoutes();
-            return true;
         }
 
         // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
@@ -1275,7 +1540,6 @@
                 movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
                 totalDistance,
                 points,
-                elevState: elev.snapshot(),
                 savedAt: Date.now()
             }).catch(() => {});
         }
@@ -1291,13 +1555,11 @@
 
         function restoreDraft(d) {
             resetRecordingState();
-            points = Array.isArray(d.points) ? d.points : [];
+            points = d.points;
             startedAt = d.startedAt || new Date().toISOString();
             movingMs = d.movingMs || 0;
             totalDistance = d.totalDistance || 0;
-            elev = makeElevTracker(d.elevState || null);
-            if (!d.elevState) points.forEach(p => elev.add(p[2]));
-            currentHr = points.length ? points[points.length - 1][4] : null;
+            points.forEach(p => elev.add(p[2]));
             segments = buildSegments(points);
             isRecording = true;
             isPaused = true;
@@ -1423,6 +1685,8 @@
                 if (r.movingTimeSec) parts.push(`⏱️ ${fmtDur(r.movingTimeSec)}`);
                 if (r.elevationGain) parts.push(`⛰️ +${r.elevationGain} m`);
                 if (r.hrAvg) parts.push(`❤️ ${r.hrAvg}`);
+                const kd = estimateKcalDetail(r);
+                if (kd) parts.push(`🔥 ~${kd.kcal} kcal` + (kd.usedHr ? ' (ajustadas con pulso)' : ''));
                 if (r.kind === 'imported') parts.push('📥 importada');
                 p.textContent = parts.join('  •  ');
                 info.append(h, p);
@@ -1459,10 +1723,9 @@
             } else if (btn.dataset.act === 'rename') {
                 const name = await modal({ message: 'Nombre de la ruta:', input: r.name, ok: 'Guardar' });
                 if (name && name.trim()) {
-                    const oldName = r.name;
                     r.name = name.trim();
                     if (r.remoteId) r.dirty = true;
-                    try { await DB.put(r); } catch (err) { r.name = oldName; toast('No se pudo guardar el cambio'); return; }
+                    try { await DB.put(r); } catch (err) { toast('No se pudo guardar el cambio'); }
                     renderSavedRoutes();
                     syncRoutes();
                 }
@@ -1472,7 +1735,7 @@
             } else if (btn.dataset.act === 'del') {
                 const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
                 if (!ok) return;
-                try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); return; }
+                try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); }
                 if (r.remoteId) await queueRemoteDelete(r.remoteId);
                 savedRoutes = savedRoutes.filter(x => x.id !== id);
                 if (followedRoute && followedRoute.id === id) unfollowRoute();
@@ -1615,7 +1878,8 @@
             if (!f) { toast('Elige primero un archivo GPX, KML o GeoJSON'); return; }
             try {
                 const route = buildImportedRoute(parseTrack(await f.text(), f.name));
-                if (await saveRoute(route)) followRoute(route);
+                await saveRoute(route);
+                followRoute(route);
                 $('gpx-input').value = '';
             } catch (err) {
                 console.warn(err);
@@ -1626,6 +1890,109 @@
         // ============================================================
         //  ESTADÍSTICAS Y GRÁFICAS
         // ============================================================
+        // ---- Calorías estimadas: kcal = MET × peso (kg) × horas ----
+        // MET del Compendio de Actividades Físicas: MTB general 8,5; MTB cuesta arriba intensa 14,0;
+        // ciclismo por velocidad media (4,0 / 6,8 / 8,0 / 10,0 / 12,0 / 15,8).
+        function getWeightKg() {
+            let w = NaN;
+            try { w = parseFloat(localStorage.getItem('mtb_weight_kg')); } catch (e) {}
+            return (isFinite(w) && w >= 30 && w <= 250) ? w : null;
+        }
+
+        function metBySpeed(kmh) {
+            if (kmh < 16.1) return 4.0;
+            if (kmh < 19.3) return 6.8;
+            if (kmh < 22.5) return 8.0;
+            if (kmh < 25.7) return 10.0;
+            if (kmh < 32.2) return 12.0;
+            return 15.8;
+        }
+
+        function getAge() {
+            let a = NaN;
+            try { a = parseInt(localStorage.getItem('mtb_age'), 10); } catch (e) {}
+            return (a >= 14 && a <= 90) ? a : null;
+        }
+        function getSex() {
+            try { const v = localStorage.getItem('mtb_sex'); return (v === 'm' || v === 'f') ? v : null; } catch (e) { return null; }
+        }
+
+        // Fracción de puntos de la ruta que llevan pulso (se guarda en caché: las rutas pueden tener miles de puntos)
+        const hrCovCache = new Map();
+        function hrCoverage(r) {
+            if (!r.points || !r.points.length) return 0;
+            const key = r.id + ':' + r.points.length;
+            if (!hrCovCache.has(key)) {
+                let n = 0;
+                for (const p of r.points) if (p[4] != null) n++;
+                hrCovCache.set(key, n / r.points.length);
+            }
+            return hrCovCache.get(key);
+        }
+
+        // Keytel et al. (2005): kcal/min a partir del pulso, peso, edad y sexo
+        function keytelKcalPerMin(hr, w, age, sex) {
+            const k = sex === 'm'
+                ? (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age)
+                : (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * age);
+            return k / 4.184;
+        }
+
+        // 1) Estimación por esfuerzo y desnivel (MET). 2) Si hay pulso, edad y sexo, el pulso la ajusta entre ×0,75 y ×1,25.
+        function estimateKcalDetail(r) {
+            const w = getWeightKg();
+            if (!w || r.kind === 'imported' || !r.movingTimeSec || r.movingTimeSec < 60 || !r.distanceKm) return null;
+            const hours = r.movingTimeSec / 3600;
+            const kmh = r.distanceKm / hours;
+            const climb = (r.elevationGain || 0) / r.distanceKm;           // metros de subida por km
+            const f = Math.max(0, Math.min(1, (climb - 10) / 30));          // 0 = llano, 1 = muy montañosa
+            const mtb = 8.5 + f * (14.0 - 8.5);                             // entre «MTB general» y «cuesta arriba»
+            const met = Math.max(mtb, metBySpeed(kmh));                     // en pista rápida manda la velocidad
+            const kcalMet = met * w * hours;
+
+            let kcal = kcalMet, usedHr = false;
+            const age = getAge(), sex = getSex();
+            if (r.hrAvg >= 80 && age && sex && hrCoverage(r) >= 0.5) {
+                const rate = keytelKcalPerMin(r.hrAvg, w, age, sex);
+                if (rate > 0) {
+                    const kcalHr = rate * (r.movingTimeSec / 60);
+                    kcal = kcalMet * Math.max(0.75, Math.min(1.25, kcalHr / kcalMet));
+                    usedHr = true;
+                }
+            }
+            return { kcal: Math.round(kcal), usedHr };
+        }
+
+        function estimateKcal(r) {
+            const d = estimateKcalDetail(r);
+            return d ? d.kcal : null;
+        }
+
+        function initWeight() {
+            const refresh = () => { renderSavedRoutes(); refreshStats(); };
+            const save = (key, val) => { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} };
+
+            const wIn = $('weight-input'), aIn = $('age-input'), sIn = $('sex-input');
+            const w = getWeightKg(), a = getAge(), sx = getSex();
+            if (w) wIn.value = w;
+            if (a) aIn.value = a;
+            if (sx) sIn.value = sx;
+
+            wIn.addEventListener('change', () => {
+                const v = parseFloat(String(wIn.value).replace(',', '.'));
+                if (isFinite(v) && v >= 30 && v <= 250) { save('mtb_weight_kg', v); toast(`Peso guardado: ${v} kg`); }
+                else { save('mtb_weight_kg', null); if (wIn.value) toast('Introduce un peso entre 30 y 250 kg'); }
+                refresh();
+            });
+            aIn.addEventListener('change', () => {
+                const v = parseInt(aIn.value, 10);
+                if (v >= 14 && v <= 90) save('mtb_age', v);
+                else { save('mtb_age', null); if (aIn.value) toast('Introduce una edad entre 14 y 90 años'); }
+                refresh();
+            });
+            sIn.addEventListener('change', () => { save('mtb_sex', sIn.value || null); refresh(); });
+        }
+
         function startOfWeek(d) {
             const x = new Date(d);
             x.setHours(0, 0, 0, 0);
@@ -1635,15 +2002,20 @@
 
         function refreshStats() {
             const now = new Date();
-            const weekly = statsPeriod === 'semanal';
-            const from = weekly ? startOfWeek(now) : new Date(now.getFullYear(), now.getMonth(), 1);
+            let from, when;
+            if (statsPeriod === 'semanal') { from = startOfWeek(now); when = 'esta semana'; }
+            else if (statsPeriod === 'mensual') { from = new Date(now.getFullYear(), now.getMonth(), 1); when = 'este mes'; }
+            else { from = new Date(now.getFullYear(), 0, 1); when = 'este año'; }
             const rides = savedRoutes.filter(r => r.kind !== 'imported' && new Date(r.startedAt) >= from);
 
             const km = rides.reduce((a, r) => a + r.distanceKm, 0);
             const sec = rides.reduce((a, r) => a + (r.movingTimeSec || 0), 0);
             const gain = rides.reduce((a, r) => a + (r.elevationGain || 0), 0);
 
-            const when = weekly ? 'esta semana' : 'este mes';
+            const kcal = rides.reduce((a, r) => a + (estimateKcal(r) || 0), 0);
+            $('st-kcal').textContent = getWeightKg() ? kcal.toLocaleString('es-ES') + ' kcal' : 'Indica tu peso';
+            $('st-kcal-lbl').textContent = 'Calorías estimadas ' + when;
+            $('st-vel').textContent = (sec > 0 ? km / (sec / 3600) : 0).toFixed(1) + ' km/h';
             $('st-dist').textContent = km.toFixed(1) + ' km';
             $('st-time').textContent = fmtDur(sec);
             $('st-desnivel').textContent = '+' + Math.round(gain) + ' m';
@@ -1652,16 +2024,20 @@
             $('st-time-lbl').textContent = 'Tiempo ' + when;
 
             let labels, buckets;
-            if (weekly) {
+            if (statsPeriod === 'semanal') {
                 labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                 buckets = Array(7).fill(0);
                 rides.forEach(r => { buckets[(new Date(r.startedAt).getDay() + 6) % 7] += r.distanceKm; });
-            } else {
+            } else if (statsPeriod === 'mensual') {
                 const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
                 const n = Math.ceil(days / 7);
                 labels = Array.from({ length: n }, (_, i) => 'S' + (i + 1));
                 buckets = Array(n).fill(0);
                 rides.forEach(r => { buckets[Math.floor((new Date(r.startedAt).getDate() - 1) / 7)] += r.distanceKm; });
+            } else {
+                labels = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+                buckets = Array(12).fill(0);
+                rides.forEach(r => { buckets[new Date(r.startedAt).getMonth()] += r.distanceKm; });
             }
             if (statsChart) {
                 statsChart.data.labels = labels;
@@ -1777,7 +2153,102 @@
             reconnectHr(e.target);
         }
 
+        // ---- Pulsómetro Bluetooth nativo (solo dentro del APK) ----
+        const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        let nativeBleLoading = null, nativeHrId = null, nativeHrConnected = false, nativeHrManual = false;
+
+        function loadNativeBle() {
+            if (window.MtbBle) return Promise.resolve(window.MtbBle);
+            if (!nativeBleLoading) {
+                nativeBleLoading = new Promise((res, rej) => {
+                    const sc = document.createElement('script');
+                    sc.src = 'lib/ble.js';
+                    sc.onload = () => window.MtbBle ? res(window.MtbBle) : rej(new Error('Falta el módulo Bluetooth'));
+                    sc.onerror = () => { nativeBleLoading = null; rej(new Error('No se pudo cargar el módulo Bluetooth')); };
+                    document.head.appendChild(sc);
+                });
+            }
+            return nativeBleLoading;
+        }
+
+        function setHrConnected(on) {
+            btnBle.classList.toggle('connected', on);
+            if (!on) { $('m-hr').textContent = '--'; currentHr = null; }
+        }
+
+        async function nativeHrConnect(id, name) {
+            const ble = await loadNativeBle();
+            await ble.connect(id, bpm => { currentHr = bpm; $('m-hr').textContent = bpm; }, () => onNativeHrDisconnected(id));
+            nativeHrId = id;
+            nativeHrConnected = true;
+            setHrConnected(true);
+            if (name !== undefined) {
+                try { localStorage.setItem('mtb_hr_device', JSON.stringify({ id, name: name || '' })); } catch (e) {}
+            }
+        }
+
+        function onNativeHrDisconnected(id) {
+            nativeHrConnected = false;
+            setHrConnected(false);
+            if (nativeHrManual || nativeHrId !== id) return;
+            toast('⚠️ Pulsómetro desconectado, reconectando…');
+            nativeHrReconnect(id);
+        }
+
+        async function nativeHrReconnect(id) {
+            for (let i = 0; i < 8; i++) {
+                await sleep(4000);
+                if (nativeHrManual || nativeHrId !== id || nativeHrConnected) return;
+                try { await nativeHrConnect(id); toast('❤️ Pulsómetro reconectado'); return; } catch (e) {}
+            }
+            toast('⚠️ No se pudo reconectar el pulsómetro. Pulsa 📶 para conectarlo de nuevo.', 6000);
+        }
+
+        async function nativeHrToggle() {
+            if (nativeHrConnected) { // un segundo toque lo desconecta
+                nativeHrManual = true;
+                try { await (await loadNativeBle()).disconnect(nativeHrId); } catch (e) {}
+                nativeHrConnected = false;
+                nativeHrId = null;
+                setHrConnected(false);
+                toast('Pulsómetro desconectado');
+                return;
+            }
+            btnBle.style.opacity = '0.5';
+            nativeHrManual = false;
+            try {
+                const ble = await loadNativeBle();
+                await ble.init(); // pide los permisos de Bluetooth la primera vez
+                if (!(await ble.isEnabled())) { toast('Activa el Bluetooth del móvil', 5000); return; }
+
+                // 1) intentar con el último pulsómetro usado
+                let saved = null;
+                try { saved = JSON.parse(localStorage.getItem('mtb_hr_device')); } catch (e) {}
+                if (saved && saved.id) {
+                    try {
+                        toast(`Conectando con ${saved.name || 'el último pulsómetro'}…`);
+                        await nativeHrConnect(saved.id, saved.name);
+                        toast('✅ Pulsómetro conectado');
+                        return;
+                    } catch (e) { console.warn('Último pulsómetro no disponible:', e); }
+                }
+
+                // 2) elegir de la lista de dispositivos cercanos
+                const dev = await ble.pick();
+                await nativeHrConnect(dev.deviceId, dev.name);
+                toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
+            } catch (err) {
+                console.warn('Bluetooth nativo:', err);
+                const msg = String((err && (err.message || err)) || '');
+                if (!/cancel|no device|not found|notfound/i.test(msg)) toast('No se pudo conectar el pulsómetro: ' + msg, 6000);
+            } finally {
+                btnBle.style.opacity = '1';
+            }
+        }
+
         btnBle.addEventListener('click', async () => {
+            if (isNativeApp()) { nativeHrToggle(); return; }
             if (!navigator.bluetooth) {
                 toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
                 return;
@@ -1804,7 +2275,7 @@
         });
 
         // ============================================================
-        //  FUENTES DE AGUA
+        //  FUENTES DE AGUA Y PARADAS EN BARES
         // ============================================================
         let savedFountains = [];
         try { savedFountains = JSON.parse(localStorage.getItem('mtb_saved_fountains') || '[]'); } catch (e) {}
@@ -1812,7 +2283,23 @@
 
         function persistFountains() {
             try { localStorage.setItem('mtb_saved_fountains', JSON.stringify(savedFountains)); }
-            catch (e) { toast('No se pudo guardar la fuente en el dispositivo'); }
+            catch (e) { toast('No se pudo guardar el punto en el dispositivo'); }
+        }
+
+        const POI_TYPES = {
+            fountain: { emoji: '🚰', defaultName: 'Fuente de Agua', ask: false, confirm: '¿Eliminar esta fuente guardada?' },
+            bar:      { emoji: '🍺', defaultName: 'Bar', ask: true, prompt: 'Nombre del bar donde paras:', confirm: '¿Eliminar esta parada?' }
+        };
+        const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain'); // las fuentes antiguas no tienen tipo
+
+        function poiIcon(type) {
+            if (type === 'bar') {
+                return L.divIcon({
+                    html: '<img src="estrella-galicia.svg" class="poi-bar-img" alt="">',
+                    className: 'poi-icon', iconSize: [40, 30], iconAnchor: [20, 15]
+                });
+            }
+            return L.divIcon({ html: '🚰', className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] });
         }
 
         function loadSavedFountains() {
@@ -1821,14 +2308,12 @@
             fountainMarkers = [];
 
             savedFountains.forEach(f => {
-                const kind = f.kind === 'bar' ? 'bar' : 'fountain';
-                const iconEmoji = kind === 'bar' ? '🍺' : '🚰';
-                const label = kind === 'bar' ? 'Bar' : 'Fuente de Agua';
-                const icon = L.divIcon({ html: iconEmoji, className: 'fountain-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
+                const type = poiType(f);
+                const meta = POI_TYPES[type];
                 const wrap = document.createElement('div');
                 wrap.style.cssText = 'text-align:center; color:#121212;';
                 const strong = document.createElement('strong');
-                strong.textContent = iconEmoji + ' ' + (f.name || label);
+                strong.textContent = meta.emoji + ' ' + (f.name || meta.defaultName);
                 const small = document.createElement('small');
                 small.textContent = 'Guardada: ' + f.date;
                 const btn = document.createElement('button');
@@ -1837,170 +2322,53 @@
                 btn.addEventListener('click', () => removeFountain(f.id));
                 wrap.append(strong, document.createElement('br'), small, document.createElement('br'), btn);
 
-                fountainMarkers.push(L.marker([f.lat, f.lng], { icon }).addTo(map).bindPopup(wrap));
+                fountainMarkers.push(L.marker([f.lat, f.lng], { icon: poiIcon(type) }).addTo(map).bindPopup(wrap));
             });
         }
 
         async function removeFountain(id) {
-            const ok = await modal({ message: '¿Eliminar este punto guardado?', ok: 'Eliminar' });
+            const f = savedFountains.find(x => x.id === id);
+            if (!f) return;
+            const ok = await modal({ message: POI_TYPES[poiType(f)].confirm, ok: 'Eliminar' });
             if (!ok) return;
-            savedFountains = savedFountains.filter(f => f.id !== id);
+            savedFountains = savedFountains.filter(x => x.id !== id);
             persistFountains();
             loadSavedFountains();
         }
 
-        async function addPlace(kind) {
+        let lastPoiAt = 0;
+        async function addPoi(type) {
+            const meta = POI_TYPES[type];
             if (lastLat === null || lastLon === null) { toast('Buscando señal GPS para marcar tu ubicación exacta...'); return; }
-            const isBar = kind === 'bar';
-            const defaultName = isBar ? 'Bar' : 'Fuente de Agua';
-            const name = await modal({ message: `Nombre o referencia del ${isBar ? 'bar' : 'punto de agua'}:`, input: defaultName, ok: 'Guardar' });
-            if (name === null) return;
-            const f = {
-                id: Date.now(),
-                kind: isBar ? 'bar' : 'fountain',
-                name: name.trim() || defaultName,
-                lat: lastLat,
-                lng: lastLon,
-                date: new Date().toLocaleDateString('es-ES')
-            };
-            savedFountains.push(f);
+            if (Date.now() - lastPoiAt < 1500) return; // evita duplicados por doble toque
+            lastPoiAt = Date.now();
+            const lat = lastLat, lng = lastLon; // la posición del momento del toque
+
+            let name = meta.defaultName;
+            if (meta.ask) { // el bar pide nombre; la fuente se guarda al instante
+                const n = await modal({ message: meta.prompt, input: meta.defaultName, ok: 'Guardar' });
+                if (n === null) return;
+                name = n.trim() || meta.defaultName;
+            }
+
+            savedFountains.push({ id: Date.now(), type, name, lat, lng, date: new Date().toLocaleDateString('es-ES') });
             persistFountains();
             loadSavedFountains();
-            goToPage(0);
-            if (map) map.setView([f.lat, f.lng], 17);
-            toast(`${isBar ? 'Bar' : 'Fuente'} «${f.name}» marcado en tu posición`);
+            if (navigator.vibrate) navigator.vibrate(60);
+            if (currentPage !== 0) { goToPage(0); if (map) map.setView([lat, lng], 17); }
+            toast(`${meta.emoji} «${name}» marcado en tu posición`);
         }
 
-        $('btn-fountain').addEventListener('click', () => addPlace('fountain'));
-        $('btn-bar').addEventListener('click', () => addPlace('bar'));
-        $('map-add-fountain').addEventListener('click', () => addPlace('fountain'));
-        $('map-add-bar').addEventListener('click', () => addPlace('bar'));
+        $('btn-poi-fountain').addEventListener('click', () => addPoi('fountain'));
+        $('btn-poi-bar').addEventListener('click', () => addPoi('bar'));
+        $('btn-fountain').addEventListener('click', () => addPoi('fountain'));
+        $('btn-bar').addEventListener('click', () => addPoi('bar'));
 
         // ============================================================
-        //  POSICIONES DEL GRUPO (PocketBase)
+        //  AMIGOS (pendiente de servidor)
         // ============================================================
-        let groupJoined = false, friendsTimer = null, lastLivePush = 0, livePushPending = false;
-        let myLiveRecordId = null;
-        const friendMarkers = new Map();
-        const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
-
-        function groupName() { return $('group-code').value.trim(); }
-
-        function renderFriends(items = []) {
-            const box = $('friends-list');
-            box.textContent = '';
-            const now = Date.now();
-            const live = items.filter(x => x.owner !== Cloud.uid && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lon)) && now - Date.parse(x.updated) < FRIEND_STALE_MS);
-            const ids = new Set(live.map(x => x.id));
-            for (const [id, marker] of friendMarkers) {
-                if (!ids.has(id)) { if (map) map.removeLayer(marker); friendMarkers.delete(id); }
-            }
-            if (!live.length) {
-                const p = document.createElement('p');
-                p.className = 'hint'; p.style.textAlign = 'center';
-                p.textContent = groupJoined ? 'No hay compañeros compartiendo ubicación ahora.' : 'Únete al grupo para consultar las posiciones activas.';
-                box.appendChild(p);
-                return;
-            }
-            live.forEach(rec => {
-                const name = rec.name || 'Compañero';
-                const ll = [Number(rec.lat), Number(rec.lon)];
-                let marker = friendMarkers.get(rec.id);
-                if (map) {
-                    if (!marker) {
-                        marker = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 2, fillColor: '#ab47bc', fillOpacity: 1 }).addTo(map);
-                        friendMarkers.set(rec.id, marker);
-                    } else marker.setLatLng(ll);
-                    const popup = document.createElement('div');
-                    const popupName = document.createElement('strong');
-                    popupName.textContent = name;
-                    const popupTime = document.createElement('div');
-                    popupTime.textContent = `Actualizado ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
-                    popup.append(popupName, popupTime);
-                    marker.bindPopup(popup);
-                }
-                const row = document.createElement('p');
-                row.className = 'hint'; row.textContent = `🚴 ${name} · ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
-                box.appendChild(row);
-            });
-        }
-
-        async function refreshFriends() {
-            if (!groupJoined || !Cloud.loggedIn()) return;
-            try {
-                const f = encodeURIComponent(`groupCode = "${groupName()}"`);
-                const res = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=200&sort=-updated`);
-                const own = res.items.find(x => x.owner === Cloud.uid);
-                myLiveRecordId = own ? own.id : null;
-                renderFriends(res.items);
-            } catch (e) {
-                console.warn('Posiciones del grupo:', e);
-                if (e.status !== undefined && e.status !== 404) $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa live_locations y sus reglas en PocketBase.';
-            }
-        }
-
-        async function publishMyLocation(force = false) {
-            if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
-            if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
-            livePushPending = true;
-            try {
-                const payload = { owner: Cloud.uid, groupCode: groupName(), name: Cloud.email || 'Compañero', lat: lastLat, lon: lastLon, accuracy: Number.isFinite(lastAccuracy) ? lastAccuracy : 0 };
-                if (!myLiveRecordId) {
-                    const f = encodeURIComponent(`owner = "${Cloud.uid}"`);
-                    const own = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=1`);
-                    myLiveRecordId = own.items[0] ? own.items[0].id : null;
-                }
-                if (myLiveRecordId) await cloudApi(`/api/collections/live_locations/records/${myLiveRecordId}`, 'PATCH', payload);
-                else {
-                    const rec = await cloudApi('/api/collections/live_locations/records', 'POST', payload);
-                    myLiveRecordId = rec.id;
-                }
-                if (!groupJoined || !isRecording || isPaused) { await removeMyLiveLocation(); return; }
-                lastLivePush = Date.now();
-                refreshFriends();
-            } catch (e) {
-                console.warn('No se pudo compartir la posición:', e);
-                if (e.status === 404) myLiveRecordId = null;
-                if (e.status !== undefined) $('group-status').textContent = `Error al compartir posición: ${e.message}`;
-            } finally { livePushPending = false; }
-        }
-
-        async function removeMyLiveLocation() {
-            const id = myLiveRecordId;
-            myLiveRecordId = null;
-            if (id && Cloud.loggedIn()) {
-                try { await cloudApi(`/api/collections/live_locations/records/${id}`, 'DELETE'); }
-                catch (e) { console.warn('No se pudo retirar la posición:', e); }
-            }
-            renderFriends();
-        }
-
-        $('btn-join').addEventListener('click', async () => {
-            if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
-            if (groupJoined) {
-                groupJoined = false;
-                clearInterval(friendsTimer); friendsTimer = null;
-                await removeMyLiveLocation();
-                $('btn-join').textContent = 'Unirse al Grupo';
-                $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
-                renderFriends();
-                return;
-            }
-            try {
-                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
-                Cloud.setSession(auth.token, auth.record);
-                renderAccount();
-            } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
-            const code = groupName();
-            if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
-                toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
-            }
-            groupJoined = true;
-            $('btn-join').textContent = 'Salir del Grupo';
-            $('group-status').textContent = isRecording ? 'Grupo activo: compartiendo tu posición al grabar.' : 'Grupo activo: tu posición se compartirá cuando empieces a grabar.';
-            await refreshFriends();
-            friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
-            if (isRecording && !isPaused) publishMyLocation(true);
+        $('btn-join').addEventListener('click', () => {
+            toast('Esta función necesita un servidor y todavía no está disponible.', 4500);
         });
 
         // ============================================================
@@ -2037,6 +2405,7 @@
         function collapseMetric() {
             expandedMetric = null;
             $('big-metric').classList.remove('show');
+            $('page-map').classList.remove('metric-open');
             document.querySelectorAll('.m-box').forEach(b => b.classList.remove('active'));
         }
 
@@ -2049,6 +2418,7 @@
             $('big-gauge').classList.toggle('show', key === 'speed');
             document.querySelectorAll('.m-box').forEach(b => b.classList.toggle('active', b.dataset.metric === key));
             $('big-metric').classList.add('show');
+            $('page-map').classList.add('metric-open');
             syncBigMetric();
         }
 
@@ -2076,16 +2446,14 @@
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
-            get groupCode() { return localStorage.getItem('mtb_group_code') || ''; },
             loggedIn()   { return !!(this.server && this.token && this.uid); },
             setSession(token, rec) {
                 localStorage.setItem('mtb_token', token);
                 localStorage.setItem('mtb_uid', rec.id);
                 localStorage.setItem('mtb_email', rec.email || '');
-                localStorage.setItem('mtb_group_code', rec.groupCode || '');
             },
             clearSession() {
-                ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
+                ['mtb_token', 'mtb_uid', 'mtb_email'].forEach(k => localStorage.removeItem(k));
             }
         };
 
@@ -2125,7 +2493,7 @@
             $('acc-server').value = Cloud.server;
             const last = localStorage.getItem('mtb_lastsync');
             $('acc-status').textContent = on
-                ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
+                ? `Conectado como ${Cloud.email}` + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
                 : 'Sin sesión: tus rutas se guardan solo en este móvil.';
         }
 
@@ -2281,13 +2649,9 @@
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
-            $('acc-logout').addEventListener('click', async () => {
-                groupJoined = false;
-                clearInterval(friendsTimer); friendsTimer = null;
-                await removeMyLiveLocation();
+            $('acc-logout').addEventListener('click', () => {
                 Cloud.clearSession();
                 renderAccount();
-                renderFriends();
                 toast('Sesión cerrada. Tus rutas siguen en este móvil.');
             });
             window.addEventListener('online', () => syncRoutes());
@@ -2337,6 +2701,7 @@
             refreshStats();
             showProfile(savedRoutes[0] || null);
             initAccount();
+            initWeight();
             syncRoutes();
             startGps();
             await maybeRestoreDraft();
