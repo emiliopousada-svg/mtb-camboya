@@ -602,6 +602,26 @@
             </div>
 
             <div class="card">
+                <div class="card-header">
+                    <h2>📈 Progresión (km)</h2>
+                </div>
+                <div style="height: 190px; position:relative; margin-top:6px;">
+                    <canvas id="statsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>⛰️ Perfil de altitud</h2>
+                </div>
+                <p class="hint" id="profile-title" style="margin-top:0;">Sin ruta seleccionada</p>
+                <div style="height: 170px; position:relative; margin-top:6px;">
+                    <canvas id="profileChart"></canvas>
+                </div>
+                <p class="hint" id="profile-empty" style="display:none; text-align:center;">Esta ruta no tiene datos de altitud.</p>
+            </div>
+
+            <div class="card">
                 <h2>🔥 Calorías</h2>
                 <p class="hint">Se estiman por esfuerzo (velocidad media) y desnivel. Si la ruta tiene pulso, tu edad y sexo ayudan a ajustar el resultado hasta un ±25 %. Incluyen el gasto en reposo.</p>
                 <div id="calorie-profile-summary" hidden>
@@ -622,26 +642,6 @@
                     <button type="button" id="save-calorie-profile" class="btn" style="width:100%; margin-top:10px;">Guardar mis datos</button>
                     <p class="hint">Los datos se guardan únicamente en este móvil.</p>
                 </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>📈 Progresión (km)</h2>
-                </div>
-                <div style="height: 190px; position:relative; margin-top:6px;">
-                    <canvas id="statsChart"></canvas>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>⛰️ Perfil de altitud</h2>
-                </div>
-                <p class="hint" id="profile-title" style="margin-top:0;">Sin ruta seleccionada</p>
-                <div style="height: 170px; position:relative; margin-top:6px;">
-                    <canvas id="profileChart"></canvas>
-                </div>
-                <p class="hint" id="profile-empty" style="display:none; text-align:center;">Esta ruta no tiene datos de altitud.</p>
             </div>
         </div>
 
