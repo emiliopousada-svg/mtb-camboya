@@ -27,7 +27,8 @@ function memberRecord(groupId, userId) {
         "mtb_group_members",
         'group = "' + groupId + '" && user = "' + userId + '"',
         "",
-        1
+        1,
+        0
     );
     return records.length ? records[0] : null;
 }
@@ -48,7 +49,7 @@ function setActiveGroup(user, groupId) {
 
 function removeUserLocation(userId, groupId) {
     const filter = 'owner = "' + userId + '" && groupCode = "' + groupId + '"';
-    const locations = $app.findRecordsByFilter("live_locations", filter, "", 500);
+    const locations = $app.findRecordsByFilter("live_locations", filter, "", 500, 0);
     for (const location of locations) $app.delete(location);
 }
 
@@ -224,7 +225,7 @@ routerAdd("POST", "/api/mtb/groups/delete", (e) => {
             } catch (_) {}
             $app.delete(membership);
         }
-        const locations = $app.findRecordsByFilter("live_locations", 'groupCode = "' + groupId + '"', "", 500);
+        const locations = $app.findRecordsByFilter("live_locations", 'groupCode = "' + groupId + '"', "", 500, 0);
         for (const location of locations) $app.delete(location);
         $app.delete(group);
         return e.json(200, { ok: true });
