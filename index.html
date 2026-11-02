@@ -2753,20 +2753,48 @@
         const friendMarkers = new Map();
         const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
 
-        let groupInfo = null;
+        let groupInfo = null, groupChoices = [];
 
         function groupName() { return Cloud.groupCode || ''; }
+
+        function renderGroupChoices(activeId = '') {
+            const box = $('group-list');
+            box.textContent = '';
+            for (const group of groupChoices) {
+                const row = document.createElement('div');
+                row.className = 'friend-row';
+                const info = document.createElement('div');
+                info.className = 'friend-main';
+                const title = document.createElement('div');
+                title.className = 'friend-name';
+                title.textContent = group.name + (group.isAdmin ? ' · Administrador' : '');
+                const status = document.createElement('div');
+                status.className = 'friend-updated';
+                status.textContent = 'Autorización guardada';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn-small friend-locate';
+                button.textContent = 'Volver a entrar';
+                button.addEventListener('click', () => selectGroup(group.id));
+                info.append(title, status);
+                row.append(info, button);
+                box.appendChild(row);
+            }
+            $('group-choices').style.display = !groupJoined && groupChoices.length ? 'block' : 'none';
+        }
 
         function renderGroupState(connected) {
             $('group-setup').style.display = connected ? 'none' : 'block';
             $('group-connected').style.display = connected ? 'block' : 'none';
             $('group-admin-panel').style.display = connected && groupInfo && groupInfo.isAdmin ? 'block' : 'none';
             $('group-invite-code').textContent = groupInfo && groupInfo.isAdmin ? groupInfo.inviteCode : '';
-            $('group-connected-label').textContent = connected && groupInfo ? (groupInfo.name + (groupInfo.isAdmin ? ' · Administrador' : ' · Miembro')) : 'Conectado al grupo';
-            $('btn-leave').style.display = connected && !(groupInfo && groupInfo.isAdmin) ? 'inline-block' : 'none';
+            $('group-connected-label').textContent = connected && groupInfo ? (groupInfo.name + (groupInfo.isAdmin ? ' · Administrador' : ' · Miembro')) : 'Grupo activo';
+            $('group-choices').style.display = !connected && groupChoices.length ? 'block' : 'none';
+            renderGroupChoices(groupInfo ? groupInfo.id : '');
             $('group-status').textContent = connected
                 ? (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Tu posición se compartirá cuando grabes.')
-                : 'Inicia sesión para crear un grupo o aceptar una invitación.';
+                : 'Puedes volver a entrar en tus grupos autorizados. El administrador puede revocar el acceso.';
+            if (connected && groupInfo && groupInfo.isAdmin) loadAdminMembers();
         }
 
         async function stopGroup() {
@@ -2781,19 +2809,71 @@
 
         async function loadMyGroup() {
             const result = await cloudApi('/api/mtb/groups/my');
-            groupInfo = result.group || null;
-            if (groupInfo) {
-                Cloud.groupCode = groupInfo.id;
-                localStorage.setItem('mtb_group_code', groupInfo.id);
-                groupJoined = true;
-                localStorage.setItem('mtb_group_joined', '1');
-            } else {
-                groupJoined = false;
-                localStorage.removeItem('mtb_group_joined');
-                if (result.legacy) $('group-status').textContent = 'Tu cuenta tiene un grupo antiguo asignado. El administrador debe migrarlo a un grupo nuevo.';
-            }
+            groupChoices = Array.isArray(result.groups) ? result.groups : [];
+            const activeId = result.activeGroupId || '';
+            groupInfo = groupChoices.find(group => group.id === activeId) || null;
+            groupJoined = Boolean(groupInfo && localStorage.getItem('mtb_group_joined') === activeId);
+            if (activeId) localStorage.setItem('mtb_group_code', activeId);
+            else localStorage.removeItem('mtb_group_code');
+            if (!groupJoined) localStorage.removeItem('mtb_group_joined');
             renderGroupState(groupJoined);
             return groupInfo;
+        }
+
+        async function loadAdminMembers() {
+            try {
+                const result = await cloudApi('/api/mtb/groups/members');
+                const box = $('group-members-list');
+                box.textContent = '';
+                for (const member of result.members || []) {
+                    const row = document.createElement('div');
+                    row.className = 'friend-row';
+                    const label = document.createElement('div');
+                    label.className = 'friend-name';
+                    label.textContent = member.nickname + (member.isAdmin ? ' · Tú' : '');
+                    row.appendChild(label);
+                    if (!member.isAdmin) {
+                        const revoke = document.createElement('button');
+                        revoke.type = 'button';
+                        revoke.className = 'btn-small danger friend-locate';
+                        revoke.textContent = 'Revocar';
+                        revoke.addEventListener('click', async () => {
+                            if (!confirm('Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?')) return;
+                            try {
+                                await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                                await loadAdminMembers();
+                                toast('Acceso revocado.');
+                            } catch (e) { toast('No se pudo revocar el acceso: ' + e.message, 6000); }
+                        });
+                        row.appendChild(revoke);
+                    }
+                    box.appendChild(row);
+                }
+                if (!(result.members || []).length) box.textContent = 'Todavía no hay miembros.';
+            } catch (e) {
+                $('group-members-list').textContent = 'No se pudo cargar la lista de miembros.';
+                console.warn('Miembros del grupo:', e);
+            }
+        }
+
+        async function selectGroup(groupId) {
+            if (!Cloud.loggedIn()) { toast('Inicia sesión para entrar en el grupo.'); return; }
+            try {
+                await cloudApi('/api/mtb/groups/select', 'POST', { groupId });
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                localStorage.setItem('mtb_group_joined', groupId);
+                groupJoined = true;
+                await loadMyGroup();
+                if (friendsTimer) clearInterval(friendsTimer);
+                await refreshFriends();
+                friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+                if (isRecording && !isPaused) publishMyLocation(true);
+                toast('Has vuelto a entrar en el grupo.');
+            } catch (e) {
+                toast('No se pudo entrar en el grupo: ' + e.message, 6000);
+                await restoreGroup();
+            }
         }
 
         async function restoreGroup() {
@@ -2952,17 +3032,17 @@
                 let result;
                 if (action === 'create') {
                     const name = $('group-name').value.trim();
-                    result = await cloudApi('/api/mtb/groups/create', 'POST', { name });
+                    result = await cloudApi('/api/mtb/groups/create', 'POST', { name, nickname: displayName });
                 } else {
                     const code = $('group-code').value.trim().toUpperCase();
                     if (!/^[A-Z0-9]{12}$/.test(code)) { toast('Introduce un código de invitación de 12 caracteres.'); return; }
-                    result = await cloudApi('/api/mtb/groups/join', 'POST', { code });
+                    result = await cloudApi('/api/mtb/groups/join', 'POST', { code, nickname: displayName });
                 }
                 const fresh = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(fresh.token, fresh.record);
                 groupInfo = result.group;
                 groupJoined = true;
-                localStorage.setItem('mtb_group_joined', '1');
+                localStorage.setItem('mtb_group_joined', result.group.id);
                 renderGroupState(true);
                 await refreshFriends();
                 if (friendsTimer) clearInterval(friendsTimer);
@@ -3007,11 +3087,16 @@
         $('btn-leave').addEventListener('click', async () => {
             try {
                 await cloudApi('/api/mtb/groups/leave', 'POST');
-                await stopGroup();
+                await cloudApi('/api/mtb/groups/leave', 'POST');
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
+                myLiveRecordId = null;
+                groupJoined = false;
+                localStorage.removeItem('mtb_group_joined');
+                await loadMyGroup();
+                renderFriends();
                 renderAccount();
-                toast('Has salido del grupo. Tu posición ya no se comparte.');
+                toast('Has salido del grupo. Conservas el acceso para volver a entrar.');
             } catch (e) { toast('No se pudo salir del grupo: ' + e.message, 6000); }
         });
 
