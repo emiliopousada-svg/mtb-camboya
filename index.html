@@ -714,6 +714,7 @@
                 <h2>👥 Grupos y amigos (Live)</h2>
                 <p class="hint">Crea un grupo para administrarlo o únete con una invitación. La ubicación solo se comparte mientras grabas y formas parte del grupo.</p>
                 <div id="group-setup">
+                    <input type="text" id="group-display-name" placeholder="Tu apodo visible para el grupo" maxlength="32">
                     <input type="text" id="group-name" placeholder="Nombre del grupo" maxlength="40">
                     <button class="btn" id="btn-create-group" type="button">Crear grupo y ser administrador</button>
                     <input type="text" id="group-code" placeholder="Código de invitación" maxlength="12" autocomplete="off">
@@ -2932,9 +2933,17 @@
             renderFriends();
         }
 
+        $('group-display-name').value = localStorage.getItem('mtb_group_name') || '';
+        $('group-display-name').addEventListener('change', () => {
+            const name = $('group-display-name').value.trim().slice(0, 32);
+            if (name) localStorage.setItem('mtb_group_name', name);
+            else localStorage.removeItem('mtb_group_name');
+        });
+
         async function connectGroup(action) {
             if (!Cloud.loggedIn()) { toast('Inicia sesión para usar los grupos.'); return; }
-            const displayName = localStorage.getItem('mtb_group_name') || 'Compañero';
+            const displayName = $('group-display-name').value.trim().slice(0, 32);
+            if (displayName) localStorage.setItem('mtb_group_name', displayName);
             try {
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
