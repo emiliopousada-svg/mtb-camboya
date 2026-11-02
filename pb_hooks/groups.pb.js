@@ -12,10 +12,15 @@ function authUser(e) {
     return $app.findRecordById("users", e.auth.id);
 }
 
-function bodyModel(e, shape) {
+// El alias en minúsculas mantiene compatibilidad con copias anteriores del hook.
+function bodymodel(e, shape) {
     const body = new DynamicModel(shape);
     e.bindBody(body);
     return body;
+}
+
+function bodyModel(e, shape) {
+    return bodymodel(e, shape);
 }
 
 function inviteCode() {
@@ -145,7 +150,8 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
             "mtb_group_members",
             'group = "' + groupId + '"',
             "",
-            200
+            200,
+            0
         );
         const members = memberships.map((membership) => ({
             userId: membership.getString("user"),
