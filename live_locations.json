@@ -1,15 +1,17 @@
 [
   {
+    "id": "pbc_2316984157",
     "name": "live_locations",
     "type": "base",
     "system": false,
-    "listRule": "@request.auth.id != '' && @request.auth.groupCode != '' && groupCode = @request.auth.groupCode",
-    "viewRule": "@request.auth.id != '' && @request.auth.groupCode != '' && groupCode = @request.auth.groupCode",
-    "createRule": "@request.auth.id != '' && @request.auth.groupCode != '' && @request.body.owner = @request.auth.id && @request.body.groupCode = @request.auth.groupCode",
-    "updateRule": "@request.auth.id != '' && owner = @request.auth.id && @request.body.owner:changed = false && @request.body.groupCode:changed = false",
-    "deleteRule": "@request.auth.id != '' && owner = @request.auth.id",
+    "listRule": "@request.auth.id != \"\" && @request.auth.groupCode != \"\" && groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id",
+    "viewRule": "@request.auth.id != \"\" && @request.auth.groupCode != \"\" && groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id",
+    "createRule": "@request.auth.id != \"\" && @request.auth.groupCode != \"\" && @request.body.owner = @request.auth.id && @request.body.groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= @request.body.groupCode && @collection.mtb_group_members.user ?= @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && owner = @request.auth.id && groupCode = @request.auth.groupCode && @request.body.owner:changed = false && @request.body.groupCode:changed = false && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id",
+    "deleteRule": "@request.auth.id != \"\" && owner = @request.auth.id",
     "fields": [
       {
+        "id": "liveloc_id",
         "system": true,
         "name": "id",
         "type": "text",
@@ -20,14 +22,58 @@
         "max": 15,
         "pattern": "^[a-z0-9]+$"
       },
-      { "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
-      { "name": "groupCode", "type": "text", "required": true },
-      { "name": "name", "type": "text" },
-      { "name": "lat", "type": "number", "required": true },
-      { "name": "lon", "type": "number", "required": true },
-      { "name": "accuracy", "type": "number" },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false },
-      { "name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true }
+      {
+        "id": "liveloc_owner",
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "liveloc_group",
+        "name": "groupCode",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "liveloc_name",
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "id": "liveloc_lat",
+        "name": "lat",
+        "type": "number",
+        "required": true
+      },
+      {
+        "id": "liveloc_lon",
+        "name": "lon",
+        "type": "number",
+        "required": true
+      },
+      {
+        "id": "liveloc_accuracy",
+        "name": "accuracy",
+        "type": "number"
+      },
+      {
+        "id": "liveloc_created",
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      },
+      {
+        "id": "liveloc_updated",
+        "name": "updated",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": true
+      }
     ],
     "indexes": []
   }

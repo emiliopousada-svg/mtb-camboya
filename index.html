@@ -427,6 +427,27 @@
             background:#4caf50;box-shadow:0 0 9px rgba(76,175,80,.9);
             flex:0 0 11px;
         }
+        .group-admin-panel {
+            margin-top: 12px; padding: 12px; border-radius: 12px;
+            background: #121212; border: 1px solid rgba(129,199,132,.3);
+        }
+        .group-invite-code {
+            display: block; margin: 7px 0; color: #81c784;
+            font: 800 1.15rem ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: 2px; overflow-wrap: anywhere;
+        }
+        .group-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .group-actions .btn-small { flex: 1 1 130px; min-height: 42px; }
+        #group-code { text-transform: uppercase; letter-spacing: 1px; }
+        .friend-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 14px; margin-top: 10px; min-height: 76px;
+            background: #121212; border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
+        }
+        .friend-main { min-width: 0; }
+        .friend-name { color: #fff; font-size: 1.05rem; font-weight: 800; overflow-wrap: anywhere; }
+        .friend-updated { margin-top: 5px; color: var(--text-secondary); font-size: .82rem; }
+        .friend-locate { flex: 0 0 auto; min-width: 72px; min-height: 44px; }
 
         /* Navegación Inferior */
         nav {
@@ -690,18 +711,33 @@
         <!-- PÁGINA 3: AMIGOS EN LIVE -->
         <div class="page content-panel">
             <div class="card">
-                <h2>👥 Posición de Amigos (Live)</h2>
-                <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
+                <h2>👥 Grupos y amigos (Live)</h2>
+                <p class="hint">Crea un grupo para administrarlo o únete con una invitación. La ubicación solo se comparte mientras grabas y formas parte del grupo.</p>
                 <div id="group-setup">
-                    <input type="text" id="group-code" placeholder="Código de grupo asignado">
-                    <input type="text" id="group-name" placeholder="Nombre que verán tus compañeros" maxlength="32" value="">
-                    <button class="btn" id="btn-join">Unirse al Grupo</button>
+                    <input type="text" id="group-display-name" placeholder="Tu apodo visible para el grupo" maxlength="32">
+                    <input type="text" id="group-name" placeholder="Nombre del grupo" maxlength="40">
+                    <button class="btn" id="btn-create-group" type="button">Crear grupo y ser administrador</button>
+                    <input type="text" id="group-code" placeholder="Código de invitación" maxlength="12" autocomplete="off">
+                    <button class="btn secondary" id="btn-join" type="button">Unirme a un grupo</button>
                 </div>
-                <div id="group-connected" style="display:none;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;">
-                    <span style="display:flex;align-items:center;gap:9px;font-weight:700;"><span class="group-led" aria-hidden="true"></span> Conectado al grupo</span>
-                    <button class="btn-small danger" id="btn-leave" type="button" aria-label="Salir del grupo" title="Salir del grupo" style="font-size:1.15rem;padding:9px 14px;">↪</button>
+                <div id="group-choices" style="display:none;margin-top:12px;"><p class="hint">Grupos a los que tienes acceso:</p><div id="group-list"></div></div>
+                <div id="group-connected" style="display:none;margin-top:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                        <span style="display:flex;align-items:center;gap:9px;font-weight:700;"><span class="group-led" aria-hidden="true"></span><span id="group-connected-label">Grupo activo</span></span>
+                        <button class="btn-small secondary" id="btn-leave" type="button">Salir y conservar acceso</button>
+                    </div>
+                    <div id="group-admin-panel" class="group-admin-panel" style="display:none;">
+                        <p class="hint" style="margin-top:0;">Comparte el código para autorizar a nuevos miembros:</p>
+                        <strong id="group-invite-code" class="group-invite-code"></strong>
+                        <div class="group-actions">
+                            <button class="btn-small" id="btn-copy-invite" type="button">Copiar invitación</button>
+                            <button class="btn-small secondary" id="btn-rotate-invite" type="button">Renovar código</button>
+                            <button class="btn-small danger" id="btn-delete-group" type="button">Eliminar grupo</button>
+                        </div>
+                        <p class="hint">Miembros autorizados (pueden salir y volver a entrar):</p><div id="group-members-list"></div>
+                    </div>
                 </div>
-                <p class="hint" id="group-status">La ubicación solo se comparte al grabar y estar unido al grupo.</p>
+                <p class="hint" id="group-status">Inicia sesión para crear un grupo o aceptar una invitación.</p>
             </div>
 
             <div class="card">
@@ -737,7 +773,7 @@
                 <h2>☁️ Cuenta y sincronización</h2>
                 <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
                 <div id="acc-form">
-                    <input type="text" id="acc-server" placeholder="Servidor (https://...)" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <p class="hint">Servidor configurado: <strong>https://vamp69.ddns.net</strong></p>
                     <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
                     <button class="btn" id="acc-login">Entrar</button>
@@ -842,6 +878,7 @@
         //  CONFIGURACIÓN
         // ============================================================
         const APP_VERSION = '1.2.0'; // La compilación APK reemplaza esta versión por la del paquete.
+        const DEFAULT_CLOUD_SERVER = 'https://vamp69.ddns.net';
         const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
         const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
         const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
@@ -2716,18 +2753,53 @@
         const friendMarkers = new Map();
         const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
 
-        function groupName() { return Cloud.groupCode || $('group-code').value.trim(); }
+        let groupInfo = null, groupChoices = [];
+
+        function groupName() { return Cloud.groupCode || ''; }
+
+        function renderGroupChoices(activeId = '') {
+            const box = $('group-list');
+            box.textContent = '';
+            for (const group of groupChoices) {
+                const row = document.createElement('div');
+                row.className = 'friend-row';
+                const info = document.createElement('div');
+                info.className = 'friend-main';
+                const title = document.createElement('div');
+                title.className = 'friend-name';
+                title.textContent = group.name + (group.isAdmin ? ' · Administrador' : '');
+                const status = document.createElement('div');
+                status.className = 'friend-updated';
+                status.textContent = 'Autorización guardada';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn-small friend-locate';
+                button.textContent = 'Volver a entrar';
+                button.addEventListener('click', () => selectGroup(group.id));
+                info.append(title, status);
+                row.append(info, button);
+                box.appendChild(row);
+            }
+            $('group-choices').style.display = !groupJoined && groupChoices.length ? 'block' : 'none';
+        }
 
         function renderGroupState(connected) {
             $('group-setup').style.display = connected ? 'none' : 'block';
-            $('group-connected').style.display = connected ? 'flex' : 'none';
+            $('group-connected').style.display = connected ? 'block' : 'none';
+            $('group-admin-panel').style.display = connected && groupInfo && groupInfo.isAdmin ? 'block' : 'none';
+            $('group-invite-code').textContent = groupInfo && groupInfo.isAdmin ? groupInfo.inviteCode : '';
+            $('group-connected-label').textContent = connected && groupInfo ? (groupInfo.name + (groupInfo.isAdmin ? ' · Administrador' : ' · Miembro')) : 'Grupo activo';
+            $('group-choices').style.display = !connected && groupChoices.length ? 'block' : 'none';
+            renderGroupChoices(groupInfo ? groupInfo.id : '');
             $('group-status').textContent = connected
-                ? (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Grupo conectado. Tu posición se compartirá cuando grabes.')
-                : 'La ubicación solo se comparte al grabar y estar unido al grupo.';
+                ? (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Tu posición se compartirá cuando grabes.')
+                : 'Puedes volver a entrar en tus grupos autorizados. El administrador puede revocar el acceso.';
+            if (connected && groupInfo && groupInfo.isAdmin) loadAdminMembers();
         }
 
         async function stopGroup() {
             groupJoined = false;
+            groupInfo = null;
             localStorage.removeItem('mtb_group_joined');
             if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
             await removeMyLiveLocation();
@@ -2735,28 +2807,91 @@
             renderFriends();
         }
 
-        async function restoreGroup() {
-            if (localStorage.getItem('mtb_group_joined') !== '1' || !Cloud.loggedIn() || !Cloud.groupCode) return;
-            $('group-code').value = Cloud.groupCode;
+        async function loadMyGroup() {
+            const result = await cloudApi('/api/mtb/groups/my');
+            groupChoices = Array.isArray(result.groups) ? result.groups : [];
+            const activeId = result.activeGroupId || '';
+            groupInfo = groupChoices.find(group => group.id === activeId) || null;
+            groupJoined = Boolean(groupInfo && localStorage.getItem('mtb_group_joined') === activeId);
+            if (activeId) localStorage.setItem('mtb_group_code', activeId);
+            else localStorage.removeItem('mtb_group_code');
+            if (!groupJoined) localStorage.removeItem('mtb_group_joined');
+            renderGroupState(groupJoined);
+            return groupInfo;
+        }
+
+        async function loadAdminMembers() {
             try {
-                const expectedGroup = Cloud.groupCode;
+                const result = await cloudApi('/api/mtb/groups/members');
+                const box = $('group-members-list');
+                box.textContent = '';
+                for (const member of result.members || []) {
+                    const row = document.createElement('div');
+                    row.className = 'friend-row';
+                    const label = document.createElement('div');
+                    label.className = 'friend-name';
+                    label.textContent = member.nickname + (member.isAdmin ? ' · Tú' : '');
+                    row.appendChild(label);
+                    if (!member.isAdmin) {
+                        const revoke = document.createElement('button');
+                        revoke.type = 'button';
+                        revoke.className = 'btn-small danger friend-locate';
+                        revoke.textContent = 'Revocar';
+                        revoke.addEventListener('click', async () => {
+                            if (!confirm('Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?')) return;
+                            try {
+                                await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                                await loadAdminMembers();
+                                toast('Acceso revocado.');
+                            } catch (e) { toast('No se pudo revocar el acceso: ' + e.message, 6000); }
+                        });
+                        row.appendChild(revoke);
+                    }
+                    box.appendChild(row);
+                }
+                if (!(result.members || []).length) box.textContent = 'Todavía no hay miembros.';
+            } catch (e) {
+                $('group-members-list').textContent = 'No se pudo cargar la lista de miembros.';
+                console.warn('Miembros del grupo:', e);
+            }
+        }
+
+        async function selectGroup(groupId) {
+            if (!Cloud.loggedIn()) { toast('Inicia sesión para entrar en el grupo.'); return; }
+            try {
+                await cloudApi('/api/mtb/groups/select', 'POST', { groupId });
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
-                if (!auth.record.groupCode || auth.record.groupCode !== expectedGroup) {
-                    localStorage.removeItem('mtb_group_joined');
-                    return;
-                }
-                $('group-code').value = auth.record.groupCode;
+                localStorage.setItem('mtb_group_joined', groupId);
                 groupJoined = true;
-                renderGroupState(true);
+                await loadMyGroup();
+                if (friendsTimer) clearInterval(friendsTimer);
+                await refreshFriends();
+                friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+                if (isRecording && !isPaused) publishMyLocation(true);
+                toast('Has vuelto a entrar en el grupo.');
+            } catch (e) {
+                toast('No se pudo entrar en el grupo: ' + e.message, 6000);
+                await restoreGroup();
+            }
+        }
+
+        async function restoreGroup() {
+            if (!Cloud.loggedIn()) return;
+            try {
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                await loadMyGroup();
+                if (!groupJoined) { renderFriends(); return; }
                 await refreshFriends();
                 if (friendsTimer) clearInterval(friendsTimer);
                 friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
                 if (isRecording && !isPaused) publishMyLocation(true);
             } catch (e) {
                 console.warn('No se pudo restaurar el grupo:', e);
-                // No se borra la pertenencia por un fallo temporal de red.
-                $('group-status').textContent = 'Grupo guardado. Esperando conexión para verificarlo…';
+                $('group-status').textContent = e.status === 404
+                    ? 'Falta configurar la gestión global de grupos en PocketBase.'
+                    : 'Esperando conexión para cargar tu grupo…';
             }
         }
 
@@ -2772,7 +2907,7 @@
             if (!live.length) {
                 const p = document.createElement('p');
                 p.className = 'hint'; p.style.textAlign = 'center';
-                p.textContent = groupJoined ? 'No hay compañeros compartiendo ubicación ahora.' : 'Únete al grupo para consultar las posiciones activas.';
+                p.textContent = groupJoined ? 'No hay compañeros compartiendo ubicación ahora.' : 'Únete o crea un grupo para consultar las posiciones activas.';
                 box.appendChild(p);
                 return;
             }
@@ -2793,8 +2928,28 @@
                     popup.append(popupName, popupTime);
                     marker.bindPopup(popup);
                 }
-                const row = document.createElement('p');
-                row.className = 'hint'; row.textContent = `🚴 ${name} · ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
+                const row = document.createElement('div');
+                row.className = 'friend-row';
+                const main = document.createElement('div');
+                main.className = 'friend-main';
+                const title = document.createElement('div');
+                title.className = 'friend-name';
+                title.textContent = '🚴 ' + name;
+                const time = document.createElement('div');
+                time.className = 'friend-updated';
+                time.textContent = 'Actualizado ' + new Date(rec.updated).toLocaleTimeString('es-ES');
+                const locate = document.createElement('button');
+                locate.type = 'button';
+                locate.className = 'btn-small friend-locate';
+                locate.textContent = 'Ver mapa';
+                locate.addEventListener('click', () => {
+                    goToPage(0);
+                    if (map) map.setView(ll, Math.max(map.getZoom(), 16));
+                    const currentMarker = friendMarkers.get(rec.id);
+                    if (currentMarker) currentMarker.openPopup();
+                });
+                main.append(title, time);
+                row.append(main, locate);
                 box.appendChild(row);
             });
         }
@@ -2802,8 +2957,21 @@
         async function refreshFriends(retryAuth = true) {
             if (!groupJoined || !Cloud.loggedIn()) return;
             try {
-                const f = encodeURIComponent(`groupCode = "${groupName()}"`);
-                const res = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=200&sort=-updated`);
+                const expectedGroup = groupName();
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                const stillAuthorized = auth.record.groupCode === expectedGroup && Boolean(expectedGroup);
+                Cloud.setSession(auth.token, auth.record);
+                if (!stillAuthorized) {
+                    groupJoined = false;
+                    localStorage.removeItem('mtb_group_joined');
+                    await removeMyLiveLocation();
+                    await loadMyGroup();
+                    renderFriends();
+                    toast('El administrador ha revocado tu acceso a este grupo.');
+                    return;
+                }
+                const f = encodeURIComponent('groupCode = "' + expectedGroup + '"');
+                const res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
                 const own = res.items.find(x => x.owner === Cloud.uid);
                 myLiveRecordId = own ? own.id : null;
                 renderFriends(res.items);
@@ -2823,7 +2991,6 @@
                 }
             }
         }
-
         async function publishMyLocation(force = false) {
             if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
             if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
@@ -2860,32 +3027,89 @@
             renderFriends();
         }
 
-        $('group-name').value = localStorage.getItem('mtb_group_name') || '';
-        $('btn-join').addEventListener('click', async () => {
-            if (!Cloud.loggedIn()) { toast('Inicia sesión para usar el grupo.'); return; }
+        $('group-display-name').value = localStorage.getItem('mtb_group_name') || '';
+        $('group-display-name').addEventListener('change', () => {
+            const name = $('group-display-name').value.trim().slice(0, 32);
+            if (name) localStorage.setItem('mtb_group_name', name);
+            else localStorage.removeItem('mtb_group_name');
+        });
+
+        async function connectGroup(action) {
+            if (!Cloud.loggedIn()) { toast('Inicia sesión para usar los grupos.'); return; }
+            const displayName = $('group-display-name').value.trim().slice(0, 32);
+            if (displayName) localStorage.setItem('mtb_group_name', displayName);
             try {
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
-                renderAccount();
-            } catch (e) { toast('No se pudo validar la cuenta con PocketBase. Vuelve a iniciar sesión.'); return; }
-            const code = $('group-code').value.trim();
-            const displayName = $('group-name').value.trim().slice(0, 32);
-            if (displayName) localStorage.setItem('mtb_group_name', displayName);
-            if (!/^[A-Za-z0-9_-]{6,64}$/.test(code) || code !== Cloud.groupCode) {
-                toast('El código no coincide con el asignado a tu cuenta en PocketBase.'); return;
+                let result;
+                if (action === 'create') {
+                    const name = $('group-name').value.trim();
+                    result = await cloudApi('/api/mtb/groups/create', 'POST', { name, nickname: displayName });
+                } else {
+                    const code = $('group-code').value.trim().toUpperCase();
+                    if (!/^[A-Z0-9]{12}$/.test(code)) { toast('Introduce un código de invitación de 12 caracteres.'); return; }
+                    result = await cloudApi('/api/mtb/groups/join', 'POST', { code, nickname: displayName });
+                }
+                const fresh = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(fresh.token, fresh.record);
+                groupInfo = result.group;
+                groupJoined = true;
+                localStorage.setItem('mtb_group_joined', result.group.id);
+                renderGroupState(true);
+                await refreshFriends();
+                if (friendsTimer) clearInterval(friendsTimer);
+                friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+                if (isRecording && !isPaused) publishMyLocation(true);
+                toast(action === 'create' ? 'Grupo creado: ya eres el administrador.' : 'Te has unido al grupo.');
+            } catch (e) {
+                console.warn('No se pudo acceder al grupo:', e);
+                toast('No se pudo acceder al grupo: ' + e.message, 6000);
             }
-            groupJoined = true;
-            localStorage.setItem('mtb_group_joined', '1');
-            $('group-code').value = Cloud.groupCode;
-            renderGroupState(true);
-            await refreshFriends();
-            if (friendsTimer) clearInterval(friendsTimer);
-            friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
-            if (isRecording && !isPaused) publishMyLocation(true);
+        }
+
+        $('btn-create-group').addEventListener('click', () => connectGroup('create'));
+        $('btn-join').addEventListener('click', () => connectGroup('join'));
+        $('btn-copy-invite').addEventListener('click', async () => {
+            if (!groupInfo || !groupInfo.isAdmin) return;
+            try {
+                await navigator.clipboard.writeText(groupInfo.inviteCode);
+                toast('Código de invitación copiado.');
+            } catch (e) { toast('Código de invitación: ' + groupInfo.inviteCode, 6000); }
+        });
+        $('btn-rotate-invite').addEventListener('click', async () => {
+            if (!groupInfo || !groupInfo.isAdmin || !confirm('El código anterior dejará de servir para nuevas invitaciones. ¿Renovar?')) return;
+            try {
+                const result = await cloudApi('/api/mtb/groups/rotate-invite', 'POST');
+                groupInfo = result.group;
+                renderGroupState(true);
+                toast('Código renovado. Los miembros actuales conservan el acceso.');
+            } catch (e) { toast('No se pudo renovar el código: ' + e.message, 6000); }
+        });
+        $('btn-delete-group').addEventListener('click', async () => {
+            if (!groupInfo || !groupInfo.isAdmin || !confirm('Se retirará el acceso a todos los miembros y se borrarán sus posiciones en vivo. ¿Eliminar el grupo?')) return;
+            try {
+                await cloudApi('/api/mtb/groups/delete', 'POST');
+                await stopGroup();
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                await loadMyGroup();
+                renderAccount();
+                toast('Grupo eliminado; se han revocado las autorizaciones.');
+            } catch (e) { toast('No se pudo eliminar el grupo: ' + e.message, 6000); }
         });
         $('btn-leave').addEventListener('click', async () => {
-            await stopGroup();
-            $('group-status').textContent = 'Has salido del grupo. Tu posición ya no se comparte.';
+            try {
+                await cloudApi('/api/mtb/groups/leave', 'POST');
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                Cloud.setSession(auth.token, auth.record);
+                myLiveRecordId = null;
+                groupJoined = false;
+                localStorage.removeItem('mtb_group_joined');
+                await loadMyGroup();
+                renderFriends();
+                renderAccount();
+                toast('Has salido del grupo. Conservas el acceso para volver a entrar.');
+            } catch (e) { toast('No se pudo salir del grupo: ' + e.message, 6000); }
         });
 
         // ============================================================
@@ -2961,7 +3185,7 @@
         //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
         // ============================================================
         const Cloud = {
-            get server() { return localStorage.getItem('mtb_server') || ''; },
+            get server() { return DEFAULT_CLOUD_SERVER; },
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
@@ -3011,7 +3235,6 @@
             const on = Cloud.loggedIn();
             $('acc-form').style.display = on ? 'none' : 'block';
             $('acc-logged').style.display = on ? 'block' : 'none';
-            $('acc-server').value = Cloud.server;
             const last = localStorage.getItem('mtb_lastsync');
             $('acc-status').textContent = on
                 ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
@@ -3019,11 +3242,10 @@
         }
 
         async function accAuth(register) {
-            const server = normalizeServer($('acc-server').value);
+            const server = Cloud.server;
             const email = $('acc-email').value.trim();
             const pass = $('acc-pass').value;
-            if (!server || !email || !pass) { toast('Rellena servidor, correo y contraseña'); return; }
-            if (!/^https:\/\//i.test(server)) { toast('La dirección del servidor debe empezar por https://', 5000); return; }
+            if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
             if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
             localStorage.setItem('mtb_server', server);
             Cloud.clearSession();
@@ -3178,6 +3400,9 @@
         }
 
         function initAccount() {
+            const previousServer = localStorage.getItem('mtb_server');
+            if (previousServer && normalizeServer(previousServer) !== DEFAULT_CLOUD_SERVER) Cloud.clearSession();
+            localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));

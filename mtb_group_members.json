@@ -1,0 +1,63 @@
+[
+  {
+    "id": "mtbgroupmem9x2k",
+    "name": "mtb_group_members",
+    "type": "base",
+    "system": false,
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "id": "mtbmem_id",
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      {
+        "id": "mtbmem_group",
+        "name": "group",
+        "type": "relation",
+        "required": true,
+        "collectionId": "mtbgroups9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbmem_user",
+        "name": "user",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbmem_nick",
+        "name": "nickname",
+        "type": "text",
+        "max": 32
+      },
+      {
+        "id": "mtbmem_created",
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_mtb_group_members_group_user` ON `mtb_group_members` (`group`, `user`)"
+    ]
+  }
+]

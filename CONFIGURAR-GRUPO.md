@@ -1,49 +1,94 @@
-# Posición de amigos en vivo: configuración del servidor
+# Grupos globales y posición de amigos
 
-La app comparte tu ubicación **solo mientras grabas y estás unido al grupo**. Cada 10 segundos envía tu posición y consulta la de los demás; oculta a quien lleve más de 2 minutos sin actualizar. Al pausar, terminar la ruta, salir del grupo o cerrar sesión, borra tu posición del servidor.
+La app permite crear varios grupos compartidos entre cuentas de PocketBase. Quien crea un grupo es su administrador y puede invitar miembros mediante un código. Los miembros autorizados pueden salir y volver a entrar desde **Grupos a los que tienes acceso**; conservan esa autorización hasta que el administrador la revoca.
 
-Los archivos de esta carpeta (`servidor/`) son para el NAS, no forman parte del APK.
+La ubicación se actualiza cada 10 segundos y se muestra mientras la persona graba y tiene el grupo activo. Al pausar o terminar la grabación, salir o cerrar sesión, la app retira su posición.
 
-## 1. Cuentas y código de grupo (colección `users`)
+## 1. Campo de grupo en las cuentas
 
-1. En el panel de PocketBase (`http://IP-DEL-NAS:8090/_/`) abre **Collections → users → engranaje → Edit collection**.
-2. Añade un campo **Plain text** llamado exactamente `groupCode`. Guarda.
-3. **Importante: impide que los usuarios cambien su propio grupo.** En la pestaña **API Rules**, pon en **Update rule**:
-   ```
-   id = @request.auth.id && @request.body.groupCode:isset = false
-   ```
-   Sin esta regla, cualquier usuario podría ponerse el código de otro grupo desde la API y ver sus posiciones.
-4. En la misma pestaña, deja la **Create rule** bloqueada (solo superusuarios), como ya hiciste, para que nadie pueda registrarse.
-5. Abre cada usuario del grupo y escribe en `groupCode` **el mismo código**: entre 6 y 64 caracteres, solo letras, números, guion y guion bajo. Elige uno largo y difícil de adivinar.
+En PocketBase, abre **Collections → users → Edit collection** y comprueba que existe el campo opcional de texto `groupCode`. Si no existe, créalo.
 
-## 2. Colección `live_locations`
+En **API Rules**, la regla de actualización de `users` debe impedir que cada persona se asigne o cambie el grupo por su cuenta:
 
-1. **Settings → Import collections**, pega el contenido de `live_locations.json` y pulsa **Review**.
-2. Comprueba que solo aparece `live_locations` como colección **nueva**. Si propone borrar `users` o `routes`, no confirmes.
-3. Confirma. El archivo ya incluye los campos automáticos `created` y `updated`, que la app necesita para ordenar y ocultar posiciones antiguas.
+```
+id = @request.auth.id && @request.body.groupCode:isset = false
+```
 
-Las reglas hacen que cada persona solo pueda crear, modificar y borrar **su** posición, y solo vea las posiciones de **su** grupo.
+La app solo cambia el grupo activo mediante el hook del servidor. Mantén el registro de cuentas limitado como ya está configurado.
 
-## 3. Limpieza automática (recomendado)
+## 2. Importar las colecciones
 
-Si el móvil pierde la señal o se cierra la app, la posición queda guardada en el servidor. La app la oculta a los 2 minutos, pero seguiría consultable por la API. Esta tarea la borra a los 5 minutos:
+Haz cada importación con **Merge with the existing collections** activado. Revisa siempre **Detected changes**: confirma solo cuando se añada la colección indicada; cancela si aparecen `users`, `routes` o `live_locations` como eliminadas.
 
-1. En File Station crea la carpeta `docker/pocketbase/pb_hooks` y copia dentro `live_cleanup.pb.js`.
-2. Sustituye el `docker-compose.yml` del proyecto por el de esta carpeta (añade la línea `./pb_hooks:/pb_hooks`), o simplemente añade esa línea al tuyo.
-3. En Container Manager → Proyecto → `pocketbase`: **Acción → Detener**, y luego **Compilar** o **Iniciar** para recrearlo.
-4. Comprueba en **Registro** del contenedor que no hay errores al arrancar.
+1. En **Settings → Import collections**, importa [mtb_groups.json](mtb_groups.json). Comprueba que se añade `mtb_groups`.
+2. Repite con [mtb_group_members.json](mtb_group_members.json). Debe añadirse `mtb_group_members`.
+3. Si aún no existe, importa [live_locations.json](live_locations.json) y comprueba que solo se añade esa colección.
 
-Este archivo no está probado en tu servidor. Si el contenedor no carga la carpeta de hooks, las posiciones antiguas seguirán sin borrarse.
+Las colecciones de grupos y miembros quedan cerradas a las operaciones REST directas. El hook autoriza las acciones según quién creó el grupo y qué miembros siguen autorizados.
 
-## 4. Uso en la app
+## 3. Instalar el hook en el NAS
 
-1. En la pestaña **Amigos**, inicia sesión en la tarjeta **Cuenta**.
-2. Escribe tu apodo (es lo que verán los demás; no se comparte tu correo) y el código de grupo, y pulsa **Unirse al Grupo**.
-3. Se acuerda del grupo: al abrir la app se une solo. Para dejar de compartir, pulsa **Salir del Grupo**.
-4. Cuando empieces a grabar, tu posición aparece en el mapa de los miembros como un punto morado.
+El archivo del servidor está en [pb_hooks/groups.pb.js](pb_hooks/groups.pb.js).
+
+1. Copia `groups.pb.js` a la carpeta del NAS montada dentro del contenedor de PocketBase como `/pb_hooks`.
+2. Si tu proyecto Docker todavía no monta esa carpeta, añade un volumen al servicio PocketBase y ajusta la ruta izquierda a tu carpeta real:
+   ```yaml
+   volumes:
+     - ./pb_hooks:/pb_hooks
+   ``
+3. Recrea o reinicia el contenedor para que PocketBase cargue el hook.
+4. Revisa el registro del contenedor. Si hay errores al arrancar, el hook no se habrá instalado.
+
+El hook proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos.
+
+## 4. Reglas de `live_locations`
+
+La colección debe tener el campo de texto `groupCode` y reglas que permitan ver solo a miembros del mismo grupo:
+
+En la colección existente, cambia las reglas desde **Collections → live_locations → API Rules**; así no se vuelve a importar su esquema ni se alteran los IDs de sus campos. Copia estas reglas:
+
+**List rule** y **View rule**:
+```
+@request.auth.id != "" && @request.auth.groupCode != "" && groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Create rule**:
+```
+@request.auth.id != "" && @request.auth.groupCode != "" && @request.body.owner = @request.auth.id && @request.body.groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= @request.body.groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Update rule**:
+```
+@request.auth.id != "" && owner = @request.auth.id && groupCode = @request.auth.groupCode && @request.body.owner:changed = false && @request.body.groupCode:changed = false && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Delete rule**:
+```
+@request.auth.id != "" && owner = @request.auth.id
+```
+
+Las reglas consultan `mtb_group_members` en cada petición, por lo que una revocación bloquea el acceso de inmediato incluso si la sesión del móvil todavía no se ha renovado. [live_locations.json](live_locations.json) contiene la configuración de referencia para instalaciones nuevas; no la importes sobre la colección existente.
+
+## 5. Uso en la app
+
+1. Actualiza la web app desde la rama `pruebas` y entra en **Amigos** con tu cuenta.
+2. Escribe el apodo que verán los demás.
+3. Para crear un grupo, escribe su nombre y pulsa **Crear grupo y ser administrador**. Comparte el código de invitación.
+4. Para unirse, pega el código y pulsa **Unirme a un grupo**.
+5. Al salir con **Salir y conservar acceso**, la app deja de compartir y el grupo aparece entre los autorizados. Pulsa **Volver a entrar** cuando quieras volver.
+6. El administrador puede renovar el código para impedir nuevas invitaciones. Las autorizaciones de los miembros existentes se mantienen.
+7. Desde la lista de miembros, el administrador puede revocar la entrada de una persona. Esa persona dejará de ver el grupo y ya no podrá volver a entrar salvo que reciba una invitación nueva.
+8. El administrador puede eliminar el grupo para retirar todas las autorizaciones y borrar las posiciones asociadas.
+
+En **Compañeros Cerca**, las tarjetas muestran el apodo y la hora de actualización. El botón **Ver mapa** centra el mapa en esa persona.
+
+## Grupos anteriores
+
+Los códigos asignados manualmente antes de instalar este sistema no tienen un registro de administrador y miembros. Un superusuario debe borrar esos valores antiguos de `users.groupCode` antes de que esas cuentas creen o acepten invitaciones nuevas.
 
 ## Privacidad
 
-- Solo se comparte tu posición durante la grabación y estando unido.
-- Los miembros del grupo ven tu apodo y tu posición; no ven tu correo.
-- Como administrador, tú puedes ver todos los datos desde el panel de PocketBase.
+- Solo los miembros autorizados del grupo activo pueden ver ubicaciones en vivo.
+- Se comparte el apodo y la posición; no se muestra el correo.
+- La app renueva la sesión durante la actividad para aplicar pronto una revocación.
+- Renovar una invitación impide que el código anterior autorice a personas nuevas; no elimina miembros que ya estaban autorizados.

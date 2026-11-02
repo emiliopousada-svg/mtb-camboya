@@ -1,0 +1,64 @@
+[
+  {
+    "id": "mtbgroups9x2k7q",
+    "name": "mtb_groups",
+    "type": "base",
+    "system": false,
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "id": "mtbgrp_id",
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      {
+        "id": "mtbgrp_name",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "min": 1,
+        "max": 40
+      },
+      {
+        "id": "mtbgrp_owner",
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbgrp_invite",
+        "name": "inviteCode",
+        "type": "text",
+        "required": true,
+        "min": 12,
+        "max": 12,
+        "pattern": "^[A-Z0-9]{12}$"
+      },
+      {
+        "id": "mtbgrp_created",
+        "name": "created",
+        "type": "autodate",
+        "onCreate": true,
+        "onUpdate": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_mtb_groups_invite` ON `mtb_groups` (`inviteCode`)"
+    ]
+  }
+]
