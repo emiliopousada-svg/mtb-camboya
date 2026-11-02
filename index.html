@@ -737,7 +737,7 @@
                 <h2>☁️ Cuenta y sincronización</h2>
                 <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
                 <div id="acc-form">
-                    <input type="text" id="acc-server" placeholder="Servidor (https://...)" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <p class="hint">Servidor configurado: <strong>https://vamp69.ddns.net</strong></p>
                     <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
                     <button class="btn" id="acc-login">Entrar</button>
@@ -842,6 +842,7 @@
         //  CONFIGURACIÓN
         // ============================================================
         const APP_VERSION = '1.2.0'; // La compilación APK reemplaza esta versión por la del paquete.
+        const DEFAULT_CLOUD_SERVER = 'https://vamp69.ddns.net';
         const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
         const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
         const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
@@ -2961,7 +2962,7 @@
         //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
         // ============================================================
         const Cloud = {
-            get server() { return localStorage.getItem('mtb_server') || ''; },
+            get server() { return DEFAULT_CLOUD_SERVER; },
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
@@ -3011,7 +3012,6 @@
             const on = Cloud.loggedIn();
             $('acc-form').style.display = on ? 'none' : 'block';
             $('acc-logged').style.display = on ? 'block' : 'none';
-            $('acc-server').value = Cloud.server;
             const last = localStorage.getItem('mtb_lastsync');
             $('acc-status').textContent = on
                 ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
@@ -3019,11 +3019,10 @@
         }
 
         async function accAuth(register) {
-            const server = normalizeServer($('acc-server').value);
+            const server = Cloud.server;
             const email = $('acc-email').value.trim();
             const pass = $('acc-pass').value;
-            if (!server || !email || !pass) { toast('Rellena servidor, correo y contraseña'); return; }
-            if (!/^https:\/\//i.test(server)) { toast('La dirección del servidor debe empezar por https://', 5000); return; }
+            if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
             if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
             localStorage.setItem('mtb_server', server);
             Cloud.clearSession();
@@ -3178,6 +3177,9 @@
         }
 
         function initAccount() {
+            const previousServer = localStorage.getItem('mtb_server');
+            if (previousServer && normalizeServer(previousServer) !== DEFAULT_CLOUD_SERVER) Cloud.clearSession();
+            localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
