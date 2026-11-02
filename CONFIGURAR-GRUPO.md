@@ -45,9 +45,11 @@ El hook proporciona rutas autenticadas para crear grupos, aceptar invitaciones, 
 
 La colección debe tener el campo de texto `groupCode` y reglas que permitan ver solo a miembros del mismo grupo:
 
-- **List rule** y **View rule**: autenticado y `groupCode = @request.auth.groupCode`.
-- **Create rule**: autenticado, `owner = @request.auth.id` y el `groupCode` coincide con el grupo activo de la cuenta.
-- **Update rule**: el propietario actualiza solo su registro y no puede cambiar `owner` ni `groupCode`.
+La configuración actualizada está en [live_locations.json](live_locations.json). Importa ese archivo también con **Merge with the existing collections** activado para aplicar las reglas nuevas. En **Detected changes**, comprueba que se actualizan las reglas de `live_locations` y que no se eliminan colecciones ni campos. Las reglas consultan `mtb_group_members` en cada petición, por lo que una revocación bloquea el acceso aunque la sesión del móvil todavía no se haya renovado.
+
+- **List rule** y **View rule**: autenticado, grupo activo coincidente y existe una autorización en `mtb_group_members` para ese usuario y grupo.
+- **Create rule**: autenticado, propietario coincidente, grupo activo coincidente y autorización vigente.
+- **Update rule**: el propietario actualiza solo su registro, no cambia propietario ni grupo, y conserva autorización.
 - **Delete rule**: el propietario puede borrar su posición.
 
 ## 5. Uso en la app
