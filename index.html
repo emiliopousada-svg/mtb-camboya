@@ -2957,8 +2957,21 @@
         async function refreshFriends(retryAuth = true) {
             if (!groupJoined || !Cloud.loggedIn()) return;
             try {
-                const f = encodeURIComponent(`groupCode = "${groupName()}"`);
-                const res = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=200&sort=-updated`);
+                const expectedGroup = groupName();
+                const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+                const stillAuthorized = auth.record.groupCode === expectedGroup && Boolean(expectedGroup);
+                Cloud.setSession(auth.token, auth.record);
+                if (!stillAuthorized) {
+                    groupJoined = false;
+                    localStorage.removeItem('mtb_group_joined');
+                    await removeMyLiveLocation();
+                    await loadMyGroup();
+                    renderFriends();
+                    toast('El administrador ha revocado tu acceso a este grupo.');
+                    return;
+                }
+                const f = encodeURIComponent('groupCode = "' + expectedGroup + '"');
+                const res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
                 const own = res.items.find(x => x.owner === Cloud.uid);
                 myLiveRecordId = own ? own.id : null;
                 renderFriends(res.items);
@@ -2978,7 +2991,6 @@
                 }
             }
         }
-
         async function publishMyLocation(force = false) {
             if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
             if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
