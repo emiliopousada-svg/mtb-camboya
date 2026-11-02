@@ -39,6 +39,10 @@ jobs:
           sed -i "s/versionCode [0-9]\+/versionCode ${{ github.run_number }}/" "$GRADLE"
           sed -i "s/versionName \"[^\"]*\"/versionName \"1.${{ github.run_number }}\"/" "$GRADLE"
           grep -q "versionCode ${{ github.run_number }}" "$GRADLE" || echo "::warning::No se pudo actualizar versionCode"
+          WEB_INDEX=www/index.html
+          APP_VERSION="1.${{ github.run_number }}"
+          sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${APP_VERSION}';/" "$WEB_INDEX"
+          grep -Fq "const APP_VERSION = '${APP_VERSION}';" "$WEB_INDEX" || { echo "::error::No se pudo actualizar la versión visible"; exit 1; }
 
       - name: Permisos (ubicación, notificación y servicio en segundo plano)
         run: |
