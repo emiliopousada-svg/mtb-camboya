@@ -62,8 +62,7 @@ routerAdd("POST", "/api/mtb/groups/join", (e) => {
         const user = getAuthUser(e);
         if (user.getString("groupCode")) return e.json(409, { message: "Ya perteneces a un grupo. Sal de él antes de unirte a otro." });
 
-        const escaped = code.replace(/"/g, "\\"");
-        const group = $app.findFirstRecordByFilter("mtb_groups", 'inviteCode = "' + escaped + '"');
+        const group = $app.findFirstRecordByFilter("mtb_groups", 'inviteCode = "' + code + '"');
         user.set("groupCode", group.id);
         $app.save(user);
         return e.json(200, { group: groupPayload(group, user.id) });
