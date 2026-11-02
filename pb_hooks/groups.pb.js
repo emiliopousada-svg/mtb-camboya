@@ -116,7 +116,8 @@ routerAdd("GET", "/api/mtb/groups/my", (e) => {
             "mtb_group_members",
             'user = "' + user.id + '"',
             "",
-            200
+            200,
+            0
         );
         const groups = [];
         for (const membership of memberships) {
@@ -216,7 +217,7 @@ routerAdd("POST", "/api/mtb/groups/delete", (e) => {
         const group = $app.findRecordById("mtb_groups", groupId);
         if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede eliminar el grupo." });
 
-        const memberships = $app.findRecordsByFilter("mtb_group_members", 'group = "' + groupId + '"', "", 500);
+        const memberships = $app.findRecordsByFilter("mtb_group_members", 'group = "' + groupId + '"', "", 500, 0);
         for (const membership of memberships) {
             const memberId = membership.getString("user");
             try {
