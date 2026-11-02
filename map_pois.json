@@ -29,8 +29,6 @@
       { "name": "lng", "type": "number", "required": true },
       { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false }
     ],
-    "indexes": [
-      "CREATE UNIQUE INDEX `idx_map_pois_owner_client` ON `map_pois` (`owner`, `clientId`)"
-    ]
+    "indexes": []
   }
 ]
