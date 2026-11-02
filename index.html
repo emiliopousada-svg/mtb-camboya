@@ -1017,7 +1017,7 @@
 
         document.addEventListener('touchstart', e => {
             const t = e.target;
-            swipeBlocked = !!(t.closest && t.closest('#map, canvas, input, select, #modal, #offline-panel'));
+            swipeBlocked = !!(t.closest && t.closest('#map, canvas, input, select, #modal'));
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
         }, { passive: true });
