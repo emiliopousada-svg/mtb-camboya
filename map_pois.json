@@ -11,6 +11,7 @@
     "deleteRule": "@request.auth.id != '' && owner = @request.auth.id",
     "fields": [
       {
+        "id": "poi_record_id",
         "system": true,
         "name": "id",
         "type": "text",
@@ -21,14 +22,16 @@
         "max": 15,
         "pattern": "^[a-z0-9]+$"
       },
-      { "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
-      { "name": "clientId", "type": "text", "required": true },
-      { "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar"] },
-      { "name": "name", "type": "text", "required": true },
-      { "name": "lat", "type": "number", "required": true },
-      { "name": "lng", "type": "number", "required": true },
-      { "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false }
+      { "id": "poi_owner", "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
+      { "id": "poi_client_id", "name": "clientId", "type": "text", "required": true },
+      { "id": "poi_type", "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar"] },
+      { "id": "poi_name", "name": "name", "type": "text", "required": true },
+      { "id": "poi_lat", "name": "lat", "type": "number", "required": true },
+      { "id": "poi_lng", "name": "lng", "type": "number", "required": true },
+      { "id": "poi_created", "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false }
     ],
-    "indexes": []
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_map_pois_owner_client` ON `map_pois` (`owner`, `clientId`)"
+    ]
   }
 ]
