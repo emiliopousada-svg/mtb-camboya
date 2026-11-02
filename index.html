@@ -50,7 +50,7 @@
         /* Contenedor Horizontal de Páginas */
         .swiper-wrapper {
             display: flex;
-            width: 400vw;
+            width: 500vw;
             height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px));
             transition: transform 0.25s ease-out;
             will-change: transform;
@@ -509,13 +509,11 @@
 
         /* Gestión de mapas sin conexión */
         #offline-panel {
-            display: none; position: fixed; z-index: 4500; left: 50%; top: 50%;
-            transform: translate(-50%, -50%); width: min(440px, calc(100vw - 28px));
-            max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain;
-            background: #242424; color: #fff; border: 1px solid rgba(255,255,255,.18);
-            border-radius: 16px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.65);
+            display: block; width: 100%; max-height: none; overflow: visible;
+            overscroll-behavior: auto; background: var(--surface-card); color: #fff;
+            border: 1px solid rgba(255,255,255,.06); border-radius: 16px;
+            padding: 18px; box-shadow: none;
         }
-        #offline-panel.show { display: block; }
         #offline-panel h3 { color: #81c784; margin-bottom: 8px; font-size: 1.05rem; }
         #offline-panel p { color: #ccc; font-size: .82rem; line-height: 1.45; margin: 8px 0; }
         #offline-progress { width: 100%; height: 12px; background: #111; border-radius: 8px; overflow: hidden; margin: 12px 0 6px; }
@@ -525,6 +523,11 @@
         #offline-panel .offline-actions .btn { margin-top: 0; padding: 11px 8px; }
         #offline-panel select { width: 100%; padding: 11px; background: #111; color: white; border: 1px solid #555; border-radius: 9px; margin-top: 5px; }
         #offline-panel .btn.danger { background: #5a2020; }
+        .setting-toggle { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+        .setting-toggle:last-child { border-bottom: 0; padding-bottom: 0; }
+        .setting-toggle input { width: 20px; height: 20px; flex: 0 0 20px; margin: 1px 0 0; accent-color: var(--primary); }
+        .setting-toggle span { display: block; }
+        .setting-toggle .hint { margin-top: 4px; }
 
         .leaflet-popup-content-wrapper { color: #121212; }
     </style>
@@ -687,22 +690,6 @@
         <!-- PÁGINA 3: AMIGOS EN LIVE -->
         <div class="page content-panel">
             <div class="card">
-                <h2>☁️ Cuenta y sincronización</h2>
-                <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
-                <div id="acc-form">
-                    <input type="text" id="acc-server" placeholder="Servidor (https://...)" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
-                    <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
-                    <button class="btn" id="acc-login">Entrar</button>
-                    <button class="btn secondary" id="acc-register">Crear cuenta</button>
-                </div>
-                <div id="acc-logged" style="display:none;">
-                    <button class="btn" id="acc-sync">Sincronizar ahora</button>
-                    <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
-                </div>
-            </div>
-
-            <div class="card">
                 <h2>👥 Posición de Amigos (Live)</h2>
                 <p class="hint">Comparte tu posición mientras grabas y consulta a los compañeros activos. El administrador debe asignar el mismo código de grupo a sus cuentas.</p>
                 <div id="group-setup">
@@ -744,10 +731,26 @@
 
         </div>
 
-    </div>
+        <!-- PÁGINA 5: AJUSTES -->
+        <div class="page content-panel" id="page-settings">
+            <div class="card">
+                <h2>☁️ Cuenta y sincronización</h2>
+                <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
+                <div id="acc-form">
+                    <input type="text" id="acc-server" placeholder="Servidor (https://...)" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
+                    <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
+                    <button class="btn" id="acc-login">Entrar</button>
+                    <button class="btn secondary" id="acc-register">Crear cuenta</button>
+                </div>
+                <div id="acc-logged" style="display:none;">
+                    <button class="btn" id="acc-sync">Sincronizar ahora</button>
+                    <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
+                </div>
+            </div>
 
-    <section id="offline-panel" role="dialog" aria-modal="true" aria-label="Mapas sin conexión">
-    <h3>🗺️ Mapas offline por provincia</h3>
+            <section id="offline-panel" class="card" aria-label="Mapas sin conexión">
+    <h2>🗺️ Mapas sin conexión</h2>
     <p>Descarga la cartografía topográfica del IGN para usarla sin cobertura. Se guarda en este teléfono y puedes parar y reanudar la descarga cuando quieras.</p>
     <label for="offline-province" style="font-size:.8rem;color:#ddd;">Provincia</label>
     <select id="offline-province">
@@ -770,8 +773,27 @@
         <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
     </div>
     <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
-    <button class="btn secondary" id="btn-close-offline" type="button">Cerrar</button>
     </section>
+            <div class="card">
+                <h2>⚙️ Ajustes varios</h2>
+                <label class="setting-toggle" for="setting-route-sound">
+                    <input type="checkbox" id="setting-route-sound">
+                    <span><strong>Avisos sonoros de ruta</strong><span class="hint">Sonido diferente al salir de la ruta y al volver a ella.</span></span>
+                </label>
+                <label class="setting-toggle" for="setting-route-vibration">
+                    <input type="checkbox" id="setting-route-vibration">
+                    <span><strong>Vibración al desviarte</strong><span class="hint">Vibra cuando te sales de la ruta cargada.</span></span>
+                </label>
+            </div>
+            <div class="card">
+                <h2>ℹ️ Aplicación</h2>
+                <p class="hint">Versión instalada: <strong id="app-version">v1.2.0</strong></p>
+            </div>
+        </div>
+
+    </div>
+
+
 
     <!-- NAVEGACIÓN DE PESTAÑAS INFERIOR -->
     <nav>
@@ -791,9 +813,9 @@
             <span class="icon">📂</span>
             <span>Rutas</span>
         </button>
-        <button class="nav-btn nav-action" id="btn-open-offline" type="button">
-            <span class="icon">⬇️</span>
-            <span>Mapas</span>
+        <button class="nav-btn" onclick="goToPage(4)">
+            <span class="icon">⚙️</span>
+            <span>Ajustes</span>
         </button>
     </nav>
 
@@ -819,7 +841,7 @@
         // ============================================================
         //  CONFIGURACIÓN
         // ============================================================
-        const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
+        const APP_VERSION = '1.2.0'; // La compilación APK reemplaza esta versión por la del paquete.\n        const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
         const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
         const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
         const ELEV_STEP = 3;         // metros mínimos para contar una subida
@@ -986,6 +1008,7 @@
             swiper.style.transform = `translateX(-${index * 100}vw)`;
             navBtns.forEach((btn, idx) => btn.classList.toggle('active', idx === index));
             if (index === 0 && map) setTimeout(() => map.invalidateSize(), 150);
+            if (index === 4) openOfflineMaps();
         }
 
         // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)
@@ -1003,7 +1026,7 @@
             const diffX = touchStartX - e.changedTouches[0].screenX;
             const diffY = touchStartY - e.changedTouches[0].screenY;
             if (Math.abs(diffX) > 70 && Math.abs(diffY) < 60) {
-                if (diffX > 0 && currentPage < 3) goToPage(currentPage + 1);
+                if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
                 else if (diffX < 0 && currentPage > 0) goToPage(currentPage - 1);
             }
         }, { passive: true });
@@ -1207,7 +1230,7 @@
             }
         }
         async function openOfflineMaps() {
-            $('offline-panel').classList.add('show');
+            // Actualiza el espacio local al entrar en Ajustes.
             try {
                 const count = await countOfflineTiles();
                 let usado = '';
@@ -1220,8 +1243,6 @@
                 $('offline-storage-note').textContent = `${count.toLocaleString('es-ES')} teselas ya guardadas en este teléfono.${usado} Puedes reanudar una descarga incompleta.`;
             } catch (e) { $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.'; }
         }
-        $('btn-open-offline').addEventListener('click', openOfflineMaps);
-        $('btn-close-offline').addEventListener('click', () => $('offline-panel').classList.remove('show'));
         $('btn-download-galicia').addEventListener('click', downloadProvinceOffline);
         $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
 
@@ -1747,6 +1768,7 @@
         }
 
         function playRouteSound(frequencies) {
+            if (localStorage.getItem('mtb_route_sound') === '0') return;
             const ctx = offRouteAudioContext;
             if (!ctx || ctx.state !== 'running') return;
             const start = ctx.currentTime;
@@ -1782,7 +1804,7 @@
                 offRouteState = true;
                 toast(`⚠️ Te has salido de la ruta (${Math.round(min)} m)`, 5000);
                 playOffRouteSound();
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                if (navigator.vibrate && localStorage.getItem('mtb_route_vibration') !== '0') navigator.vibrate([200, 100, 200]);
             } else if (offRouteState && min < BACKONROUTE_M) {
                 offRouteState = false;
                 toast('✅ De nuevo en la ruta');
@@ -3144,6 +3166,16 @@
             }
         }
 
+        function initSettings() {
+            const sound = $('setting-route-sound');
+            const vibration = $('setting-route-vibration');
+            sound.checked = localStorage.getItem('mtb_route_sound') !== '0';
+            vibration.checked = localStorage.getItem('mtb_route_vibration') !== '0';
+            sound.addEventListener('change', () => localStorage.setItem('mtb_route_sound', sound.checked ? '1' : '0'));
+            vibration.addEventListener('change', () => localStorage.setItem('mtb_route_vibration', vibration.checked ? '1' : '0'));
+            $('app-version').textContent = 'v' + APP_VERSION;
+        }
+
         function initAccount() {
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
@@ -3201,6 +3233,7 @@
             renderSavedRoutes();
             refreshStats();
             initAccount();
+            initSettings();
             await syncSharedPois();
             setInterval(syncSharedPois, 60000);
             await restoreGroup();
