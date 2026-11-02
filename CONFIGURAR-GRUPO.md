@@ -45,12 +45,29 @@ El hook proporciona rutas autenticadas para crear grupos, aceptar invitaciones, 
 
 La colección debe tener el campo de texto `groupCode` y reglas que permitan ver solo a miembros del mismo grupo:
 
-La configuración actualizada está en [live_locations.json](live_locations.json). Importa ese archivo también con **Merge with the existing collections** activado para aplicar las reglas nuevas. En **Detected changes**, comprueba que se actualizan las reglas de `live_locations` y que no se eliminan colecciones ni campos. Las reglas consultan `mtb_group_members` en cada petición, por lo que una revocación bloquea el acceso aunque la sesión del móvil todavía no se haya renovado.
+En la colección existente, cambia las reglas desde **Collections → live_locations → API Rules**; así no se vuelve a importar su esquema ni se alteran los IDs de sus campos. Copia estas reglas:
 
-- **List rule** y **View rule**: autenticado, grupo activo coincidente y existe una autorización en `mtb_group_members` para ese usuario y grupo.
-- **Create rule**: autenticado, propietario coincidente, grupo activo coincidente y autorización vigente.
-- **Update rule**: el propietario actualiza solo su registro, no cambia propietario ni grupo, y conserva autorización.
-- **Delete rule**: el propietario puede borrar su posición.
+**List rule** y **View rule**:
+```
+@request.auth.id != "" && @request.auth.groupCode != "" && groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Create rule**:
+```
+@request.auth.id != "" && @request.auth.groupCode != "" && @request.body.owner = @request.auth.id && @request.body.groupCode = @request.auth.groupCode && @collection.mtb_group_members.group ?= @request.body.groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Update rule**:
+```
+@request.auth.id != "" && owner = @request.auth.id && groupCode = @request.auth.groupCode && @request.body.owner:changed = false && @request.body.groupCode:changed = false && @collection.mtb_group_members.group ?= groupCode && @collection.mtb_group_members.user ?= @request.auth.id
+```
+
+**Delete rule**:
+```
+@request.auth.id != "" && owner = @request.auth.id
+```
+
+Las reglas consultan `mtb_group_members` en cada petición, por lo que una revocación bloquea el acceso de inmediato incluso si la sesión del móvil todavía no se ha renovado. [live_locations.json](live_locations.json) contiene la configuración de referencia para instalaciones nuevas; no la importes sobre la colección existente.
 
 ## 5. Uso en la app
 
