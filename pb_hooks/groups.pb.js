@@ -12,17 +12,6 @@ function authUser(e) {
     return $app.findRecordById("users", e.auth.id);
 }
 
-// El alias en minúsculas mantiene compatibilidad con copias anteriores del hook.
-function bodymodel(e, shape) {
-    const body = new DynamicModel(shape);
-    e.bindBody(body);
-    return body;
-}
-
-function bodyModel(e, shape) {
-    return bodymodel(e, shape);
-}
-
 function inviteCode() {
     return $security.randomString(12).toUpperCase();
 }
@@ -60,7 +49,8 @@ function removeUserLocation(userId, groupId) {
 
 routerAdd("POST", "/api/mtb/groups/create", (e) => {
     try {
-        const body = bodyModel(e, { name: "", nickname: "" });
+        const body = new DynamicModel({ name: "", nickname: "" });
+        e.bindBody(body);
         const user = authUser(e);
         const name = String(body.name || "").trim().slice(0, 40);
         if (!name) return e.json(400, { message: "Escribe un nombre para el grupo." });
@@ -85,7 +75,8 @@ routerAdd("POST", "/api/mtb/groups/create", (e) => {
 
 routerAdd("POST", "/api/mtb/groups/join", (e) => {
     try {
-        const body = bodyModel(e, { code: "", nickname: "" });
+        const body = new DynamicModel({ code: "", nickname: "" });
+        e.bindBody(body);
         const code = String(body.code || "").trim().toUpperCase();
         if (!/^[A-Z0-9]{12}$/.test(code)) return e.json(400, { message: "El código de invitación no es válido." });
         const escapedCode = code.replace(/"/g, "\\\"");
@@ -102,7 +93,8 @@ routerAdd("POST", "/api/mtb/groups/join", (e) => {
 
 routerAdd("POST", "/api/mtb/groups/select", (e) => {
     try {
-        const body = bodyModel(e, { groupId: "" });
+        const body = new DynamicModel({ groupId: "" });
+        e.bindBody(body);
         const user = authUser(e);
         const groupId = String(body.groupId || "");
         if (!groupId || !memberRecord(groupId, user.id)) return e.json(403, { message: "Ya no tienes autorización para entrar en este grupo." });
@@ -181,7 +173,8 @@ routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
 
 routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
     try {
-        const body = bodyModel(e, { userId: "" });
+        const body = new DynamicModel({ userId: "" });
+        e.bindBody(body);
         const user = authUser(e);
         const groupId = user.getString("groupCode");
         if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
