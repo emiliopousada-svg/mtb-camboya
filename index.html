@@ -3080,13 +3080,13 @@
                 await stopGroup();
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
+                await loadMyGroup();
                 renderAccount();
-                toast('Grupo eliminado.');
+                toast('Grupo eliminado; se han revocado las autorizaciones.');
             } catch (e) { toast('No se pudo eliminar el grupo: ' + e.message, 6000); }
         });
         $('btn-leave').addEventListener('click', async () => {
             try {
-                await cloudApi('/api/mtb/groups/leave', 'POST');
                 await cloudApi('/api/mtb/groups/leave', 'POST');
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
