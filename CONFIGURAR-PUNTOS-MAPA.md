@@ -1,6 +1,6 @@
 # Puntos compartidos del mapa
 
-La colección `map_pois` hace que las fuentes y los bares marcados en la app se compartan entre las instalaciones que usan el mismo servidor PocketBase.
+La colección `map_pois` hace que las fuentes, los bares y los sitios de comida marcados en la app se compartan entre las instalaciones que usan el mismo servidor PocketBase. El tipo `food` debe estar permitido en el campo `type` de la colección.
 
 ## Instalar la colección en el NAS
 

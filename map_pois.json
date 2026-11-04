@@ -24,7 +24,7 @@
       },
       { "id": "poi_owner", "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
       { "id": "poi_client_id", "name": "clientId", "type": "text", "required": true },
-      { "id": "poi_type", "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar"] },
+      { "id": "poi_type", "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar", "food"] },
       { "id": "poi_name", "name": "name", "type": "text", "required": true },
       { "id": "poi_lat", "name": "lat", "type": "number", "required": true },
       { "id": "poi_lng", "name": "lng", "type": "number", "required": true },
