@@ -24,12 +24,26 @@ jobs:
       - name: Preparar la web (copias locales de Leaflet y Chart.js, Bluetooth)
         run: node scripts/prepare-web.js
 
+      - name: Guardar el plugin nativo de batería
+        run: |
+          mkdir -p "$RUNNER_TEMP/mtb-native"
+          cp android/app/src/main/java/com/emiliopousada/mtbcamboya/BatteryInfoPlugin.java "$RUNNER_TEMP/mtb-native/"
+
       - name: Crear el proyecto Android desde cero
         run: |
           # Si hay una carpeta android/ subida al repositorio se descarta, para que el
           # proyecto siempre coincida con las versiones de Capacitor de package.json
           rm -rf android
           npx cap add android
+
+      - name: Integrar el plugin nativo de batería
+        run: |
+          JAVA_DIR=android/app/src/main/java/com/emiliopousada/mtbcamboya
+          mkdir -p "$JAVA_DIR"
+          cp "$RUNNER_TEMP/mtb-native/BatteryInfoPlugin.java" "$JAVA_DIR/"
+          MAIN_ACTIVITY="$JAVA_DIR/MainActivity.java"
+          sed -i '/super.onCreate(savedInstanceState);/i\        registerPlugin(BatteryInfoPlugin.class);' "$MAIN_ACTIVITY"
+          grep -q 'registerPlugin(BatteryInfoPlugin.class);' "$MAIN_ACTIVITY" || { echo "::error::No se pudo registrar el plugin de batería"; exit 1; }
 
       - name: Versión de la app (sube sola en cada compilación)
         run: |

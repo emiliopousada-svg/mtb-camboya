@@ -1,7 +1,18 @@
-# Dependencias y resultados de compilación (se regeneran en cada build)
+# Dependencias y recursos web generados
 node_modules/
 www/
-android/
+.tmp-osm/
+
+# Resultados de compilación Android
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/capacitor-cordova-android-plugins/
+android/app/capacitor.build.gradle
+android/capacitor.settings.gradle
+android/app/src/main/assets/
+android/app/src/main/res/xml/config.xml
 
 # Claves y secretos: no deben subirse nunca
 *.keystore

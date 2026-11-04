@@ -18,6 +18,7 @@ for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 
 for (const f of ['albergues.geojson', 'caminos.geojson']) {
   fs.copyFileSync(path.join(root, 'data', f), path.join(www, 'data', f));
 }
+fs.cpSync(path.join(root, 'data', 'camino'), path.join(www, 'data', 'camino'), { recursive: true });
 // sw.js no se copia: dentro del APK los archivos ya van empaquetados.
 
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/leaflet/leaflet.css'));
