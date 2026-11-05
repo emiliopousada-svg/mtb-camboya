@@ -3982,6 +3982,8 @@
                 const activityType = await openActivityPicker();
                 if (!activityType) return;
                 startRecording(activityType);
+            } else if (isPaused) {
+                resumeRecording();
             }
             await guideStart();
         });
