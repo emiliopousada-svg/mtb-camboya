@@ -42,8 +42,34 @@ jobs:
           mkdir -p "$JAVA_DIR"
           cp "$RUNNER_TEMP/mtb-native/BatteryInfoPlugin.java" "$JAVA_DIR/"
           MAIN_ACTIVITY="$JAVA_DIR/MainActivity.java"
-          sed -i '/super.onCreate(savedInstanceState);/i\        registerPlugin(BatteryInfoPlugin.class);' "$MAIN_ACTIVITY"
-          grep -q 'registerPlugin(BatteryInfoPlugin.class);' "$MAIN_ACTIVITY" || { echo "::error::No se pudo registrar el plugin de batería"; exit 1; }
+          python3 - "$MAIN_ACTIVITY" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text()
+          class_pattern = r"public class MainActivity extends BridgeActivity\s*\{\s*\}"
+          replacement = """public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(BatteryInfoPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }"""
+          if "registerPlugin(BatteryInfoPlugin.class);" not in source:
+              if "import com.getcapacitor.BridgeActivity;" not in source:
+                  raise SystemExit("No se encontró la plantilla esperada de MainActivity")
+              source = source.replace(
+                  "import com.getcapacitor.BridgeActivity;",
+                  "import android.os.Bundle;\n\nimport com.getcapacitor.BridgeActivity;",
+                  1,
+              )
+              source, count = re.subn(class_pattern, replacement, source, count=1)
+              if count != 1:
+                  raise SystemExit("No se pudo insertar el registro del plugin en MainActivity")
+              path.write_text(source)
+          PY
 
       - name: Versión de la app (sube sola en cada compilación)
         run: |
