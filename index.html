@@ -4255,7 +4255,6 @@
         // ============================================================
         let wakeLock = null;
         async function acquireWake() {
-            if (bgActive) return; // con GPS en segundo plano no hace falta mantener la pantalla encendida
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');

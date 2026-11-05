@@ -55,6 +55,7 @@ jobs:
               public void onCreate(Bundle savedInstanceState) {
                   registerPlugin(BatteryInfoPlugin.class);
                   super.onCreate(savedInstanceState);
+                  getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
               }
           }"""
           if "registerPlugin(BatteryInfoPlugin.class);" not in source:
