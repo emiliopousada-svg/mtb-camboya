@@ -816,6 +816,14 @@
             background: var(--primary);
             box-shadow: 0 3px 8px rgba(0, 0, 0, .3);
         }
+        .camino-tabs.big-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .camino-tabs.big-tabs .camino-tab {
+            min-height: 84px;
+            padding: 10px 8px;
+            font-size: 1rem;
+            line-height: 1.25;
+        }
+        .camino-tabs.big-tabs .camino-tab .tab-ico { display: block; font-size: 2.2rem; line-height: 1.1; margin-bottom: 4px; }
         .camino-dashboard.guide-mode { grid-template-columns: minmax(0, 1fr); }
         .camino-dashboard.guide-mode .camino-sidebar { display: none; }
         .camino-dashboard {
@@ -1172,9 +1180,9 @@
         <div class="page content-panel">
             <div class="card">
                 <h2>🗺️ Mis Rutas</h2>
-                <div class="camino-tabs" role="group" aria-label="Tipo de rutas">
-                    <button class="camino-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true">✅ Realizadas</button>
-                    <button class="camino-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false">📥 Tracks almacenados</button>
+                <div class="camino-tabs big-tabs" role="group" aria-label="Tipo de rutas">
+                    <button class="camino-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
+                    <button class="camino-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
                 </div>
                 <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
                 <div id="routes-import-box" hidden>
