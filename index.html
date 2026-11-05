@@ -115,7 +115,6 @@
         #camino-hud-main { font-weight: 700; font-size: .82rem; }
         #camino-hud-stage { color: #cfd8e3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #camino-hud.off #camino-hud-main { color: #ff8a80; }
-        #btn-guide-stop { pointer-events: auto; margin-top: 4px; padding: 5px 10px; border: 0; border-radius: 8px; background: #b3261e; color: #fff; font-size: .72rem; font-weight: 700; }
         .guide-arrow { font-size: 26px; line-height: 30px; text-align: center; color: #ffc107; text-shadow: 0 0 3px #000, 0 0 6px #000; }
         .guide-arrow span { display: inline-block; transition: transform .3s; }
         .camino-chips { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -226,7 +225,7 @@
             gap: 6px;
             pointer-events: none;
         }
-        #ride-status.show { display: flex; }
+        #ride-status { display: none !important; }
         .ride-status-item {
             min-width: 0;
             padding: 6px 9px;
@@ -240,13 +239,6 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-        }
-        #ride-weather { max-width: min(62vw, 280px); }
-        .weather-credit {
-            margin-left: 4px;
-            color: #a5d6a7;
-            font-size: .62rem;
-            pointer-events: auto;
         }
 
         /* Controles Flotantes del Mapa */
@@ -265,6 +257,16 @@
         }
 
         .controls-overlay > * { pointer-events: auto; }
+        .btn-follow-camino {
+            padding: 0 16px;
+            height: 60px;
+            background: #2e7d32;
+            font-size: .85rem;
+            line-height: 1.1;
+            text-align: center;
+            justify-content: center;
+        }
+        .btn-follow-camino[hidden] { display: none; }
 
         .btn-main-action {
             height: 60px;
@@ -552,8 +554,15 @@
             font-size: .95rem;
         }
 
-        .route-actions { display: flex; gap: 6px; }
-        .route-actions .btn-small:first-child { flex: 1; }
+        .route-actions { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; min-width: 0; }
+        .route-actions .btn-small {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 8px 10px;
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+        .route-item { min-width: 0; max-width: 100%; }
 
         .btn-small {
             background: var(--primary);
@@ -807,6 +816,8 @@
             background: var(--primary);
             box-shadow: 0 3px 8px rgba(0, 0, 0, .3);
         }
+        .camino-dashboard.guide-mode { grid-template-columns: minmax(0, 1fr); }
+        .camino-dashboard.guide-mode .camino-sidebar { display: none; }
         .camino-dashboard {
             display: grid;
             grid-template-columns: minmax(210px, .78fr) minmax(0, 1.8fr);
@@ -908,8 +919,6 @@
             border-radius: 11px;
             font-size: .84rem;
         }
-        #btn-camino-favorite { background: #444; }
-        #btn-camino-favorite.is-favorite { background: var(--accent); }
         .camino-tools {
             padding: 10px 12px;
             border: 1px solid rgba(255,255,255,0.06);
@@ -989,10 +998,6 @@
             </div>
 
             <div id="ride-status" role="status" aria-live="polite">
-                <span class="ride-status-item" id="ride-weather-wrap">
-                    <span id="ride-weather">🌤️ Esperando GPS</span>
-                    <a class="weather-credit" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" aria-label="Fuente del clima: Open-Meteo, licencia Creative Commons Atribución">Open-Meteo</a>
-                </span>
                 <span class="ride-status-item" id="ride-battery">🔋 --</span>
             </div>
 
@@ -1010,7 +1015,6 @@
                 <div id="camino-hud" hidden>
                     <div id="camino-hud-main"></div>
                     <div id="camino-hud-stage"></div>
-                    <button type="button" id="btn-guide-stop">✕ Terminar camino</button>
                 </div>
             </div>
 
@@ -1025,6 +1029,13 @@
                     <span id="map-battery-icon" aria-hidden="true"><i></i></span>
                     <span id="map-battery-text">--%</span>
                 </div>
+                <button class="btn-icon-only active" id="btn-center" title="Centrar y seguir mi posición" aria-label="Centrar y seguir mi posición">
+                    <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="8.5"></circle>
+                        <circle cx="12" cy="12" r="2.5"></circle>
+                        <path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"></path>
+                    </svg>
+                </button>
             </div>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
@@ -1053,17 +1064,10 @@
             </div>
 
             <div class="controls-overlay">
-                <button class="btn-icon-only active" id="btn-center" title="Centrar y seguir mi posición" aria-label="Centrar y seguir mi posición">
-                    <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="8.5"></circle>
-                        <circle cx="12" cy="12" r="2.5"></circle>
-                        <path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"></path>
-                    </svg>
-                </button>
                 <button class="btn-main-action" id="btn-start">
                     <span id="ico-start">▶️</span> <span id="lbl-start">COMENZAR RUTA</span>
                 </button>
-                <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
+                <button class="btn-main-action btn-follow-camino" id="btn-follow-camino" type="button" hidden>🧭 SEGUIR CAMINO</button>                <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
             </div>
         </div>
 
@@ -1212,16 +1216,8 @@
                 </div>
             </div>
             <div class="card">
-                <h2>🗺️ Estilo del mapa</h2>
-                <label for="map-style" class="hint">Cartografía preferida</label>
-                <select id="map-style" aria-label="Estilo del mapa">
-                    <option value="ign">Topográfico IGN (online y offline)</option>
-                    <option value="topographic">Topográfico OpenTopoMap (online)</option>
-                    <option value="esritopo">Topográfico Esri (online)</option>
-                    <option value="satellite">Satélite Esri (online)</option>
-                    <option value="pnoa">Ortofoto PNOA IGN (online)</option>
-                </select>
-                <p class="hint" id="map-style-status" role="status" aria-live="polite">La nitidez depende de la cartografía disponible en cada zona.</p>
+                <h2>🗺️ Cartografía del mapa</h2>
+                <p class="hint" id="map-style-status" role="status" aria-live="polite">Se usa OpenTopoMap con conexión e IGN sin conexión.</p>
             </div>
             <div class="card">
                 <h2>📡 Sensores Bluetooth</h2>
@@ -1249,25 +1245,37 @@
 
             <section id="offline-panel" class="card" aria-label="Mapas sin conexión">
     <h2>🗺️ Mapas sin conexión</h2>
-                <p>Elige entre el mapa topográfico del IGN y OpenTopoMap. El IGN puede descargarse; OpenTopoMap guarda automáticamente las zonas que vas viendo para usarlas sin cobertura.</p>
-    <label for="offline-province" style="font-size:.8rem;color:#ddd;">Provincia</label>
-    <select id="offline-province">
-        <option value="pontevedra" selected>Pontevedra</option>
-        <option value="acoruna">A Coruña</option>
-        <option value="lugo">Lugo</option>
-        <option value="ourense">Ourense</option>
+                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. OpenTopoMap guarda automáticamente las zonas que vas viendo para usarlas sin cobertura.</p>
+    <label for="offline-region" style="font-size:.8rem;color:#ddd;">Región</label>
+    <select id="offline-region">
+        <option value="portugal">Portugal</option>
+        <option value="andalucia">Andalucía</option>
+        <option value="aragon">Aragón</option>
+        <option value="asturias">Principado de Asturias</option>
+        <option value="cantabria">Cantabria</option>
+        <option value="castilla-la-mancha">Castilla-La Mancha</option>
+        <option value="castilla-y-leon">Castilla y León</option>
+        <option value="cataluna">Cataluña</option>
+        <option value="comunidad-valenciana">Comunidad Valenciana</option>
+        <option value="extremadura">Extremadura</option>
+        <option value="galicia" selected>Galicia</option>
+        <option value="madrid">Comunidad de Madrid</option>
+        <option value="murcia">Región de Murcia</option>
+        <option value="navarra">Comunidad Foral de Navarra</option>
+        <option value="pais-vasco">País Vasco</option>
+        <option value="la-rioja">La Rioja</option>
     </select>
     <label for="offline-detail" style="font-size:.8rem;color:#ddd;">Nivel de detalle</label>
     <select id="offline-detail">
         <option value="13" selected>Estándar (zoom 7–13)</option>
         <option value="14">Alto (zoom 7–14, ocupa bastante más)</option>
     </select>
-    <p class="hint">La descarga cubre el área geográfica aproximada de la provincia y puede incluir pequeñas zonas limítrofes.</p>
+    <p class="hint">La descarga cubre el área geográfica aproximada de la comunidad y puede incluir zonas limítrofes. Se muestra el número de teselas antes de iniciar.</p>
     <div id="offline-progress"><div id="offline-progress-fill"></div></div>
     <div id="offline-progress-text">Preparado para descargar</div>
     <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga. La caché online conserva hasta 10.000 teselas recientes.</p>
     <div class="offline-actions">
-        <button class="btn" id="btn-download-galicia" type="button">Descargar / reanudar</button>
+        <button class="btn" id="btn-download-region" type="button">Descargar / reanudar</button>
         <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
     </div>
     <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
@@ -1305,7 +1313,6 @@
                 </header>
                 <div class="camino-tabs" role="group" aria-label="Secciones del Camino de Santiago">
                     <button class="camino-tab" id="camino-tab-routes" type="button" aria-pressed="true" data-camino-tab="routes">✣ Caminos</button>
-                    <button class="camino-tab" id="camino-tab-stages" type="button" aria-pressed="false" data-camino-tab="stages">☷ Etapas</button>
                     <button class="camino-tab" id="camino-tab-guide" type="button" aria-pressed="false" data-camino-tab="guide">🧭 Guiado</button>
                     <button class="camino-tab" id="camino-tab-favorites" type="button" aria-pressed="false" data-camino-tab="favorites">★ Mis Caminos</button>
                 </div>
@@ -1325,28 +1332,13 @@
                                 <div class="camino-stat"><strong id="camino-albergue-count">—</strong><span>Albergues cargados</span></div>
                                 <div class="camino-stat"><strong id="camino-import-count">0</strong><span>Tracks personales</span></div>
                             </div>
+                            <p class="camino-note" id="camino-poi-status" role="status" aria-live="polite" hidden></p>
                             <div class="camino-card">
-                                <h2 class="camino-section-title">Servicios en el mapa</h2>
-                                <div class="camino-poi-legend" aria-label="Leyenda de puntos de interés del Camino">
-                                    <span>🛏️ Albergues</span>
-                                    <span>🍴 Restaurantes</span>
-                                    <span>🔧 Talleres de bicicletas</span>
-                                    <span>⛪ Monumentos e iglesias</span>
-                                    <span>💧 Fuentes</span>
-                                    <span>🛒 Supermercados</span>
-                                    <span>🏥 Centros médicos</span>
+                                <p class="camino-note" id="guide-offline-state"></p>
+                                <div class="camino-actions">
+                                    <button class="btn camino-action" id="btn-guide-start" type="button">▶ Seguir camino</button>
                                 </div>
-                                <p class="camino-note" id="camino-poi-status" role="status" aria-live="polite">Los servicios de OpenStreetMap se cargan al mostrar el track y requieren conexión. Los albergues están incluidos en la app.</p>
                             </div>
-                            <div class="camino-card">
-                                <h2 class="camino-section-title">Tu Camino, a tu ritmo</h2>
-                                <p class="camino-note" id="camino-route-note">Recorrido completo desde su inicio real, con altitud. Pulsa «Añadir a la ruta» para guardarlo en Mis Rutas y seguirlo como un track importado.</p>
-                            </div>
-                            <div class="camino-actions">
-                                <button class="btn camino-action" id="btn-camino-add" type="button" disabled>➕ Añadir a la ruta</button>
-                                <button class="btn camino-action" id="btn-camino-favorite" type="button" aria-pressed="false">☆ Guardar en Mis Caminos</button>
-                            </div>
-                            <button class="btn secondary camino-action" id="btn-camino-clear" type="button" style="display:none;">Quitar del mapa</button>
                             <details class="camino-tools">
                                 <summary>Importar o elegir otro track</summary>
                                 <p class="hint">Puedes importar un track GPX, KML o GeoJSON para el Camino seleccionado.</p>
@@ -1361,12 +1353,6 @@
                         </div>
                         <div class="camino-panel" id="camino-panel-guide" role="tabpanel" aria-labelledby="camino-tab-guide" hidden>
                             <div class="camino-card">
-                                <h2 id="guide-title">Camino guiado</h2>
-                                <p class="camino-note" id="guide-summary">Elige un Camino en la lista.</p>
-                                <p class="camino-note" id="guide-offline-state"></p>
-                                <button class="btn camino-action" id="btn-guide-start" type="button">▶ Comenzar camino</button>
-                            </div>
-                            <div class="camino-card">
                                 <h2 class="camino-section-title">Descargar para usar sin conexión</h2>
                                 <p class="camino-note" id="guide-stage-note">Marca las etapas que necesitas. Se guardan el track, albergues, servicios y el mapa IGN de un corredor de 5 km (zoom 10–14).</p>
                                 <div class="camino-stage-list" id="guide-stage-list"></div>
@@ -1380,18 +1366,7 @@
                                 <div id="guide-progress"><div id="guide-progress-fill"></div></div>
                                 <p class="camino-note" id="guide-progress-text" role="status" aria-live="polite"></p>
                             </div>
-                            <div class="camino-card">
-                                <h2 class="camino-section-title">Iconos en el mapa</h2>
-                                <div class="camino-chips" id="camino-filter-chips" aria-label="Mostrar u ocultar iconos"></div>
-                            </div>
                             <p class="hint" id="guide-attribution"></p>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-stages" role="tabpanel" aria-labelledby="camino-tab-stages" hidden>
-                            <div class="camino-card">
-                                <h2>Etapas y tramos oficiales</h2>
-                                <p class="camino-note">Segmentos publicados por la Xunta para el Camino seleccionado. Algunas rutas incluyen variantes; estos tramos no representan el recorrido completo fuera de Galicia.</p>
-                            </div>
-                            <div class="camino-stage-list" id="camino-stage-list"></div>
                         </div>
                         <div class="camino-panel" id="camino-panel-favorites" role="tabpanel" aria-labelledby="camino-tab-favorites" hidden>
                             <div class="camino-card">
@@ -1518,7 +1493,6 @@
         const ELEV_STEP = 3;         // metros mínimos para contar una subida
         const OFFROUTE_M = 60;       // aviso de desvío
         const BACKONROUTE_M = 30;    // se considera que has vuelto a la ruta
-        const WEATHER_REFRESH_MS = 30 * 60 * 1000;
         const ACTIVITY_TYPES = {
             mtb: { label: 'MTB', icon: '🚵' },
             road: { label: 'Carretera', icon: '🚴' },
@@ -1811,7 +1785,7 @@
         //  ESTADO GLOBAL
         // ============================================================
         let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null, offlineTileLayer = null;
-        let mapStylePreference = 'ign', activeMapStyle = null, mapStyleLayers = {};
+        let activeMapStyle = null, mapStyleLayers = {};
         let caminoLayer = null, caminoAlberguesLayer = null, caminoAlberguesPromise = null, caminoAlberguesRequest = 0, caminoAlbergueCount = null, caminoTracks = [];
         let caminoServicePoiLayer = null, caminoServicePoiRequest = 0;
         let caminoServicePoiController = null;
@@ -1834,9 +1808,8 @@
         let currentHr = null;
         let currentCadence = null, currentPower = null, currentBleSpeed = null, currentBleSpeedAt = 0;
         let lastCscReading = null;
-        let rideBattery = null, nativeBatteryInfo = null, batteryCheckInterval = null, rideWeatherInterval = null;
+        let rideBattery = null, nativeBatteryInfo = null, batteryCheckInterval = null;
         let rideAdvisoryToken = 0, batteryPollAt = 0;
-        let weatherLastRequestAt = 0, weatherRetryAfter = 0, weatherRequest = null, weatherController = null;
         const batteryWarnings = new Set();
         let mapRotationEnabled = true;
         let savedRoutes = [];
@@ -1920,16 +1893,12 @@
         const IGN_TILE_URL = 'https://tms-mapa-raster.ign.es/1.0.0/mapa-raster/{z}/{x}/{ty}.jpeg';
         const MAP_STYLE_NAMES = {
             ign: 'Topográfico IGN',
-            topographic: 'Topográfico OpenTopoMap',
-            esritopo: 'Topográfico Esri',
-            satellite: 'Satélite Esri',
-            pnoa: 'Ortofoto PNOA (IGN)'
+            topographic: 'Topográfico OpenTopoMap'
         };
         const MAP_RETINA = window.devicePixelRatio >= 2;
         const MAP_TILE_ZOOM_OFFSET = MAP_RETINA ? 1 : 0;
         const MAP_TILE_SIZE = MAP_RETINA ? 128 : 256;
         const MAP_MAX_ZOOM = 20;
-        const MAP_STYLE_IDS = new Set(Object.keys(MAP_STYLE_NAMES));
         let offlineDbPromise = null;
         let stopOfflineDownload = false;
         let offlineDownloadRunning = false;
@@ -2242,26 +2211,13 @@
                 topographic: createCachedOnlineTileLayer('topographic', 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
                     maxNativeZoom: 17, subdomains: ['a', 'b', 'c'],
                     attribution: `${osmAttribution}, SRTM | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`
-                }),
-                esritopo: createCachedOnlineTileLayer('esritopo', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-                    maxNativeZoom: 17, subdomains: ['a'],
-                    attribution: 'Tiles &copy; Esri — World Topo Map'
-                }),
-                satellite: createCachedOnlineTileLayer('satellite', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    maxNativeZoom: 18, subdomains: ['a'],
-                    attribution: 'Tiles &copy; Esri — Maxar, Earthstar Geographics'
-                }),
-                pnoa: createCachedOnlineTileLayer('pnoa', 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&format=image/jpeg&tilematrix={z}&tilecol={x}&tilerow={y}', {
-                    maxNativeZoom: 19, subdomains: ['a'],
-                    attribution: 'Ortofoto PNOA © Instituto Geográfico Nacional (IGN), CC BY 4.0'
                 })
             };
         }
 
         function applyMapStyle() {
             if (!map || !mapStyleLayers.ign) return;
-            let style = mapStylePreference;
-            if (!mapStyleLayers[style]) style = 'ign';
+            const style = navigator.onLine ? 'topographic' : 'ign';
             if (activeMapStyle !== style) {
                 if (activeMapStyle && mapStyleLayers[activeMapStyle]) map.removeLayer(mapStyleLayers[activeMapStyle]);
                 mapStyleLayers[style].addTo(map);
@@ -2270,64 +2226,68 @@
             const status = $('map-style-status');
             if (!status) return;
             const retinaText = MAP_RETINA ? ' En pantallas de alta densidad se cargan teselas un nivel más detalladas.' : '';
-            if (mapStylePreference === 'ign') {
-                status.textContent = `El mapa IGN usa internet cuando hay cobertura y las teselas guardadas al estar sin conexión. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`;
-            } else {
-                status.textContent = `${MAP_STYLE_NAMES[mapStylePreference]} guarda automáticamente las zonas visitadas (hasta 10.000 teselas). Cartografía nativa hasta zoom 17; por encima se amplía la imagen. Sin cobertura usa la caché y el IGN descargado.${retinaText}`;
-            }
+            status.textContent = style === 'ign'
+                ? `Sin conexión: ${MAP_STYLE_NAMES.ign} y teselas guardadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`
+                : `${MAP_STYLE_NAMES.topographic} guarda automáticamente las zonas visitadas (hasta 10.000 teselas). Sin conexión se usa ${MAP_STYLE_NAMES.ign} y las teselas guardadas.${retinaText}`;
         }
 
-        function setMapStylePreference(style) {
-            if (!MAP_STYLE_IDS.has(style)) return;
-            try {
-                localStorage.setItem('mtb_map_style', style);
-            } catch (e) {
-                console.warn('No se pudo guardar el estilo del mapa:', e);
-                $('map-style').value = mapStylePreference;
-                toast('No se pudo guardar el estilo del mapa en este dispositivo.');
-                return;
-            }
-            mapStylePreference = style;
-            $('map-style').value = style;
-            applyMapStyle();
-        }
-
-        // Rectángulo de cobertura aproximado de Galicia; se descargan niveles 7–13 por defecto.
-        function provinceTiles(province, maxZoom) {
-            // Rectángulos geográficos aproximados; pueden incluir pequeñas zonas limítrofes.
+        // Rectángulos aproximados para descargar una comunidad cada vez.
+        function regionTiles(region, maxZoom) {
             const bounds = {
-                acoruna:    { west: -9.30, east: -7.55, south: 42.70, north: 43.80 },
-                lugo:       { west: -7.95, east: -6.70, south: 42.20, north: 43.80 },
-                ourense:    { west: -8.25, east: -6.75, south: 41.80, north: 42.70 },
-                pontevedra: { west: -9.30, east: -7.85, south: 41.80, north: 43.00 }
+                portugal: [{ west: -9.55, east: -6.15, south: 36.90, north: 42.20 }],
+                andalucia: [{ west: -7.55, east: -1.60, south: 35.90, north: 38.75 }],
+                aragon: [{ west: -1.80, east: 0.80, south: 39.80, north: 42.95 }],
+                asturias: [{ west: -7.20, east: -4.50, south: 43.10, north: 43.70 }],
+                cantabria: [{ west: -4.90, east: -3.10, south: 43.00, north: 43.65 }],
+                'castilla-la-mancha': [{ west: -5.40, east: -1.30, south: 38.00, north: 41.35 }],
+                'castilla-y-leon': [{ west: -7.10, east: -1.75, south: 40.00, north: 43.30 }],
+                cataluna: [{ west: 0.15, east: 3.35, south: 40.50, north: 42.90 }],
+                'comunidad-valenciana': [{ west: -1.55, east: 0.55, south: 37.80, north: 40.80 }],
+                extremadura: [{ west: -7.55, east: -4.50, south: 37.90, north: 40.50 }],
+                galicia: [{ west: -9.30, east: -6.70, south: 41.80, north: 43.85 }],
+                madrid: [{ west: -4.60, east: -3.00, south: 39.90, north: 41.20 }],
+                murcia: [{ west: -2.40, east: -0.50, south: 37.35, north: 38.80 }],
+                navarra: [{ west: -2.60, east: -0.70, south: 41.90, north: 43.30 }],
+                'pais-vasco': [{ west: -3.50, east: -1.70, south: 42.40, north: 43.50 }],
+                'la-rioja': [{ west: -3.20, east: -1.60, south: 41.90, north: 42.70 }]
             };
-            const area = bounds[province] || bounds.pontevedra;
-            const { west, east, south, north } = area;
-            const out = [];
+            const areas = bounds[region];
+            if (!areas) throw new Error('La comunidad seleccionada no tiene un área de descarga definida.');
+            const out = new Map();
             const xt = (lon, z) => Math.floor((lon + 180) / 360 * Math.pow(2, z));
             const yt = (lat, z) => Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z));
             for (let z = 7; z <= maxZoom; z++) {
-                const x1 = xt(west, z), x2 = xt(east, z), y1 = yt(north, z), y2 = yt(south, z);
-                for (let x = x1; x <= x2; x++) for (let y = y1; y <= y2; y++) out.push({ z, x, y });
+                for (const { west, east, south, north } of areas) {
+                    const x1 = xt(west, z), x2 = xt(east, z), y1 = yt(north, z), y2 = yt(south, z);
+                    for (let x = x1; x <= x2; x++) {
+                        for (let y = y1; y <= y2; y++) out.set(`${z}/${x}/${y}`, { z, x, y });
+                    }
+                }
             }
-            return out;
+            return [...out.values()];
         }
         function setOfflineProgress(done, total, errors) {
             const pct = total ? Math.round(done / total * 100) : 0;
             $('offline-progress-fill').style.width = pct + '%';
             $('offline-progress-text').textContent = `${done.toLocaleString('es-ES')} / ${total.toLocaleString('es-ES')} teselas (${pct}%)${errors ? ` · ${errors} errores` : ''}`;
         }
-        async function downloadProvinceOffline() {
+        async function downloadRegionOffline() {
             if (offlineDownloadRunning) return;
-            offlineDownloadRunning = true; stopOfflineDownload = false;
-            const provinceSelect = $('offline-province');
-            const province = provinceSelect.value;
-            const provinceName = provinceSelect.options[provinceSelect.selectedIndex].text;
+            const regionSelect = $('offline-region');
+            const region = regionSelect.value;
+            const regionName = regionSelect.options[regionSelect.selectedIndex].text;
             const maxZoom = Number($('offline-detail').value) || 13;
-            const tiles = provinceTiles(province, maxZoom);
+            const tiles = regionTiles(region, maxZoom);
+            const detailName = maxZoom === 14 ? 'alto (zoom 7–14)' : 'estándar (zoom 7–13)';
+            const confirmed = await modal({
+                message: `Se descargarán aproximadamente ${tiles.length.toLocaleString('es-ES')} teselas IGN para ${regionName} con detalle ${detailName}. Usa Wi-Fi y mantén la aplicación abierta. Las teselas ya guardadas se omiten.`,
+                ok: 'Descargar'
+            });
+            if (!confirmed) return;
+            offlineDownloadRunning = true; stopOfflineDownload = false;
             let done = 0, errors = 0, cursor = 0;
-            $('btn-download-galicia').disabled = true;
-            $('offline-storage-note').textContent = 'Descargando ' + provinceName + '. Mantén la app abierta y conectada a Wi‑Fi. Si la paras, selecciona la misma provincia para reanudar; las teselas ya guardadas se conservan.';
+            $('btn-download-region').disabled = true;
+            $('offline-storage-note').textContent = `Descargando ${regionName}. Mantén la app abierta y conectada a Wi-Fi. Si la paras, selecciona la misma comunidad y detalle para reanudar; las teselas ya guardadas se conservan.`;
             setOfflineProgress(0, tiles.length, 0);
             try {
                 await openOfflineDb();
@@ -2350,7 +2310,7 @@
                 } else {
                     setOfflineProgress(done, tiles.length, errors);
                     $('offline-storage-note').textContent = `Proceso terminado. Teselas guardadas en este móvil: ${stored.toLocaleString('es-ES')}. Los errores se pueden reintentar volviendo a pulsar descargar.`;
-                    toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : 'Mapa de ' + provinceName + ' guardado para usar sin conexión', 5000);
+                    toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : `Mapa de ${regionName} guardado para usar sin conexión`, 5000);
                 }
             } catch (e) {
                 console.error(e);
@@ -2358,7 +2318,7 @@
                 toast('No se pudo iniciar la descarga de mapas', 5000);
             } finally {
                 offlineDownloadRunning = false;
-                $('btn-download-galicia').disabled = false;
+                $('btn-download-region').disabled = false;
             }
         }
         async function openOfflineMaps() {
@@ -2378,7 +2338,7 @@
                 $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.';
             }
         }
-        $('btn-download-galicia').addEventListener('click', downloadProvinceOffline);
+        $('btn-download-region').addEventListener('click', downloadRegionOffline);
         $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
 
         async function clearOfflineTiles() {
@@ -2812,7 +2772,6 @@
 
         let caminoServicesLast = null;
         let caminoHiddenGroups = new Set();
-        try { caminoHiddenGroups = new Set(JSON.parse(localStorage.getItem(CAMINO_FILTERS_KEY) || '[]')); } catch (e) {}
 
         function caminoCategoryVisible(category) {
             return !Object.entries(CAMINO_FILTER_GROUPS)
@@ -2924,7 +2883,6 @@
                     caminoAlbergueCount = 0;
                     renderCaminoDashboard();
                     caminoStatus(`No hay albergues cargados para ${CAMINO_ROUTES[id].name}.`, true);
-                    $('btn-camino-clear').style.display = caminoLayer ? 'block' : 'none';
                     return 0;
                 }
                 caminoAlberguesLayer = L.featureGroup(markers);
@@ -2932,7 +2890,6 @@
                 caminoAlbergueCount = markers.length;
                 renderCaminoDashboard();
                 if (fitBounds) map.fitBounds(caminoAlberguesLayer.getBounds(), { padding: [30, 30], maxZoom: 12 });
-                $('btn-camino-clear').style.display = 'block';
                 caminoStatus(`${CAMINO_ROUTES[id].name}: ${markers.length} albergues en el mapa.`);
                 setTimeout(() => map.invalidateSize(), 150);
                 return markers.length;
@@ -3115,12 +3072,14 @@
                 arrow.textContent = '›';
                 button.append(icon, copy, arrow);
                 button.addEventListener('click', () => {
+                    if ($('camino-select').value === id) {
+                        clearCamino();
+                        return;
+                    }
                     $('camino-select').value = id;
                     $('camino-select').dispatchEvent(new Event('change'));
                     setCaminoTab('routes');
-                    if (window.matchMedia('(max-width: 520px)').matches) {
-                        $('camino-panel-routes').scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
+                    $('camino-panel-routes').scrollIntoView({ behavior: 'smooth', block: 'start' });
                 });
                 list.append(button);
             });
@@ -3153,18 +3112,10 @@
             const id = $('camino-select')?.value || '';
             const route = CAMINO_ROUTES[id];
             $('camino-route-title').textContent = route ? route.name : 'Elige un Camino';
-            $('camino-route-subtitle').textContent = route
-                ? 'Recorrido completo desde el inicio · con altitud'
-                : 'Selecciona un Camino para consultar sus tracks y albergues';
+            if (!route) $('camino-route-subtitle').textContent = 'Selecciona un Camino para consultar sus tracks y albergues';
             $('camino-stage-count').textContent = route ? String(caminoOfficialStages.length) : '—';
             $('camino-albergue-count').textContent = caminoAlbergueCount === null ? '—' : caminoAlbergueCount.toLocaleString('es-ES');
             $('camino-import-count').textContent = caminoTracks.length.toLocaleString('es-ES');
-            $('btn-camino-favorite').disabled = !route;
-            const isFavorite = !!route && caminoFavorites.includes(id);
-            $('btn-camino-favorite').classList.toggle('is-favorite', isFavorite);
-            $('btn-camino-favorite').setAttribute('aria-pressed', String(isFavorite));
-            $('btn-camino-favorite').textContent = isFavorite ? '★ Guardado en Mis Caminos' : '☆ Guardar en Mis Caminos';
-            $('btn-camino-add').disabled = !route || !bundledCaminoTrack;
         }
 
         function renderCaminoStages() {
@@ -3271,8 +3222,8 @@
             document.querySelectorAll('.camino-panel').forEach(panel => {
                 panel.hidden = panel.id !== `camino-panel-${tab}`;
             });
-            if (tab === 'stages') renderCaminoStages();
-            if (tab === 'guide') guideRender();
+            document.querySelector('.camino-dashboard').classList.toggle('guide-mode', tab === 'guide');
+            if (tab === 'routes' || tab === 'guide') guideRender();
             if (tab === 'favorites') renderCaminoFavorites();
         }
 
@@ -3296,18 +3247,6 @@
             caminoStatus(`Track «${route.name}» añadido a ${CAMINO_ROUTES[id].name}.`);
         }
 
-        $('btn-camino-favorite').addEventListener('click', () => {
-            const id = $('camino-select').value;
-            if (!CAMINO_ROUTES[id]) return;
-            const previousFavorites = caminoFavorites.slice();
-            caminoFavorites = caminoFavorites.includes(id)
-                ? caminoFavorites.filter(favoriteId => favoriteId !== id)
-                : [...caminoFavorites, id];
-            if (saveCaminoFavorites()) {
-                renderCaminoDashboard();
-                renderCaminoFavorites();
-            } else caminoFavorites = previousFavorites;
-        });
         document.querySelectorAll('[data-camino-tab]').forEach(button => {
             button.addEventListener('click', () => setCaminoTab(button.dataset.caminoTab));
         });
@@ -3361,7 +3300,6 @@
             updateCaminoListSelection(id);
             $('camino-track-select').value = String(route.id);
             renderCaminoDashboard();
-            $('btn-camino-clear').style.display = 'block';
             if (route.id === 'official') {
                 caminoStatus(`${config.name}: recorrido completo dibujado (${lines.reduce((total, line) => total + line.length, 0).toLocaleString('es-ES')} puntos).`);
             } else if (String(route.id).startsWith('stage:')) {
@@ -3416,44 +3354,16 @@
             }
         }
 
-        async function addCaminoToRoutes() {
-            const id = $('camino-select').value;
-            if (!CAMINO_ROUTES[id] || !bundledCaminoTrack) {
-                caminoStatus('Selecciona uno de los caminos para continuar.', true);
-                return;
-            }
-            const button = $('btn-camino-add');
-            button.disabled = true;
-            try {
-                const name = routeActivityPrefix(preferredActivityType) + CAMINO_ROUTES[id].name;
-                if (savedRoutes.some(r => r.kind === 'imported' && r.name === name)) {
-                    toast('Este Camino ya está en Tracks almacenados.');
-                    return;
-                }
-                const coords = bundledCaminoTrack.points.map(p => [p[0], p[1], p[2], null]);
-                const route = buildImportedRoute({ name: CAMINO_ROUTES[id].name, segs: [coords] }, CAMINO_ROUTES[id].name);
-                route.activityType = preferredActivityType;
-                route.name = name;
-                await saveRoute(route);
-                toast(`${CAMINO_ROUTES[id].name} añadido a Tracks almacenados.`);
-                setRoutesTab('pending');
-                goToPage(3);
-            } catch (e) {
-                console.warn('No se pudo añadir el Camino a la ruta:', e);
-                caminoStatus(`No se pudo añadir el Camino. ${e.message || ''}`, true);
-            } finally {
-                button.disabled = !bundledCaminoTrack;
-            }
-        }
-
         function clearCamino() {
+            if (guide.active) guideStop(true);
+            try { localStorage.removeItem(GUIDE_PAUSED_KEY); } catch (e) {}
             if (caminoLayer) map.removeLayer(caminoLayer);
             caminoLayer = null;
             clearCaminoServicePois();
             clearAlbergueRoute();
             clearCaminoAlbergues();
-            $('btn-camino-clear').style.display = 'none';
             $('camino-select').value = '';
+            updateFollowCaminoBtn();
             updateCaminoListSelection('');
             caminoTracks = [];
             caminoOfficialStages = [];
@@ -3466,6 +3376,7 @@
             try { localStorage.removeItem('mtb_camino_track'); } catch (e) {}
             try { localStorage.removeItem('mtb_camino_saved_track'); } catch (e) {}
             caminoStatus('Camino quitado del mapa.');
+            guideRender();
         }
 
         async function restoreCamino() {
@@ -3502,7 +3413,6 @@
             clearCaminoServicePois();
             clearAlbergueRoute();
             clearCaminoAlbergues();
-            $('btn-camino-clear').style.display = 'none';
             if (id && CAMINO_ROUTES[id]) {
                 try { localStorage.setItem('mtb_camino_active', id); } catch (e) {}
             } else {
@@ -3528,13 +3438,12 @@
         renderCaminoDashboard();
         renderCaminoStages();
         renderCaminoFavorites();
-        $('btn-camino-add').addEventListener('click', addCaminoToRoutes);
-        $('btn-camino-clear').addEventListener('click', clearCamino);
 
         // ============================================================
         //  CAMINO GUIADO: seguimiento, descargas y actualización
         // ============================================================
         const GUIDE_ACTIVE_KEY = 'mtb_camino_guide';
+        const GUIDE_PAUSED_KEY = 'mtb_camino_guide_paused';
         const guide = { id: null, data: null, cum: null, track: null, done: null, arrow: null, active: false, idx: null, off: false, lastDoneAt: 0 };
         const guideSelected = new Set();
         let guideView = null; // { id, data, downloaded, meta } del Camino mostrado en la pestaña
@@ -3761,7 +3670,8 @@
                 guide.done = L.polyline([], { color: '#8d8d8d', weight: 6, opacity: 0.95, interactive: false }).addTo(map);
                 guideRenderProfile();
                 try { localStorage.setItem(GUIDE_ACTIVE_KEY, id); } catch (e) {}
-                $('btn-guide-start').textContent = '▶ Camino en curso';
+                try { localStorage.removeItem(GUIDE_PAUSED_KEY); } catch (e) {}
+                guideUpdateButtons();
                 await loadCaminoAlbergues(id, false);
                 await guideShowStoredPois(id);
                 goToPage(0);
@@ -3781,6 +3691,7 @@
                 toast(e.message || 'No se pudo iniciar el Camino guiado', 5000);
             } finally {
                 button.disabled = false;
+                guideUpdateButtons();
             }
         }
 
@@ -3798,23 +3709,63 @@
                 $('map-route-cursor').style.display = 'none';
             }
             try { localStorage.removeItem(GUIDE_ACTIVE_KEY); } catch (e) {}
-            $('btn-guide-start').textContent = '▶ Comenzar camino';
+            guideUpdateButtons();
             if (!silent) toast('Seguimiento del Camino terminado');
+        }
+
+        function guideUpdateButtons() {
+            updateFollowCaminoBtn();
+            const start = $('btn-guide-start');
+            if (guide.active) {
+                start.textContent = '▶ Siguiendo…';
+                start.disabled = true;
+            } else {
+                start.textContent = '▶ Seguir camino';
+                start.disabled = false;
+            }
+        }
+
+        function guidePause() {
+            const id = guide.id;
+            guideStop(true);
+            if (id) { try { localStorage.setItem(GUIDE_PAUSED_KEY, id); } catch (e) {} }
+            toast('Camino en pausa. Pulsa «Seguir camino» para continuar.');
+        }
+
+        function guideAskResume(id) {
+            return new Promise(resolve => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+                const box = document.createElement('div');
+                box.style.cssText = 'background:#fff;color:#222;border-radius:14px;padding:18px;max-width:340px;width:100%;text-align:center;';
+                const title = document.createElement('h3');
+                title.textContent = 'Camino de Santiago';
+                const text = document.createElement('p');
+                text.textContent = `¿Quieres continuar ${(CAMINO_ROUTES[id] && CAMINO_ROUTES[id].name) || 'el Camino'} o cancelarlo?`;
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;gap:8px;margin-top:12px;';
+                const finish = value => { overlay.remove(); resolve(value); };
+                [['▶ Continuar', true, 'btn'], ['✕ Cancelar', false, 'btn secondary']].forEach(([label, value, cls]) => {
+                    const b = document.createElement('button');
+                    b.type = 'button'; b.className = cls; b.style.flex = '1'; b.textContent = label;
+                    b.addEventListener('click', () => finish(value));
+                    row.appendChild(b);
+                });
+                box.append(title, text, row);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+            });
         }
 
         async function guideRender() {
             const id = $('camino-select').value;
-            const title = $('guide-title'), summary = $('guide-summary'), list = $('guide-stage-list');
+            const summary = $('camino-route-subtitle'), list = $('guide-stage-list');
             list.textContent = '';
-            renderCaminoFilterChips();
             if (!id || !CAMINO_ROUTES[id]) {
-                title.textContent = 'Camino guiado';
-                summary.textContent = 'Elige un Camino en la lista para ver sus etapas.';
                 $('guide-offline-state').textContent = '';
                 guideView = null;
                 return;
             }
-            title.textContent = CAMINO_ROUTES[id].name;
             if (!GUIDE_IDS.has(id)) {
                 summary.textContent = 'Este Camino todavía no tiene el trazado completo incluido en la app.';
                 $('guide-offline-state').textContent = '';
@@ -4021,8 +3972,23 @@
             guideRender();
         }
 
+        function updateFollowCaminoBtn() {
+            const id = $('camino-select').value;
+            $('btn-follow-camino').hidden = !(GUIDE_IDS.has(id) && !guide.active);
+        }
+
+        $('btn-follow-camino').addEventListener('click', async () => {
+            if (!isRecording) {
+                const activityType = await openActivityPicker();
+                if (!activityType) return;
+                startRecording(activityType);
+            }
+            await guideStart();
+        });
+        $('camino-select').addEventListener('change', updateFollowCaminoBtn);
+        updateFollowCaminoBtn();
+
         $('btn-guide-start').addEventListener('click', guideStart);
-        $('btn-guide-stop').addEventListener('click', () => guideStop());
         $('btn-guide-download').addEventListener('click', guideDownload);
         $('btn-guide-update').addEventListener('click', guideUpdate);
         $('btn-guide-delete').addEventListener('click', guideDelete);
@@ -4033,7 +3999,7 @@
             if (all.every(n => guideSelected.has(n))) guideSelected.clear(); else all.forEach(n => guideSelected.add(n));
             guideRender();
         });
-        $('camino-select').addEventListener('change', () => { guideSelected.clear(); if (caminoActiveTab === 'guide') guideRender(); });
+        $('camino-select').addEventListener('change', () => { guideSelected.clear(); });
         renderCaminoFilterChips();
 
         function initMap() {
@@ -4058,8 +4024,6 @@
             }).setView(center, 15);
             window.map = map;
 
-            const savedMapStyle = localStorage.getItem('mtb_map_style');
-            if (MAP_STYLE_IDS.has(savedMapStyle)) mapStylePreference = savedMapStyle;
             offlineTileLayer = createOfflineTileLayer();
             mapStyleLayers = createMapStyleLayers();
             applyMapStyle();
@@ -4180,7 +4144,6 @@
             lastLon = lon;
             lastAccuracy = accuracy;
             if (isRecording && !isPaused) {
-                if (accuracy <= MAX_ACC_M) refreshRideWeather(lat, lon);
                 refreshBatteryStatus();
             }
             if (followedRoute) updateMapRouteProfilePosition(lat, lon);
@@ -4199,7 +4162,7 @@
                     heading = bearingBetween(lastCourseFix, ll);
                 }
                 if (accuracy <= MAX_ACC_M) lastCourseFix = ll;
-            } else if (!hasSpeed && accuracy <= MAX_ACC_M) {
+            } else if (accuracy <= MAX_ACC_M) {
                 if (lastCourseFix && dist(lastCourseFix, ll) >= 8) {
                     heading = bearingBetween(lastCourseFix, ll);
                     lastCourseFix = ll;
@@ -4413,59 +4376,6 @@
             }).catch(error => console.warn('No se pudo mostrar el aviso de batería:', error));
         }
 
-        function describeWeatherCode(code) {
-            if (code === 0) return ['☀️', 'Despejado'];
-            if (code === 1) return ['🌤️', 'Mayormente despejado'];
-            if (code === 2) return ['⛅', 'Parcialmente nuboso'];
-            if (code === 3) return ['☁️', 'Nuboso'];
-            if (code === 45 || code === 48) return ['🌫️', 'Niebla'];
-            if (code >= 51 && code <= 57) return ['🌦️', 'Llovizna'];
-            if (code >= 61 && code <= 67) return ['🌧️', 'Lluvia'];
-            if (code >= 71 && code <= 77) return ['❄️', 'Nieve'];
-            if (code >= 80 && code <= 82) return ['🌧️', 'Chubascos'];
-            if (code === 85 || code === 86) return ['🌨️', 'Chubascos de nieve'];
-            if (code >= 95) return ['⛈️', 'Tormenta'];
-            return ['🌡️', 'Tiempo variable'];
-        }
-
-        async function refreshRideWeather(lat = lastLat, lon = lastLon) {
-            if (!isRecording || isPaused || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-            if (weatherRequest || Date.now() < (weatherRetryAfter || weatherLastRequestAt + WEATHER_REFRESH_MS)) return;
-
-            weatherLastRequestAt = Date.now();
-            weatherController = new AbortController();
-            const timeout = setTimeout(() => weatherController && weatherController.abort(), 10000);
-            weatherRequest = (async () => {
-                const query = new URLSearchParams({
-                    latitude: String(lat),
-                    longitude: String(lon),
-                    current: 'temperature_2m,weather_code',
-                    timezone: 'auto'
-                });
-                const response = await fetch(`https://api.open-meteo.com/v1/forecast?${query}`, { signal: weatherController.signal });
-                if (!response.ok) throw new Error(`Open-Meteo respondió ${response.status}`);
-                const data = await response.json();
-                const current = data && data.current;
-                const temperature = Number(current && current.temperature_2m);
-                if (!Number.isFinite(temperature)) throw new Error('Respuesta meteorológica incompleta');
-                const [icon, description] = describeWeatherCode(Number(current.weather_code));
-                $('ride-weather').textContent = `${icon} ${Math.round(temperature)}° · ${description}`;
-                $('ride-weather-wrap').title = `Actualizado ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}. Datos de Open-Meteo (CC BY 4.0).`;
-                weatherRetryAfter = 0;
-            })().catch(error => {
-                if (error.name !== 'AbortError') {
-                    console.warn('No se pudo actualizar el clima de la ruta:', error);
-                    $('ride-weather').textContent = '🌦️ Clima no disponible';
-                    weatherRetryAfter = Date.now() + 5 * 60 * 1000;
-                }
-            }).finally(() => {
-                clearTimeout(timeout);
-                weatherController = null;
-                weatherRequest = null;
-            });
-            return weatherRequest;
-        }
-
         function startRideAdvisories() {
             const token = ++rideAdvisoryToken;
             batteryPollAt = 0;
@@ -4493,22 +4403,18 @@
                 });
             }
             batteryCheckInterval = setInterval(refreshBatteryStatus, 60000);
-            rideWeatherInterval = setInterval(() => refreshRideWeather(), 60000);
-            refreshRideWeather();
         }
 
         function stopRideAdvisories() {
             rideAdvisoryToken++;
             clearInterval(batteryCheckInterval);
-            clearInterval(rideWeatherInterval);
-            batteryCheckInterval = rideWeatherInterval = null;
+            batteryCheckInterval = null;
             if (rideBattery) {
                 rideBattery.removeEventListener('levelchange', updateBatteryStatus);
                 rideBattery.removeEventListener('chargingchange', updateBatteryStatus);
                 rideBattery = null;
             }
             nativeBatteryInfo = null;
-            if (weatherController) weatherController.abort();
             $('ride-status').classList.remove('show');
         }
 
@@ -4643,9 +4549,6 @@
             resetRecordingState();
             batteryWarnings.clear();
             batteryPollAt = 0;
-            weatherLastRequestAt = 0;
-            weatherRetryAfter = 0;
-            $('ride-weather').textContent = '🌤️ Esperando GPS';
             $('ride-battery').textContent = '🔋 --';
             recordingActivityType = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, activityType) ? activityType : 'mtb';
             isRecording = true;
@@ -4723,6 +4626,7 @@
             stopBgWatcher();
             removeMyLiveLocation();
             setBtnState('idle');
+            if (guide.active) guideStop(true);
             $('m-speed').textContent = '0.0';
             DB.kvDel('draft').catch(() => {});
 
@@ -6815,14 +6719,11 @@
             const sound = $('setting-route-sound');
             const vibration = $('setting-route-vibration');
             const mapRotation = $('setting-map-rotation');
-            const mapStyle = $('map-style');
             sound.checked = localStorage.getItem('mtb_route_sound') !== '0';
             vibration.checked = localStorage.getItem('mtb_route_vibration') !== '0';
             mapRotationEnabled = localStorage.getItem('mtb_map_rotation') !== '0';
             mapRotation.checked = mapRotationEnabled;
             updateOrientBtn();
-            mapStyle.value = mapStylePreference;
-            mapStyle.addEventListener('change', () => setMapStylePreference(mapStyle.value));
             window.addEventListener('online', applyMapStyle);
             window.addEventListener('offline', applyMapStyle);
             sound.addEventListener('change', () => localStorage.setItem('mtb_route_sound', sound.checked ? '1' : '0'));
@@ -6902,11 +6803,16 @@
             startGps();
             await maybeRestoreDraft();
             try {
-                const activeGuide = localStorage.getItem(GUIDE_ACTIVE_KEY);
+                const activeGuide = localStorage.getItem(GUIDE_ACTIVE_KEY) || localStorage.getItem(GUIDE_PAUSED_KEY);
                 if (activeGuide && GUIDE_IDS.has(activeGuide)) {
                     $('camino-select').value = activeGuide;
-                    await guideStart();
-                    goToPage(0);
+                    if (await guideAskResume(activeGuide)) {
+                        await guideStart();
+                        goToPage(0);
+                    } else {
+                        try { localStorage.removeItem(GUIDE_ACTIVE_KEY); localStorage.removeItem(GUIDE_PAUSED_KEY); } catch (e) {}
+                        clearCamino();
+                    }
                 }
             } catch (e) { console.warn('No se pudo reanudar el Camino guiado:', e); }
         }
