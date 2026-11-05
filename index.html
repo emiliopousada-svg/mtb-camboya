@@ -3388,10 +3388,9 @@
             } catch (e) {}
             try { localStorage.removeItem('mtb_camino_track'); } catch (e) {}
             if (!id || !CAMINO_ROUTES[id]) {
-                id = $('camino-select').value || 'frances';
-                $('camino-select').value = id;
-                updateCaminoListSelection(id);
-                await loadCaminoTracks(id, 'official');
+                $('camino-select').value = '';
+                updateCaminoListSelection('');
+                updateFollowCaminoBtn();
                 return;
             }
             $('camino-select').value = id;
