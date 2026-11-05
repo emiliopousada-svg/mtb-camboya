@@ -57,6 +57,15 @@ jobs:
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
               }
+
+              @Override
+              public void onBackPressed() {
+                  new android.app.AlertDialog.Builder(this)
+                      .setMessage("¿Quieres salir de MTB CAMBOYA?")
+                      .setPositiveButton("Sí, salir", (d, w) -> MainActivity.super.onBackPressed())
+                      .setNegativeButton("No, cancelar", null)
+                      .show();
+              }
           }"""
           if "registerPlugin(BatteryInfoPlugin.class);" not in source:
               if "import com.getcapacitor.BridgeActivity;" not in source:
