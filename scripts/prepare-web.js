@@ -15,6 +15,10 @@ fs.mkdirSync(path.join(www, 'data'), { recursive: true });
 for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'estrella-galicia.svg']) {
   fs.copyFileSync(path.join(root, f), path.join(www, f));
 }
+// La app está repartida en css/ y js/ (antes todo iba dentro de index.html).
+for (const dir of ['css', 'js']) {
+  fs.cpSync(path.join(root, dir), path.join(www, dir), { recursive: true });
+}
 for (const f of ['albergues.geojson', 'caminos.geojson']) {
   fs.copyFileSync(path.join(root, 'data', f), path.join(www, 'data', f));
 }
@@ -50,4 +54,13 @@ for (const [from, to] of swaps) {
   html = html.split(from).join(to);
 }
 fs.writeFileSync(file, html);
+
+// La versión que se muestra en Ajustes sale del paquete; ahora vive en js/config.js.
+const cfgFile = path.join(www, 'js', 'config.js');
+const versionRe = /const APP_VERSION = '[^']*';/;
+let cfg = fs.readFileSync(cfgFile, 'utf8');
+if (!versionRe.test(cfg)) throw new Error('No encuentro APP_VERSION en js/config.js');
+const pkgVersion = require(path.join(root, 'package.json')).version;
+fs.writeFileSync(cfgFile, cfg.replace(versionRe, `const APP_VERSION = '${pkgVersion}';`));
+
 console.log('www listo');

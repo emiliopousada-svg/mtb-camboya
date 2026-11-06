@@ -1,0 +1,177 @@
+'use strict';
+
+        // ============================================================
+        //  RUTAS GUARDADAS
+        // ============================================================
+        let routesTab = 'done';
+        function setRoutesTab(tab) {
+            routesTab = tab;
+            document.querySelectorAll('[data-routes-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.routesTab === tab)));
+            $('routes-import-box').hidden = tab !== 'pending';
+            $('routes-tab-hint').textContent = tab === 'done'
+                ? 'Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.'
+                : 'Tracks importados y almacenados. Cuando los sigas y grabes tu salida, esta quedará en «Realizadas».';
+            renderSavedRoutes();
+        }
+        document.querySelectorAll('[data-routes-tab]').forEach(b => b.addEventListener('click', () => setRoutesTab(b.dataset.routesTab)));
+
+        function renderSavedRoutes() {
+            const c = $('saved-routes-list');
+            c.textContent = '';
+            const pendingTab = routesTab === 'pending';
+            const tabRoutes = savedRoutes.filter(r => (r.kind === 'imported') === pendingTab);
+            if (tabRoutes.length === 0) {
+                const e = document.createElement('div');
+                e.style.cssText = 'text-align:center; padding:15px; color:var(--text-secondary); font-size:0.85rem;';
+                e.textContent = pendingTab
+                    ? 'No hay tracks almacenados. Importa un GPX, KML o GeoJSON para tenerlo listo.'
+                    : 'No hay rutas realizadas todavía. Graba una salida para verla aquí.';
+                c.appendChild(e);
+                return;
+            }
+            const filter = $('route-activity-filter').value;
+            const visibleRoutes = tabRoutes.filter(route => {
+                if (filter === 'all') return true;
+                const activityType = activityTypeForRoute(route);
+                const groupKey = activityType || 'other';
+                return groupKey === filter;
+            });
+            if (!visibleRoutes.length) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'text-align:center; padding:15px; color:var(--text-secondary); font-size:0.85rem;';
+                empty.textContent = 'No hay rutas para esta actividad.';
+                c.appendChild(empty);
+                return;
+            }
+            const groups = new Map();
+            visibleRoutes.forEach(r => {
+                const activityType = activityTypeForRoute(r);
+                const groupKey = activityType || 'other';
+                if (!groups.has(groupKey)) groups.set(groupKey, []);
+                groups.get(groupKey).push(r);
+            });
+            const groupOrder = [...Object.keys(ACTIVITY_TYPES), 'other'];
+            groupOrder.forEach(groupKey => {
+                const routes = groups.get(groupKey);
+                if (!routes || !routes.length) return;
+                const title = document.createElement('h3');
+                title.className = 'route-group-title';
+                title.textContent = groupKey === 'other'
+                    ? `📍 Sin clasificar (${routes.length})`
+                    : `${ACTIVITY_TYPES[groupKey].icon} ${ACTIVITY_TYPES[groupKey].label} (${routes.length})`;
+                c.appendChild(title);
+                routes.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'route-item';
+                div.dataset.id = r.id;
+
+                const info = document.createElement('div');
+                info.className = 'route-info';
+                const h = document.createElement('h4');
+                h.textContent = r.name;
+                const p = document.createElement('p');
+                const parts = [`📅 ${fmtDate(r.startedAt)}`, `📏 ${r.distanceKm.toFixed(2)} km`];
+                if (r.movingTimeSec) parts.push(`⏱️ ${fmtDur(r.movingTimeSec)}`);
+                if (r.elevationGain) parts.push(`⛰️ +${r.elevationGain} m`);
+                if (r.hrAvg) parts.push(`❤️ ${r.hrAvg}`);
+                if (r.kind === 'imported') parts.push('📥 almacenado');
+                if (r.followedImportedRoute) parts.push(`🧭 grabada siguiendo «${r.followedImportedRoute}»`);
+                p.textContent = parts.join('  •  ');
+                info.append(h, p);
+
+                const actions = document.createElement('div');
+                actions.className = 'route-actions';
+                [
+                    ['follow', 'Seguir', ''],
+                    ['activity', '🏷️ Actividad', 'secondary'],
+                    ['rename', '✏️', 'secondary'],
+                    ['gpx', '⬇️ GPX', 'secondary'],
+                    ['del', '🗑️', 'danger']
+                ].forEach(([act, label, cls]) => {
+                    const b = document.createElement('button');
+                    b.className = 'btn-small ' + cls;
+                    b.dataset.act = act;
+                    b.textContent = label;
+                    actions.appendChild(b);
+                });
+
+                div.append(info, actions);
+                c.appendChild(div);
+                });
+            });
+        }
+        $('route-activity-filter').addEventListener('change', renderSavedRoutes);
+
+        $('btn-import-route').addEventListener('click', async () => {
+            const input = $('route-file-input');
+            const file = input.files[0];
+            if (!file) { toast('Elige primero un archivo GPX, KML o GeoJSON.'); return; }
+            let route;
+            try {
+                const parsed = parseTrack(await file.text(), file.name);
+                const activityType = await openActivityPicker(preferredActivityType, false, 'import');
+                if (!activityType) return;
+                const base = (parsed.name || file.name.replace(/\.[^.]+$/, '') || 'Track importado').trim();
+                route = buildImportedRoute(parsed, `${routeActivityPrefix(activityType)}${base}`);
+                route.activityType = activityType;
+            } catch (e) {
+                console.warn('No se pudo importar el track:', e);
+                toast(`No se pudo importar el track: ${e.message || e}`);
+                return;
+            }
+            if (await saveRoute(route)) {
+                input.value = '';
+                toast('Track importado y almacenado.');
+            }
+        });
+
+        $('saved-routes-list').addEventListener('click', async e => {
+            const btn = e.target.closest('button[data-act]');
+            if (!btn) return;
+            const id = Number(btn.closest('.route-item').dataset.id);
+            const r = savedRoutes.find(x => x.id === id);
+            if (!r) return;
+
+            if (btn.dataset.act === 'follow') {
+                followRoute(r);
+            } else if (btn.dataset.act === 'activity') {
+                let name = routeNameWithoutActivity(r).trim();
+                if (!name) {
+                    name = await promptRequiredRouteName('');
+                    if (name === null) return;
+                }
+                const activityType = await openActivityPicker(activityTypeForRoute(r) || preferredActivityType, false, 'classification');
+                if (!activityType) return;
+                r.activityType = activityType;
+                r.name = `${routeActivityPrefix(activityType)}${name}`;
+                if (r.remoteId) r.dirty = true;
+                try { await DB.put(r); }
+                catch (err) { toast('No se pudo guardar la actividad de la ruta'); return; }
+                renderSavedRoutes();
+                syncRoutes();
+            } else if (btn.dataset.act === 'rename') {
+                const name = await promptRequiredRouteName(routeNameWithoutActivity(r));
+                if (name === null) return;
+                const activityType = activityTypeForRoute(r);
+                if (activityType) r.activityType = activityType;
+                r.name = (activityType ? routeActivityPrefix(activityType) : '') + name;
+                if (r.remoteId) r.dirty = true;
+                try { await DB.put(r); } catch (err) { toast('No se pudo guardar el cambio'); }
+                renderSavedRoutes();
+                syncRoutes();
+            } else if (btn.dataset.act === 'gpx') {
+                const safe = r.name.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
+                download(`${safe}.gpx`, routeToGpx(r), 'application/gpx+xml');
+            } else if (btn.dataset.act === 'del') {
+                const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
+                if (!ok) return;
+                try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); }
+                if (r.remoteId) await queueRemoteDelete(r.remoteId);
+                savedRoutes = savedRoutes.filter(x => x.id !== id);
+                if (followedRoute && followedRoute.id === id) unfollowRoute();
+                renderSavedRoutes();
+                refreshStats();
+                    syncRoutes();
+            }
+        });
+

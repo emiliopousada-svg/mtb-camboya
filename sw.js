@@ -1,12 +1,31 @@
 // Service Worker de MTB CAMBOYA
 // - Guarda la app y las librerías para que abra sin conexión.
 // - Los mapas offline (teselas del IGN) se guardan en IndexedDB desde la propia aplicación.
-const SHELL = 'mtb-shell-v4';
+const SHELL = 'mtb-shell-v5';
 
 const SHELL_URLS = [
   './',
   'index.html',
   'manifest.json',
+  'css/styles.css',
+  'js/config.js',
+  'js/utils.js',
+  'js/state.js',
+  'js/offline-maps.js',
+  'js/map.js',
+  'js/camino.js',
+  'js/gps.js',
+  'js/recording.js',
+  'js/deviation.js',
+  'js/routes.js',
+  'js/gpx-io.js',
+  'js/stats.js',
+  'js/heart-rate.js',
+  'js/pois.js',
+  'js/group.js',
+  'js/metrics.js',
+  'js/cloud.js',
+  'js/app.js',
   'estrella-galicia.svg',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
