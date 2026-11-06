@@ -77,6 +77,43 @@
             background: #1a1a1a;
         }
 
+        #albergue-popup-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+            background: rgba(0, 0, 0, .58);
+        }
+        #albergue-popup-overlay[hidden] { display: none; }
+        #albergue-popup-card {
+            position: relative;
+            width: min(340px, 100%);
+            max-height: 100%;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 38px 12px 12px;
+            border-radius: 16px;
+            background: #fff;
+            color: #121212;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, .5);
+        }
+        #albergue-popup-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 50%;
+            background: #e8e8e8;
+            color: #222;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
         /* Barra de Métricas Superiores */
         .metrics-bar {
             position: absolute;
@@ -1077,6 +1114,13 @@
                 </button>
                 <button class="btn-main-action btn-follow-camino" id="btn-follow-camino" type="button" hidden>🧭 SEGUIR CAMINO</button>
                 <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
+            </div>
+
+            <div id="albergue-popup-overlay" hidden>
+                <section id="albergue-popup-card" role="dialog" aria-modal="true" aria-label="Información del albergue" tabindex="-1">
+                    <button id="albergue-popup-close" type="button" aria-label="Cerrar información del albergue">×</button>
+                    <div id="albergue-popup-content"></div>
+                </section>
             </div>
         </div>
 
@@ -2471,7 +2515,7 @@
         function caminoAlberguePopup(feature) {
             const properties = feature.properties || {};
             const popup = document.createElement('div');
-            popup.style.cssText = 'max-width:280px;color:#121212;';
+            popup.style.cssText = 'width:100%;color:#121212;';
             const label = document.createElement('div');
             label.textContent = '🛏️ Albergue';
             label.style.cssText = 'font-size:12px;color:#52605a;';
@@ -2580,6 +2624,32 @@
             popup.append(favoriteButton);
             return popup;
         }
+
+        let alberguePopupReturnFocus = null;
+        function openCaminoAlbergueInfo(feature) {
+            const overlay = $('albergue-popup-overlay');
+            $('albergue-popup-content').replaceChildren(caminoAlberguePopup(feature));
+            alberguePopupReturnFocus = document.activeElement;
+            overlay.hidden = false;
+            $('albergue-popup-close').focus();
+        }
+
+        function closeCaminoAlbergueInfo() {
+            const overlay = $('albergue-popup-overlay');
+            if (overlay.hidden) return;
+            overlay.hidden = true;
+            $('albergue-popup-content').textContent = '';
+            if (alberguePopupReturnFocus && alberguePopupReturnFocus.isConnected) alberguePopupReturnFocus.focus();
+            alberguePopupReturnFocus = null;
+        }
+
+        $('albergue-popup-close').addEventListener('click', closeCaminoAlbergueInfo);
+        $('albergue-popup-overlay').addEventListener('click', event => {
+            if (event.target === $('albergue-popup-overlay')) closeCaminoAlbergueInfo();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeCaminoAlbergueInfo();
+        });
 
         function caminoServicePoiCategory(tags) {
             const amenity = String(tags.amenity || '').toLowerCase();
@@ -2891,7 +2961,7 @@
                     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
                     return L.marker([lat, lng], {
                         icon: L.divIcon({ html: '🏠', className: 'poi-icon', iconSize: [30, 30], iconAnchor: [15, 15] })
-                    }).bindPopup(caminoAlberguePopup(feature));
+                    }).on('click', () => openCaminoAlbergueInfo(feature));
                 }).filter(Boolean);
                 if (!markers.length) {
                     caminoAlbergueCount = 0;
