@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -24,92 +26,20 @@ jobs:
       - name: Preparar la web (copias locales de Leaflet y Chart.js, Bluetooth)
         run: node scripts/prepare-web.js
 
-      - name: Guardar el plugin nativo de batería
+      - name: Versión visible en la app
         run: |
-          mkdir -p "$RUNNER_TEMP/mtb-native"
-          cp android/app/src/main/java/com/emiliopousada/mtbcamboya/BatteryInfoPlugin.java "$RUNNER_TEMP/mtb-native/"
-
-      - name: Crear el proyecto Android desde cero
-        run: |
-          # Si hay una carpeta android/ subida al repositorio se descarta, para que el
-          # proyecto siempre coincida con las versiones de Capacitor de package.json
-          rm -rf android
-          npx cap add android
-
-      - name: Integrar el plugin nativo de batería
-        run: |
-          JAVA_DIR=android/app/src/main/java/com/emiliopousada/mtbcamboya
-          mkdir -p "$JAVA_DIR"
-          cp "$RUNNER_TEMP/mtb-native/BatteryInfoPlugin.java" "$JAVA_DIR/"
-          MAIN_ACTIVITY="$JAVA_DIR/MainActivity.java"
-          python3 - "$MAIN_ACTIVITY" <<'PY'
-          from pathlib import Path
-          import re
-          import sys
-
-          path = Path(sys.argv[1])
-          source = path.read_text()
-          class_pattern = r"public class MainActivity extends BridgeActivity\s*\{\s*\}"
-          replacement = """public class MainActivity extends BridgeActivity {
-              @Override
-              public void onCreate(Bundle savedInstanceState) {
-                  registerPlugin(BatteryInfoPlugin.class);
-                  super.onCreate(savedInstanceState);
-                  getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-              }
-
-              @Override
-              public void onBackPressed() {
-                  new android.app.AlertDialog.Builder(this)
-                      .setMessage("¿Quieres salir de MTB CAMBOYA?")
-                      .setPositiveButton("Sí, salir", (d, w) -> MainActivity.super.onBackPressed())
-                      .setNegativeButton("No, cancelar", null)
-                      .show();
-              }
-          }"""
-          if "registerPlugin(BatteryInfoPlugin.class);" not in source:
-              if "import com.getcapacitor.BridgeActivity;" not in source:
-                  raise SystemExit("No se encontró la plantilla esperada de MainActivity")
-              source = source.replace(
-                  "import com.getcapacitor.BridgeActivity;",
-                  "import android.os.Bundle;\n\nimport com.getcapacitor.BridgeActivity;",
-                  1,
-              )
-              source, count = re.subn(class_pattern, replacement, source, count=1)
-              if count != 1:
-                  raise SystemExit("No se pudo insertar el registro del plugin en MainActivity")
-              path.write_text(source)
-          PY
-
-      - name: Versión de la app (sube sola en cada compilación)
-        run: |
-          GRADLE=android/app/build.gradle
-          sed -i "s/versionCode [0-9]\+/versionCode ${{ github.run_number }}/" "$GRADLE"
-          sed -i "s/versionName \"[^\"]*\"/versionName \"1.${{ github.run_number }}\"/" "$GRADLE"
-          grep -q "versionCode ${{ github.run_number }}" "$GRADLE" || echo "::warning::No se pudo actualizar versionCode"
           WEB_INDEX=www/index.html
           APP_VERSION="1.${{ github.run_number }}"
           sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${APP_VERSION}';/" "$WEB_INDEX"
           grep -Fq "const APP_VERSION = '${APP_VERSION}';" "$WEB_INDEX" || { echo "::error::No se pudo actualizar la versión visible"; exit 1; }
 
-      - name: Permisos (ubicación, notificación y servicio en segundo plano)
-        run: |
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          for permission in ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION POST_NOTIFICATIONS FOREGROUND_SERVICE FOREGROUND_SERVICE_LOCATION; do
-            if ! grep -q "android.permission.$permission" "$MANIFEST"; then
-              sed -i "/<application/i\    <uses-permission android:name=\"android.permission.$permission\" />" "$MANIFEST"
-            fi
-          done
-          grep -q FOREGROUND_SERVICE_LOCATION "$MANIFEST"
-          grep -q ACCESS_FINE_LOCATION "$MANIFEST"
-
-      - name: Icono y texto de la notificación de grabación
+      - name: Recursos de notificación de tracking
         run: |
           mkdir -p android/app/src/main/res/drawable android/app/src/main/res/values
           cp android-res/ic_tracking.xml android/app/src/main/res/drawable/ic_tracking.xml
           cp android-res/tracking.xml android/app/src/main/res/values/tracking.xml
 
-      - name: Sincronizar
+      - name: Sincronizar Capacitor con Android
         run: npx cap sync android
 
       - name: Firma fija (necesaria para poder actualizar la app)
@@ -125,6 +55,9 @@ jobs:
 
       - name: Compilar APK
         working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: "1.${{ github.run_number }}"
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug

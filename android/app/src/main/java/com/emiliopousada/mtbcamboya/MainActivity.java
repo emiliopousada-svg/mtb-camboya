@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -18,7 +19,7 @@ import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private static final long SPLASH_DURATION_MS = 5000;
+    private static final long SPLASH_DURATION_MS = 4000;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -69,10 +70,19 @@ public class MainActivity extends BridgeActivity {
                 .create();
         exitButton.setOnClickListener(view -> {
             dialog.dismiss();
-            MainActivity.super.onBackPressed();
+            finishAndRemoveTask();
         });
         cancelButton.setOnClickListener(view -> dialog.dismiss());
         dialog.show();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Al salir se mata el proceso para que el siguiente arranque sea limpio (splash y WebView nuevos).
+        if (isFinishing()) {
+            Process.killProcess(Process.myPid());
+        }
     }
 
     private void showFullScreenSplash() {
@@ -97,7 +107,11 @@ public class MainActivity extends BridgeActivity {
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (splash.getParent() == content) {
-                content.removeView(splash);
+                splash.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction(() -> content.removeView(splash))
+                        .start();
             }
         }, SPLASH_DURATION_MS);
     }

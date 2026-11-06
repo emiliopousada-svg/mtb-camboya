@@ -1,26 +1,35 @@
 apply plugin: 'com.android.application'
 
-// Usa el número de commits del historial completo como versionCode.
-// Cada commit nuevo en main produce un código mayor para las siguientes APK.
-def autoVersionCode
-try {
-    def repoDir = rootProject.projectDir.absolutePath
-    def shallowCheck = new ProcessBuilder('git', '-C', repoDir, 'rev-parse', '--is-shallow-repository')
-        .redirectErrorStream(true).start()
-    def shallowResult = shallowCheck.inputStream.getText('UTF-8').trim()
-    if (shallowCheck.waitFor() != 0 || shallowResult != 'false') {
-        throw new GradleException('La compilación necesita un clon Git con el historial completo.')
-    }
+// Usa VERSION_CODE de entorno (CI) o el número de commits del historial Git.
+def autoVersionCode = 1
+def autoVersionName = "1.2.0"
 
-    def versionProcess = new ProcessBuilder('git', '-C', repoDir, 'rev-list', '--count', 'HEAD')
-        .redirectErrorStream(true).start()
-    def versionOutput = versionProcess.inputStream.getText('UTF-8').trim()
-    if (versionProcess.waitFor() != 0 || !versionOutput.isInteger()) {
-        throw new GradleException('No se pudo calcular versionCode desde el historial Git.')
+try {
+    def envCode = System.getenv("VERSION_CODE")
+    if (envCode && envCode.isInteger()) {
+        autoVersionCode = envCode.toInteger()
+    } else {
+        def repoDir = rootProject.projectDir.absolutePath
+        def versionProcess = new ProcessBuilder('git', '-C', repoDir, 'rev-list', '--count', 'HEAD')
+            .redirectErrorStream(true).start()
+        def versionOutput = versionProcess.inputStream.getText('UTF-8').trim()
+        if (versionProcess.waitFor() == 0 && versionOutput.isInteger()) {
+            autoVersionCode = versionOutput.toInteger()
+        }
     }
-    autoVersionCode = versionOutput.toInteger()
-} catch (Exception e) {
-    throw new GradleException('No se pudo generar el versionCode automático. Abre el proyecto desde un clon Git completo.', e)
+} catch (Exception ignored) {
+    autoVersionCode = 1
+}
+
+try {
+    def envName = System.getenv("VERSION_NAME")
+    if (envName && !envName.trim().isEmpty()) {
+        autoVersionName = envName.trim()
+    } else {
+        autoVersionName = "1.${autoVersionCode}"
+    }
+} catch (Exception ignored) {
+    autoVersionName = "1.2.0"
 }
 
 android {
@@ -31,7 +40,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode autoVersionCode
-        versionName "1.0"
+        versionName autoVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

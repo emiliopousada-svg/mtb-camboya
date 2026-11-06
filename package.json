@@ -4,7 +4,10 @@
   "private": true,
   "description": "App de MTB: grabación de rutas, GPX y estadísticas",
   "scripts": {
-    "prepare-web": "node scripts/prepare-web.js"
+    "prepare-web": "node scripts/prepare-web.js",
+    "build": "node scripts/prepare-web.js && npx cap sync android",
+    "sync": "node scripts/prepare-web.js && npx cap sync android",
+    "build:camino": "node scripts/build-camino-data.js"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
