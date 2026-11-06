@@ -1212,7 +1212,8 @@
                 <h2>☁️ Cuenta y sincronización</h2>
                 <p class="hint" id="acc-status">Sin sesión: tus rutas se guardan solo en este móvil.</p>
                 <div id="acc-form">
-                    <p class="hint">Servidor configurado: <strong>https://vamp69.ddns.net</strong></p>
+                    <label class="hint" for="acc-server">Servidor</label>
+                    <input type="url" id="acc-server" placeholder="https://mi-servidor.example" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
                     <button class="btn" id="acc-login">Entrar</button>
@@ -6515,7 +6516,19 @@
         //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
         // ============================================================
         const Cloud = {
-            get server() { return DEFAULT_CLOUD_SERVER; },
+            get server() {
+                const stored = localStorage.getItem('mtb_server');
+                return normalizeServer(stored || DEFAULT_CLOUD_SERVER);
+            },
+            setServer(nextServer) {
+                const normalized = normalizeServer(nextServer || DEFAULT_CLOUD_SERVER);
+                const current = this.server;
+                localStorage.setItem('mtb_server', normalized);
+                if (this.loggedIn() && current && current !== normalized) {
+                    this.clearSession();
+                }
+                return normalized;
+            },
             get token()  { return localStorage.getItem('mtb_token') || ''; },
             get uid()    { return localStorage.getItem('mtb_uid') || ''; },
             get email()  { return localStorage.getItem('mtb_email') || ''; },
@@ -6562,6 +6575,10 @@
         }
 
         function renderAccount() {
+            const serverInput = $('acc-server');
+            if (serverInput) {
+                serverInput.value = Cloud.server;
+            }
             const on = Cloud.loggedIn();
             $('acc-form').style.display = on ? 'none' : 'block';
             $('acc-logged').style.display = on ? 'block' : 'none';
@@ -6742,9 +6759,27 @@
         }
 
         function initAccount() {
-            const previousServer = localStorage.getItem('mtb_server');
-            if (previousServer && normalizeServer(previousServer) !== DEFAULT_CLOUD_SERVER) Cloud.clearSession();
-            localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
+            const savedServer = localStorage.getItem('mtb_server');
+            if (!savedServer) {
+                localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
+            } else {
+                localStorage.setItem('mtb_server', normalizeServer(savedServer));
+            }
+
+            const serverInput = $('acc-server');
+            if (serverInput) {
+                serverInput.value = Cloud.server;
+                serverInput.addEventListener('change', () => {
+                    const nextServer = Cloud.setServer(serverInput.value);
+                    serverInput.value = nextServer;
+                    if (Cloud.loggedIn()) {
+                        Cloud.clearSession();
+                        toast('Servidor cambiado: vuelve a iniciar sesión.', 4000);
+                    }
+                    renderAccount();
+                });
+            }
+
             $('acc-login').addEventListener('click', () => accAuth(false));
             $('acc-register').addEventListener('click', () => accAuth(true));
             $('acc-sync').addEventListener('click', () => syncRoutes(true));
