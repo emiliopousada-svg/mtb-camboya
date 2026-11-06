@@ -51,7 +51,16 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.android
-          echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > ~/.android/debug.keystore
+          ACTUAL_CERT_SHA256=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          EXPECTED_CERT_SHA256=e033b5c46110aef222054f281ec09536ab37d0fc04b8bb076464b59ca65d3738
+          if [ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::DEBUG_KEYSTORE_B64 no coincide con la firma APK esperada. Restaura el keystore original de la build #88."
+            echo "::error::Huella SHA-256 encontrada: ${ACTUAL_CERT_SHA256:-no disponible}"
+            exit 1
+          fi
+          echo "Certificado de firma verificado: $ACTUAL_CERT_SHA256"
 
       - name: Compilar APK
         working-directory: android
