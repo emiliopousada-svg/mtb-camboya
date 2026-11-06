@@ -28,7 +28,7 @@ jobs:
 
       - name: Versión visible en la app
         run: |
-          WEB_INDEX=www/index.html
+          WEB_INDEX=www/app/config.js
           APP_VERSION="1.${{ github.run_number }}"
           sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${APP_VERSION}';/" "$WEB_INDEX"
           grep -Fq "const APP_VERSION = '${APP_VERSION}';" "$WEB_INDEX" || { echo "::error::No se pudo actualizar la versión visible"; exit 1; }
