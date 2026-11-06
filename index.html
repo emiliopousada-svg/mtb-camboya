@@ -1075,7 +1075,8 @@
                 <button class="btn-main-action" id="btn-start">
                     <span id="ico-start">▶️</span> <span id="lbl-start">COMENZAR RUTA</span>
                 </button>
-                <button class="btn-main-action btn-follow-camino" id="btn-follow-camino" type="button" hidden>🧭 SEGUIR CAMINO</button>                <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
+                <button class="btn-main-action btn-follow-camino" id="btn-follow-camino" type="button" hidden>🧭 SEGUIR CAMINO</button>
+                <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
             </div>
         </div>
 
@@ -3981,8 +3982,14 @@
         }
 
         function updateFollowCaminoBtn() {
-            const id = $('camino-select').value;
-            $('btn-follow-camino').hidden = !(GUIDE_IDS.has(id) && !guide.active);
+            const button = $('btn-follow-camino');
+            const id = guide.active ? guide.id : $('camino-select').value;
+            const available = GUIDE_IDS.has(id);
+            button.hidden = !available;
+            button.disabled = guide.active;
+            button.textContent = guide.active ? '🧭 SIGUIENDO CAMINO' : '🧭 SEGUIR CAMINO';
+            button.setAttribute('aria-label', guide.active ? 'Siguiendo Camino' : 'Seguir Camino');
+            button.setAttribute('aria-pressed', String(guide.active));
         }
 
         $('btn-follow-camino').addEventListener('click', async () => {
