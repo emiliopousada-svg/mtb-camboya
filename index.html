@@ -1500,6 +1500,8 @@
         const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
         const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto
         const MAX_SPEED_MS = 25;     // 90 km/h: por encima es un salto de GPS
+        const AUTO_PAUSE_AFTER_MS = 10000;
+        const AUTO_PAUSE_MAX_ACCURACY_M = 20;
         const ELEV_STEP = 3;         // metros mínimos para contar una subida
         const OFFROUTE_M = 60;       // aviso de desvío
         const BACKONROUTE_M = 30;    // se considera que has vuelto a la ruta
@@ -1804,6 +1806,8 @@
         let albergueRouteLayer = null, albergueRouteRequest = 0;
         const ALBERGUE_FAVORITES_KEY = 'mtb_albergue_favorites';
         let isRecording = false, isPaused = false;
+        let autoPaused = false, autoPauseInterval = null;
+        let autoPauseAnchor = null, autoPauseLastPosition = null, autoPauseLastMovementAt = null;
         let recordingActivityType = 'mtb', preferredActivityType = 'mtb';
         try {
             const storedActivity = localStorage.getItem('mtb_activity_type');
@@ -4223,6 +4227,16 @@
             if (isPaused || kmh < 0.5) kmh = 0;
             $('m-speed').textContent = kmh.toFixed(1);
 
+            if (isRecording && accuracy <= AUTO_PAUSE_MAX_ACCURACY_M) {
+                if (isPaused && autoPaused && autoPauseAnchor) {
+                    if (dist(autoPauseAnchor, ll) >= autoPauseMovementThreshold(accuracy)) {
+                        resumeRecording(true, ll);
+                    }
+                } else if (!isPaused) {
+                    updateAutoPauseMovement(ll, accuracy);
+                }
+            }
+
             if (!isRecording || isPaused) return;
 
             if (followedRoute) checkOffRoute(lat, lon);
@@ -4543,12 +4557,52 @@
 
         function setBtnState(s) {
             btnStart.classList.toggle('recording', s !== 'idle');
-            lblStart.textContent = { idle: 'COMENZAR RUTA', recording: 'PAUSAR', paused: 'REANUDAR' }[s];
+            lblStart.textContent = { idle: 'COMENZAR RUTA', recording: 'PAUSAR', paused: 'REANUDAR', 'auto-paused': 'PAUSA AUTOMÁTICA' }[s];
             icoStart.textContent = s === 'recording' ? '⏸️' : '▶️';
             btnStop.style.display = s === 'idle' ? 'none' : 'flex';
         }
 
+        function autoPauseMovementThreshold(accuracy) {
+            return Math.max(6, Math.min(15, accuracy * 0.75));
+        }
+
+        function updateAutoPauseMovement(position, accuracy) {
+            const now = Date.now();
+            if (!autoPauseAnchor) {
+                autoPauseAnchor = position;
+                autoPauseLastMovementAt = now;
+            } else if (dist(autoPauseAnchor, position) >= autoPauseMovementThreshold(accuracy)) {
+                autoPauseAnchor = position;
+                autoPauseLastMovementAt = now;
+            }
+            autoPauseLastPosition = position;
+        }
+
+        function startAutoPauseMonitor() {
+            clearInterval(autoPauseInterval);
+            autoPauseInterval = setInterval(() => {
+                if (isRecording && !isPaused && autoPauseLastMovementAt !== null
+                    && Date.now() - autoPauseLastMovementAt >= AUTO_PAUSE_AFTER_MS) {
+                    pauseRecording(true);
+                }
+            }, 500);
+        }
+
+        function stopAutoPauseMonitor() {
+            clearInterval(autoPauseInterval);
+            autoPauseInterval = null;
+        }
+
+        function resetAutoPauseState() {
+            stopAutoPauseMonitor();
+            autoPaused = false;
+            autoPauseAnchor = null;
+            autoPauseLastPosition = null;
+            autoPauseLastMovementAt = null;
+        }
+
         function resetRecordingState() {
+            resetAutoPauseState();
             points = [];
             segments = [];
             totalDistance = 0;
@@ -4576,6 +4630,7 @@
             if (routePolyline) routePolyline.setLatLngs([]);
             setBtnState('recording');
             startTimers();
+            startAutoPauseMonitor();
             startRideAdvisories();
             following = true;
             updateCenterBtn();
@@ -4583,30 +4638,46 @@
             beginTracking(true);
         }
 
-        function pauseRecording() {
-            movingMs += Date.now() - segStart;
+        function pauseRecording(automatic = false) {
+            const pauseAt = automatic && autoPauseLastMovementAt !== null
+                ? autoPauseLastMovementAt
+                : Date.now();
+            movingMs += pauseAt - segStart;
             segStart = null;
             isPaused = true;
+            autoPaused = automatic;
+            stopAutoPauseMonitor();
             pauseTimers();
             stopRideAdvisories();
-            releaseWake();
-            stopBgWatcher();
+            if (!automatic) {
+                releaseWake();
+                stopBgWatcher();
+            } else if (autoPauseLastPosition) {
+                autoPauseAnchor = autoPauseLastPosition;
+            }
             removeMyLiveLocation();
-            setBtnState('paused');
+            setBtnState(automatic ? 'auto-paused' : 'paused');
             $('m-speed').textContent = '0.0';
             saveDraft();
+            if (automatic) toast('Pausa automática: sin movimiento durante 10 segundos.');
         }
 
-        function resumeRecording() {
+        function resumeRecording(automatic = false, position = null) {
             unlockOffRouteSound();
             isPaused = false;
+            autoPaused = false;
             segStart = Date.now();
             resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
+            autoPauseAnchor = position;
+            autoPauseLastPosition = position;
+            autoPauseLastMovementAt = position ? Date.now() : null;
             setBtnState('recording');
             startTimers();
+            startAutoPauseMonitor();
             startRideAdvisories();
             publishMyLocation(true);
             beginTracking(false);
+            if (automatic) toast('Grabación reanudada automáticamente.');
         }
 
         btnStart.addEventListener('click', async () => {
@@ -4636,6 +4707,7 @@
             const sec = Math.round(movingMs / 1000);
             isRecording = false;
             isPaused = false;
+            resetAutoPauseState();
             stopTimers();
             stopRideAdvisories();
             releaseWake();
