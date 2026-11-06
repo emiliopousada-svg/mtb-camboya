@@ -35,14 +35,6 @@ try {
 android {
     namespace = "com.emiliopousada.mtbcamboya"
     compileSdk = rootProject.ext.compileSdkVersion
-    signingConfigs {
-        release {
-            storeFile file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "release-key.jks")
-            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
-            keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: ""
-            keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: ""
-        }
-    }
     defaultConfig {
         applicationId "com.emiliopousada.mtbcamboya"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -58,7 +50,6 @@ android {
     }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
