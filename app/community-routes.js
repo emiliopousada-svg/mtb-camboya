@@ -351,7 +351,7 @@ async function loadCommunityRoutes() {
     try {
         const filter = 'published = true && province = "' + province.replace(/"/g, '\\"') + '"';
         const result = await cloudApi('/api/collections/community_routes/records?page=1&perPage=' +
-            COMMUNITY_MAX_RECORDS + '&sort=-created&filter=' + encodeURIComponent(filter));
+            COMMUNITY_MAX_RECORDS + '&sort=-created&fields=id,title,province,activityType,distanceKm,elevationGain,trackJson,created&filter=' + encodeURIComponent(filter));
         communityCatalogRoutes = Array.isArray(result.items) ? result.items : [];
         renderCommunityRoutes(communityCatalogRoutes);
         communitySetStatus(communityCatalogRoutes.length
