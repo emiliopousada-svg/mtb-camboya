@@ -6,12 +6,12 @@
     "system": false,
     "listRule": "published = true || owner = @request.auth.id",
     "viewRule": "published = true || owner = @request.auth.id",
-    "createRule": "@request.auth.id != '' && owner = @request.auth.id && published = false",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && @request.body.published = false",
     "updateRule": "owner = @request.auth.id && published = false && @request.body.owner:changed = false && @request.body.published:changed = false",
     "deleteRule": "owner = @request.auth.id",
     "fields": [
       {
-        "id": "commr_id_9x2k7q",
+        "id": "commrid00000001",
         "system": true,
         "name": "id",
         "type": "text",
@@ -23,7 +23,7 @@
         "pattern": "^[a-z0-9]+$"
       },
       {
-        "id": "commr_owner_9x2k7",
+        "id": "commowner000001",
         "name": "owner",
         "type": "relation",
         "required": true,
@@ -33,7 +33,7 @@
         "maxSelect": 1
       },
       {
-        "id": "commr_title_9x2k7",
+        "id": "commtitle000001",
         "name": "title",
         "type": "text",
         "required": true,
@@ -41,7 +41,7 @@
         "max": 100
       },
       {
-        "id": "commr_prov_9x2k7q",
+        "id": "commprov0000001",
         "name": "province",
         "type": "text",
         "required": true,
@@ -49,7 +49,7 @@
         "max": 50
       },
       {
-        "id": "commr_act_9x2k7q",
+        "id": "commact00000001",
         "name": "activityType",
         "type": "text",
         "required": true,
@@ -57,21 +57,21 @@
         "max": 20
       },
       {
-        "id": "commr_dist_9x2k7q",
+        "id": "commdist0000001",
         "name": "distanceKm",
         "type": "number",
         "required": true,
         "min": 0
       },
       {
-        "id": "commr_ascent9x2k7",
+        "id": "commascent00001",
         "name": "elevationGain",
         "type": "number",
         "required": false,
         "min": 0
       },
       {
-        "id": "commr_track9x2k7",
+        "id": "commtrack000001",
         "name": "trackJson",
         "type": "text",
         "required": true,
@@ -79,7 +79,7 @@
         "max": 500000
       },
       {
-        "id": "commr_pub_9x2k7q",
+        "id": "commpub00000001",
         "name": "published",
         "type": "bool",
         "required": false
