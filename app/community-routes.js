@@ -282,6 +282,7 @@ function toggleCommunityRoute(record, lines, button) {
     const bounds = layer.getBounds();
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
     goToPage(0);
+    closeCommunityDialog();
 }
 
 function renderCommunityRoutes(records) {
