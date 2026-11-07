@@ -1,0 +1,93 @@
+[
+  {
+    "id": "commroute9x2k7q",
+    "name": "community_routes",
+    "type": "base",
+    "system": false,
+    "listRule": "published = true || owner = @request.auth.id",
+    "viewRule": "published = true || owner = @request.auth.id",
+    "createRule": "@request.auth.id != '' && owner = @request.auth.id && published = false",
+    "updateRule": "owner = @request.auth.id && published = false && @request.body.owner:changed = false && @request.body.published:changed = false",
+    "deleteRule": "owner = @request.auth.id",
+    "fields": [
+      {
+        "id": "commr_id_9x2k7q",
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      {
+        "id": "commr_owner_9x2k7",
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "commr_title_9x2k7",
+        "name": "title",
+        "type": "text",
+        "required": true,
+        "min": 3,
+        "max": 100
+      },
+      {
+        "id": "commr_prov_9x2k7q",
+        "name": "province",
+        "type": "text",
+        "required": true,
+        "min": 2,
+        "max": 50
+      },
+      {
+        "id": "commr_act_9x2k7q",
+        "name": "activityType",
+        "type": "text",
+        "required": true,
+        "min": 2,
+        "max": 20
+      },
+      {
+        "id": "commr_dist_9x2k7q",
+        "name": "distanceKm",
+        "type": "number",
+        "required": true,
+        "min": 0
+      },
+      {
+        "id": "commr_ascent9x2k7",
+        "name": "elevationGain",
+        "type": "number",
+        "required": false,
+        "min": 0
+      },
+      {
+        "id": "commr_track9x2k7",
+        "name": "trackJson",
+        "type": "text",
+        "required": true,
+        "min": 2,
+        "max": 500000
+      },
+      {
+        "id": "commr_pub_9x2k7q",
+        "name": "published",
+        "type": "bool",
+        "required": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_community_routes_province_published` ON `community_routes` (`province`, `published`)",
+      "CREATE INDEX `idx_community_routes_owner` ON `community_routes` (`owner`)"
+    ]
+  }
+]
