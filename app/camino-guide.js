@@ -611,6 +611,19 @@ function initMap() {
     map.on('zoomend', updateMapZoomButtons);
     updateMapZoomButtons();
     setTimeout(() => map.invalidateSize(), 300);
+
+    // WebView puede conservar un tamaño obsoleto al girar o volver de segundo plano.
+    const refreshMapViewport = () => {
+        if (!map || document.hidden) return;
+        requestAnimationFrame(() => {
+            if (map && !document.hidden) map.invalidateSize({ pan: false, debounceMoveend: true });
+        });
+    };
+    window.addEventListener('resize', refreshMapViewport, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(refreshMapViewport, 250), { passive: true });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) setTimeout(refreshMapViewport, 150);
+    });
 }
 
 function updateMapZoomButtons() {
