@@ -76,7 +76,6 @@
 
             <div id="map"></div>
             <div id="gps-center-indicator" hidden aria-hidden="true"></div>
-            <button id="btn-community-routes" class="community-map-toggle" type="button">🌍 Rutas de la comunidad</button>
   </section>
 
             <div class="map-zoom-controls" role="group" aria-label="Controles del mapa">
@@ -240,6 +239,7 @@
                 <h2>🗺️ Mis Rutas</h2>
                 <div class="camino-tabs big-tabs" role="group" aria-label="Tipo de rutas">
                     <button class="camino-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
+                    <button class="camino-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
                     <button class="camino-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
                 </div>
                 <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
