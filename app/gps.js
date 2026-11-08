@@ -186,6 +186,7 @@ function onPos(pos) {
             map.setView(ll, Math.max(map.getZoom(), 16));
             if (Number.isFinite(accuracy) && accuracy <= GPS_RECENTER_ACCURACY_M) gpsRecenterPending = false;
         }
+        updateCenterBtn();
         if (following && (typeof currentPage === 'undefined' || currentPage === 0)) {
             map.panTo(ll, { animate: true, duration: 0.35 });
         }
