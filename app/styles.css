@@ -986,3 +986,196 @@ nav {
 
 .leaflet-popup-content-wrapper { color: #121212; }
 #camino-attribution { font-size: .72rem; }
+
+/* Ajustes de controles del mapa y safe areas */
+.metrics-bar {
+    top: calc(env(safe-area-inset-top, 0px) + 4px);
+}
+#map-route-profile {
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+}
+#big-metric {
+    z-index: 1500;
+}
+.controls-overlay {
+    bottom: 4px;
+    gap: 8px;
+    padding: 0 10px;
+}
+.controls-overlay .btn-main-action {
+    flex: 1 1 160px;
+    min-width: 0;
+    max-width: 220px;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 22px;
+    font-size: .82rem;
+    gap: 6px;
+    justify-content: center;
+}
+.controls-overlay .btn-main-action.btn-follow-camino {
+    height: 44px;
+    padding: 0 12px;
+    font-size: .78rem;
+}
+.controls-overlay #btn-stop {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    font-size: 1rem;
+}
+#big-hint {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    .swiper-wrapper {
+        height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px));
+    }
+    nav {
+        height: calc(48px + env(safe-area-inset-bottom, 0px));
+    }
+    .nav-btn {
+        gap: 1px;
+        font-size: .58rem;
+    }
+    .nav-btn .icon {
+        font-size: 1.08rem;
+    }
+
+    .metrics-bar {
+        top: calc(env(safe-area-inset-top, 0px) + 2px);
+        left: 50px;
+        right: 50px;
+        padding: 4px 2px;
+        border-radius: 10px;
+        gap: 0;
+    }
+    .m-val {
+        font-size: .84rem;
+    }
+    .m-lbl {
+        margin-top: 0;
+        font-size: .44rem;
+        letter-spacing: .2px;
+    }
+    #map-route-profile {
+        top: calc(env(safe-area-inset-top, 0px) + 48px);
+        left: 50px;
+        right: 50px;
+        padding: 4px 8px 3px;
+        border-radius: 9px;
+    }
+    .route-profile-head {
+        font-size: .58rem;
+    }
+    #map-route-svg {
+        height: 24px;
+    }
+    #camino-hud {
+        margin-top: 2px;
+        font-size: .62rem;
+    }
+    #camino-hud-main {
+        font-size: .68rem;
+    }
+
+    .side-controls {
+        left: 6px;
+        top: calc(env(safe-area-inset-top, 0px) + 52px);
+        gap: 4px;
+    }
+    .map-zoom-controls,
+    body.guide-on .map-zoom-controls,
+    body.guide-on .side-controls {
+        top: calc(env(safe-area-inset-top, 0px) + 52px);
+    }
+    .map-zoom-controls {
+        right: 6px;
+        gap: 4px;
+    }
+    .side-controls .btn-icon-only,
+    .map-zoom-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        font-size: 1rem;
+    }
+    .map-zoom-btn {
+        font-size: 1.25rem;
+    }
+    .map-zoom-btn.orient {
+        font-size: .88rem;
+    }
+    #map-battery {
+        width: 34px;
+        padding: 3px 0;
+        gap: 2px;
+        border-radius: 9px;
+        font-size: .62rem;
+    }
+    #map-battery-icon {
+        width: 21px;
+        height: 11px;
+    }
+    .btn-logo {
+        width: 24px;
+    }
+    .route-destination-control {
+        top: calc(env(safe-area-inset-top, 0px) + 96px);
+        right: 6px;
+    }
+    .route-destination-control .btn-icon-only {
+        width: 34px;
+        height: 34px;
+        font-size: .9rem;
+    }
+
+    .controls-overlay {
+        bottom: 2px;
+        gap: 6px;
+        padding: 0 6px;
+    }
+    .controls-overlay .btn-main-action,
+    .controls-overlay .btn-main-action.btn-follow-camino {
+        height: 38px;
+        max-width: 210px;
+        padding: 0 10px;
+        border-radius: 19px;
+        font-size: .7rem;
+    }
+    .controls-overlay #btn-stop {
+        flex-basis: 38px;
+        width: 38px;
+        height: 38px;
+        font-size: .9rem;
+    }
+
+    #big-metric {
+        padding: calc(env(safe-area-inset-top, 0px) + 48px) 12px calc(62px + env(safe-area-inset-bottom, 0px));
+    }
+    #big-label {
+        font-size: .78rem;
+        letter-spacing: 2px;
+    }
+    #big-gauge {
+        width: min(42vw, 270px);
+        margin-top: 2px;
+    }
+    #big-value {
+        margin-top: 2px;
+        font-size: min(18vw, 34vh);
+    }
+    #big-value.long {
+        font-size: min(13vw, 25vh);
+    }
+    #big-unit {
+        min-height: 1rem;
+        margin-top: 3px;
+        font-size: 1rem;
+    }
+    #big-hint {
+        bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+        font-size: .62rem;
+    }
+}
