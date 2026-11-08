@@ -2,13 +2,100 @@
 
 //  GPS
 // ============================================================
-function startGps() {
-    if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
-    navigator.geolocation.watchPosition(pos => { if (!bgActive) onPos(pos); }, err => {
-        console.warn('GPS error:', err);
-        if (err.code === 1) toast('Permiso de ubicación denegado: actívalo para grabar rutas', 6000);
-    }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+const GPS_OPTIONS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 };
+const GPS_RECENTER_ACCURACY_M = 100;
+let gpsWatchId = null, gpsRetryTimer = null, gpsRetryDelay = 2000;
+let gpsPermissionDenied = false, gpsPermissionNoticeShown = false;
+let gpsOneShotPending = false, gpsResumeCheckPending = false;
+let gpsRecenterPending = true;
+
+function clearGpsWatch() {
+    if (gpsWatchId === null || !navigator.geolocation) return;
+    try { navigator.geolocation.clearWatch(gpsWatchId); } catch (e) {}
+    gpsWatchId = null;
 }
+
+function scheduleGpsRetry() {
+    if (gpsRetryTimer || gpsPermissionDenied) return;
+    const delay = gpsRetryDelay;
+    gpsRetryDelay = Math.min(15000, Math.round(gpsRetryDelay * 1.7));
+    gpsRetryTimer = setTimeout(() => {
+        gpsRetryTimer = null;
+        startGps(true);
+    }, delay);
+}
+
+function handleGpsError(error) {
+    console.warn('GPS error:', error);
+    if (error.code === 1) {
+        gpsPermissionDenied = true;
+        if (!gpsPermissionNoticeShown) {
+            gpsPermissionNoticeShown = true;
+            toast('Permiso de ubicación denegado: actívalo en los ajustes y pulsa centrar para reintentar.', 7000);
+        }
+        return;
+    }
+    // POSITION_UNAVAILABLE y TIMEOUT: sustituir la vigilancia para que Android vuelva a solicitar una posición.
+    scheduleGpsRetry();
+}
+
+function requestCurrentGpsFix() {
+    if (!navigator.geolocation || gpsOneShotPending) return;
+    gpsOneShotPending = true;
+    navigator.geolocation.getCurrentPosition(pos => {
+        gpsOneShotPending = false;
+        gpsRetryDelay = 2000;
+        if (!bgActive) onPos(pos);
+    }, error => {
+        gpsOneShotPending = false;
+        handleGpsError(error);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 });
+}
+
+function startGps(force = false) {
+    if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
+    if (gpsPermissionDenied && !force) return;
+    if (force) gpsPermissionDenied = false;
+    clearTimeout(gpsRetryTimer);
+    gpsRetryTimer = null;
+    clearGpsWatch();
+    gpsWatchId = navigator.geolocation.watchPosition(pos => {
+        gpsRetryDelay = 2000;
+        gpsPermissionDenied = false;
+        if (!bgActive) onPos(pos);
+    }, handleGpsError, GPS_OPTIONS);
+    if (force || !firstFix || gpsRecenterPending) requestCurrentGpsFix();
+}
+
+async function resumeGpsAfterForeground() {
+    if (document.visibilityState === 'hidden' || gpsResumeCheckPending) return;
+    gpsResumeCheckPending = true;
+    gpsRecenterPending = true;
+    try {
+        if (navigator.permissions && navigator.permissions.query) {
+            const permission = await navigator.permissions.query({ name: 'geolocation' });
+            if (permission.state === 'denied') {
+                gpsPermissionDenied = true;
+                return;
+            }
+        } else if (gpsPermissionDenied) {
+            return;
+        }
+        gpsPermissionDenied = false;
+        gpsPermissionNoticeShown = false;
+        startGps(true);
+    } catch (error) {
+        if (!gpsPermissionDenied) startGps(true);
+    } finally {
+        gpsResumeCheckPending = false;
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') gpsRecenterPending = true;
+    else resumeGpsAfterForeground();
+});
+window.addEventListener('focus', resumeGpsAfterForeground);
 
 function bearingBetween(from, to) {
     const rad = Math.PI / 180;
@@ -96,7 +183,13 @@ function onPos(pos) {
         } else {
             userMarker.setLatLng(ll);
         }
-        if (!firstFix) { firstFix = true; map.setView(ll, 16); }
+        const shouldRecenter = !firstFix ||
+            (gpsRecenterPending && Number.isFinite(accuracy) && accuracy <= GPS_RECENTER_ACCURACY_M);
+        if (!firstFix) firstFix = true;
+        if (shouldRecenter) {
+            gpsRecenterPending = false;
+            map.setView(ll, Math.max(map.getZoom(), 16));
+        }
     }
 
     // Velocidad (siempre visible; 0 en pausa o casi parado)
