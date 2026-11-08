@@ -634,6 +634,13 @@ function updateMapZoomButtons() {
 
 function updateCenterBtn() {
     $('btn-center').classList.toggle('active', following);
+    const hasGpsFix = lastLat !== null && lastLon !== null;
+    const centerIndicator = $('gps-center-indicator');
+    if (centerIndicator) centerIndicator.hidden = !(following && hasGpsFix);
+    if (userMarker && userMarker.setStyle) {
+        const visible = !(following && hasGpsFix);
+        userMarker.setStyle({ opacity: visible ? 1 : 0, fillOpacity: visible ? 1 : 0 });
+    }
 }
 
 $('btn-center').addEventListener('click', () => {
