@@ -637,7 +637,7 @@ function updateCenterBtn() {
 }
 
 $('btn-center').addEventListener('click', () => {
-    if (lastLat === null) { toast('Buscando señal GPS...'); return; }
+    if (lastLat === null) { startGps(true); toast('Buscando señal GPS...'); return; }
     following = true;
     updateCenterBtn();
     if (map) {
