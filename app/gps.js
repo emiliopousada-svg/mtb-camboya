@@ -19,15 +19,10 @@ function bearingBetween(from, to) {
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function routeHeadingFromFollowedRoute(lat, lon) {
-    if (!followedRoute || followedRoute.pts.length < 2) return null;
-    let bestIndex = 0, bestDist = Infinity;
-    for (let i = 0; i < followedRoute.pts.length; i++) {
-        const d = dist([lat, lon], followedRoute.pts[i]);
-        if (d < bestDist) { bestDist = d; bestIndex = i; }
-    }
-    const prevIndex = Math.max(0, bestIndex - 1);
-    const nextIndex = Math.min(followedRoute.pts.length - 1, bestIndex + 1);
+function routeHeadingFromFollowedRoute(routeIndex) {
+    if (!followedRoute || followedRoute.pts.length < 2 || !Number.isInteger(routeIndex)) return null;
+    const prevIndex = Math.max(0, routeIndex);
+    const nextIndex = Math.min(followedRoute.pts.length - 1, routeIndex + 1);
     if (prevIndex === nextIndex) return null;
     return bearingBetween(followedRoute.pts[prevIndex], followedRoute.pts[nextIndex]);
 }
@@ -47,7 +42,8 @@ function onPos(pos) {
     if (isRecording && !isPaused) {
         refreshBatteryStatus();
     }
-    if (followedRoute) updateMapRouteProfilePosition(lat, lon);
+    const followedMatch = followedRoute ? findFollowedRouteMatch(lat, lon) : null;
+    if (followedMatch) updateMapRouteProfilePosition(followedMatch);
     if (guide.active) guideOnPos(lat, lon);
 
     // El GPS nativo puede no incluir rumbo: en ese caso lo calculamos
@@ -72,7 +68,7 @@ function onPos(pos) {
         }
     }
     if (followedRoute && map && typeof map.setHeading === 'function') {
-        const routeHeading = routeHeadingFromFollowedRoute(lat, lon);
+        const routeHeading = routeHeadingFromFollowedRoute(followedMatch && followedMatch.index);
         if (routeHeading != null) {
             lastHeading = routeHeading;
             applyMapHeading(routeHeading);
@@ -97,6 +93,9 @@ function onPos(pos) {
             userMarker.setLatLng(ll);
         }
         if (!firstFix) { firstFix = true; map.setView(ll, 16); }
+        if (following && (typeof currentPage === 'undefined' || currentPage === 0)) {
+            map.panTo(ll, { animate: true, duration: 0.35 });
+        }
     }
 
     // Velocidad (siempre visible; 0 en pausa o casi parado)
@@ -119,7 +118,7 @@ function onPos(pos) {
 
     if (!isRecording || isPaused) return;
 
-    if (followedRoute) checkOffRoute(lat, lon);
+    if (followedMatch) checkOffRoute(lat, lon, followedMatch);
     if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
     publishMyLocation();
 
@@ -157,7 +156,7 @@ function onPos(pos) {
     $('m-dist').textContent = totalDistance.toFixed(2);
     $('m-elevation').textContent = Math.round(elev.gain);
 
-    if (map && following) map.panTo(ll, { animate: true });
+
 }
 
 // ============================================================
