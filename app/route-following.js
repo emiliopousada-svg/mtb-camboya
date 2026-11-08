@@ -154,6 +154,9 @@ function followRoute(r) {
         savedRouteLayer.setLatLngs(buildSegments(r.points));
         const b = savedRouteLayer.getBounds();
         if (b.isValid()) map.fitBounds(b, { padding: [30, 30] });
+        if (lastLat !== null && lastLon !== null) {
+            map.setView([lastLat, lastLon], Math.max(16, Math.min(map.getMaxZoom(), map.getZoom())));
+        }
         if (r.points.length >= 2 && lastLat !== null && lastLon !== null) {
             const routeHeading = routeHeadingFromFollowedRoute(lastLat, lastLon);
             if (routeHeading != null) {

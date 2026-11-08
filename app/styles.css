@@ -58,6 +58,40 @@ html, body {
     background: #1a1a1a;
 }
 
+/* El punto de seguimiento queda fijo; el mapa se desplaza por debajo. */
+#gps-center-indicator {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 2;
+    width: 28px;
+    height: 28px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+#gps-center-indicator[hidden] { display: none; }
+#gps-center-indicator::before,
+#gps-center-indicator::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+#gps-center-indicator::before {
+    width: 28px;
+    height: 28px;
+    background: rgba(41, 182, 246, .2);
+}
+#gps-center-indicator::after {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #fff;
+    background: #29b6f6;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .8);
+}
+
 #albergue-popup-overlay {
     position: absolute;
     inset: 0;
