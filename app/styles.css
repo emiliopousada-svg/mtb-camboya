@@ -1105,3 +1105,72 @@ nav {
 
 .leaflet-popup-content-wrapper { color: #121212; }
 #camino-attribution { font-size: .72rem; }
+
+/* Catálogo comunitario */
+.community-map-toggle {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 1100;
+    max-width: calc(100% - 24px);
+    padding: 11px 14px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 12px;
+    color: #fff;
+    background: rgba(30, 30, 30, .94);
+    font-size: .82rem;
+    font-weight: 700;
+    box-shadow: 0 3px 10px rgba(0,0,0,.35);
+}
+.community-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    background: rgba(0,0,0,.72);
+}
+.community-overlay[hidden], #community-publish[hidden], #community-catalog[hidden] { display: none; }
+.community-panel {
+    width: min(560px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px;
+    color: var(--text);
+    background: var(--surface-card);
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.community-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.community-header h2 { color: #81c784; font-size: 1.12rem; }
+.community-close {
+    width: 38px; height: 38px; border: 0; border-radius: 10px;
+    color: #fff; background: #171717; font-size: 1.5rem;
+}
+.community-panel > section > label:not(.community-consent) {
+    display: block; margin: 12px 0 5px; color: var(--text-secondary); font-size: .82rem;
+}
+.community-panel select {
+    width: 100%; padding: 11px; border: 1px solid #555; border-radius: 9px;
+    color: #fff; background: #121212;
+}
+.community-panel .btn { min-height: 42px; margin-top: 9px; padding: 9px 12px; }
+.community-status { min-height: 1.3em; margin: 10px 0; color: var(--text-secondary); font-size: .8rem; line-height: 1.4; }
+.community-status.error { color: #ff9e9e; }
+.community-route-list { display: grid; gap: 9px; margin-top: 12px; }
+.community-route-card { padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #1c1c1c; }
+.community-route-card strong { font-size: .9rem; }
+.community-route-card p { margin-top: 5px; color: var(--text-secondary); font-size: .76rem; }
+.community-route-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.community-route-actions .btn { flex: 1 1 105px; margin: 0; font-size: .76rem; }
+.community-empty { padding: 12px; color: var(--text-secondary); font-size: .82rem; text-align: center; }
+.community-privacy { margin: 9px 0; color: var(--text-secondary); font-size: .79rem; line-height: 1.45; }
+#community-share-title { margin-top: 12px; font-size: .95rem; }
+.community-consent { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; color: var(--text); font-size: .8rem; line-height: 1.4; }
+.community-consent input { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; accent-color: var(--primary); }
+.community-dialog-actions { display: flex; gap: 8px; }
+.community-dialog-actions .btn { flex: 1; }
+.leaflet-popup-content .btn { display: block; width: 100%; }

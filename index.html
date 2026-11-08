@@ -75,6 +75,7 @@
             </div>
 
             <div id="map"></div>
+            <button id="btn-community-routes" class="community-map-toggle" type="button">🌍 Rutas de la comunidad</button>
   </section>
 
             <div class="map-zoom-controls" role="group" aria-label="Controles del mapa">
@@ -513,6 +514,36 @@
         </div>
     </div>
 
+    <div id="community-dialog" class="community-overlay" role="dialog" aria-modal="true" aria-labelledby="community-title" hidden>
+        <section class="community-panel">
+            <header class="community-header">
+                <h2 id="community-title">Rutas de la comunidad</h2>
+                <button id="community-close" class="community-close" type="button" aria-label="Cerrar">×</button>
+            </header>
+            <p id="community-status" class="community-status" role="status" aria-live="polite"></p>
+            <section id="community-catalog">
+                <label for="community-province">Provincia</label>
+                <select id="community-province"></select>
+                <button id="community-search" class="btn" type="button">Buscar rutas</button>
+                <div id="community-route-list" class="community-route-list"></div>
+            </section>
+            <section id="community-publish" hidden>
+                <h3 id="community-share-title"></h3>
+                <p class="community-privacy">Se enviará una copia simplificada del trazado, con unos 150 m ocultos en cada extremo. No se enviarán fechas, horas, pulso ni velocidad. Aun así, el recorrido puede revelar lugares reconocibles. El envío será revisado antes de aparecer públicamente.</p>
+                <label for="community-share-province">Provincia</label>
+                <select id="community-share-province"></select>
+                <label class="community-consent">
+                    <input id="community-share-consent" type="checkbox">
+                    <span>Quiero enviar esta copia para que pueda publicarse en el mapa comunitario.</span>
+                </label>
+                <div class="community-dialog-actions">
+                    <button id="community-back" class="btn secondary" type="button">Volver</button>
+                    <button id="community-submit" class="btn" type="button" disabled>Enviar para revisión</button>
+                </div>
+            </section>
+        </section>
+    </div>
+
     <div id="activity-picker" class="activity-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="activity-picker-title" hidden>
         <div class="activity-picker-box">
             <h2 id="activity-picker-title">¿Qué actividad vas a hacer?</h2>
@@ -564,5 +595,6 @@
     <script src="app/groups.js"></script>
     <script src="app/ui.js"></script>
     <script src="app/cloud.js"></script>
+    <script src="app/community-routes.js"></script>
 </body>
 </html>

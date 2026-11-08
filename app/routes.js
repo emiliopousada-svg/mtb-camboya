@@ -80,13 +80,17 @@ function renderSavedRoutes() {
 
         const actions = document.createElement('div');
         actions.className = 'route-actions';
-        [
+        const routeActions = [
             ['follow', 'Seguir', ''],
             ['activity', '🏷️ Actividad', 'secondary'],
             ['rename', '✏️', 'secondary'],
             ['gpx', '⬇️ GPX', 'secondary'],
             ['del', '🗑️', 'danger']
-        ].forEach(([act, label, cls]) => {
+        ];
+        if (r.kind !== 'imported' && r.kind !== 'community') {
+            routeActions.splice(1, 0, ['community', '🌍 Publicar', 'secondary']);
+        }
+        routeActions.forEach(([act, label, cls]) => {
             const b = document.createElement('button');
             b.className = 'btn-small ' + cls;
             b.dataset.act = act;
@@ -161,6 +165,8 @@ $('saved-routes-list').addEventListener('click', async e => {
     } else if (btn.dataset.act === 'gpx') {
         const safe = r.name.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
         download(`${safe}.gpx`, routeToGpx(r), 'application/gpx+xml');
+    } else if (btn.dataset.act === 'community') {
+        openCommunityPublish(r);
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
         if (!ok) return;
