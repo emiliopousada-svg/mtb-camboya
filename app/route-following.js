@@ -45,15 +45,31 @@ function playRouteSound(frequencies) {
 function playOffRouteSound() { playRouteSound([880, 660]); }
 function playBackOnRouteSound() { playRouteSound([660, 880, 1040]); }
 
-function checkOffRoute(lat, lon) {
-    const pts = followedRoute.pts;
-    if (pts.length < 2) return;
-    const p = [lat, lon];
-    let min = Infinity;
-    for (let i = 1; i < pts.length; i++) {
-        const d = pointSegDistM(p, pts[i - 1], pts[i]);
-        if (d < min) min = d;
-    }
+function findFollowedRouteMatch(lat, lon) {
+    const pts = followedRoute && followedRoute.pts;
+    if (!pts || pts.length < 2) return null;
+
+    const lastSegment = pts.length - 2;
+    const hint = Number.isInteger(followedRoute.progressIndex) ? followedRoute.progressIndex : 0;
+    const scan = (from, to) => {
+        let best = { index: from, distance: Infinity };
+        for (let i = from; i <= to; i++) {
+            const distance = pointSegDistM([lat, lon], pts[i], pts[i + 1]);
+            if (distance < best.distance) best = { index: i, distance };
+        }
+        return best;
+    };
+
+    let match = scan(Math.max(0, hint - 30), Math.min(lastSegment, hint + 180));
+    // Al empezar lejos de la ruta o tras un salto GPS, buscar el trazado completo.
+    if (match.distance > 250) match = scan(0, lastSegment);
+    followedRoute.progressIndex = match.index;
+    return match;
+}
+
+function checkOffRoute(lat, lon, match) {
+    if (!followedRoute || !match) return;
+    const min = match.distance;
     if (!offRouteState && min > OFFROUTE_M) {
         offRouteState = true;
         toast(`⚠️ Te has salido de la ruta (${Math.round(min)} m)`, 5000);
@@ -101,13 +117,9 @@ function renderMapRouteProfile(r) {
     panel.classList.add('show');
 }
 
-function updateMapRouteProfilePosition(lat, lon) {
-    if (!followedRoute || !routeProfileCoords.length || !routeProfilePointCount) return;
-    let bestIndex = 0, bestDistance = Infinity;
-    for (let i = 0; i < followedRoute.pts.length; i++) {
-        const d = dist([lat, lon], followedRoute.pts[i]);
-        if (d < bestDistance) { bestDistance = d; bestIndex = i; }
-    }
+function updateMapRouteProfilePosition(match) {
+    if (!followedRoute || !match || !routeProfileCoords.length || !routeProfilePointCount) return;
+    const bestIndex = match.index;
     const x = bestIndex / Math.max(routeProfilePointCount - 1, 1) * 320;
     if (!isRecording && followedRoute.gainCum) $('m-elevation').textContent = Math.round(followedRoute.gainCum[bestIndex] || 0);
     let before = routeProfileCoords[0], after = routeProfileCoords[routeProfileCoords.length - 1];
@@ -130,9 +142,13 @@ function updateMapRouteProfilePosition(lat, lon) {
 
 function followRoute(r) {
     unlockOffRouteSound();
-    followedRoute = { id: r.id, name: r.name, kind: r.kind, pts: r.points.map(p => [p[0], p[1]]), gainCum: gainCumulative(r.points) };
+    followedRoute = { id: r.id, name: r.name, kind: r.kind, pts: r.points.map(p => [p[0], p[1]]), gainCum: gainCumulative(r.points), progressIndex: 0 };
     renderMapRouteProfile(r);
-    if (lastLat !== null && lastLon !== null) updateMapRouteProfilePosition(lastLat, lastLon);
+    if (lastLat !== null && lastLon !== null) {
+        const match = findFollowedRouteMatch(lastLat, lastLon);
+        updateMapRouteProfilePosition(match);
+        checkOffRoute(lastLat, lastLon, match);
+    }
     offRouteState = false;
     if (map) {
         savedRouteLayer.setLatLngs(buildSegments(r.points));
@@ -145,7 +161,7 @@ function followRoute(r) {
                 applyMapHeading(routeHeading);
             }
         }
-        following = false;
+        following = true;
         updateCenterBtn();
     }
     $('btn-unfollow').style.display = 'block';
