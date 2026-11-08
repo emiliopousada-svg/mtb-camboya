@@ -1059,7 +1059,7 @@ nav {
     #camino-hud-main { font-size: .68rem; }
 
     .side-controls {
-        left: 6px;
+        left: calc(env(safe-area-inset-left, 0px) + 16px);
         top: calc(env(safe-area-inset-top, 0px) + 52px);
         gap: 4px;
     }
@@ -1068,7 +1068,7 @@ nav {
     body.guide-on .side-controls {
         top: calc(env(safe-area-inset-top, 0px) + 52px);
     }
-    .map-zoom-controls { right: 6px; gap: 4px; }
+    .map-zoom-controls { right: calc(env(safe-area-inset-right, 0px) + 16px); gap: 4px; }
     .side-controls .btn-icon-only,
     .map-zoom-btn {
         width: 34px;
@@ -1089,7 +1089,7 @@ nav {
     .btn-logo { width: 24px; }
     .route-destination-control {
         top: calc(env(safe-area-inset-top, 0px) + 96px);
-        right: 6px;
+        right: calc(env(safe-area-inset-right, 0px) + 16px);
     }
     .route-destination-control .btn-icon-only {
         width: 34px;
