@@ -282,19 +282,49 @@ function setBtnState(s) {
 }
 
 function autoPauseMovementThreshold(accuracy) {
-    return Math.max(6, Math.min(15, accuracy * 0.75));
+    return Math.max(10, Math.min(24, accuracy * 1.2));
 }
 
-function updateAutoPauseMovement(position, accuracy) {
+function autoResumeMovementThreshold(accuracy) {
+    return Math.max(18, Math.min(30, accuracy * 1.5));
+}
+
+function autoPauseReportsMovement(speed) {
+    return Number.isFinite(speed) && speed >= 0.8;
+}
+
+function updateAutoPauseMovement(position, accuracy, speed) {
     const now = Date.now();
     if (!autoPauseAnchor) {
         autoPauseAnchor = position;
         autoPauseLastMovementAt = now;
-    } else if (dist(autoPauseAnchor, position) >= autoPauseMovementThreshold(accuracy)) {
+    } else if (autoPauseReportsMovement(speed) || dist(autoPauseAnchor, position) >= autoPauseMovementThreshold(accuracy)) {
         autoPauseAnchor = position;
         autoPauseLastMovementAt = now;
     }
     autoPauseLastPosition = position;
+}
+
+function updateAutoPauseResume(position, accuracy, speed) {
+    const now = Date.now();
+    const reportedMovement = autoPauseReportsMovement(speed);
+    const fromPauseAnchor = autoPauseAnchor ? dist(autoPauseAnchor, position) : 0;
+    if (!autoPauseResumeCandidate) {
+        if (reportedMovement || fromPauseAnchor >= autoResumeMovementThreshold(accuracy)) {
+            autoPauseResumeCandidate = { distance: fromPauseAnchor, startedAt: now };
+        }
+        return;
+    }
+
+    const confirmedTravel = Math.max(6, Math.min(10, accuracy * 0.5));
+    const confirmed = now - autoPauseResumeCandidate.startedAt >= AUTO_RESUME_CONFIRM_MS &&
+        (reportedMovement || (fromPauseAnchor >= autoResumeMovementThreshold(accuracy) &&
+            fromPauseAnchor >= autoPauseResumeCandidate.distance + confirmedTravel));
+    if (confirmed) {
+        resumeRecording(true, position);
+    } else if (now - autoPauseResumeCandidate.startedAt >= AUTO_RESUME_CONFIRM_MS * 6) {
+        autoPauseResumeCandidate = null;
+    }
 }
 
 function startAutoPauseMonitor() {
@@ -318,6 +348,7 @@ function resetAutoPauseState() {
     autoPauseAnchor = null;
     autoPauseLastPosition = null;
     autoPauseLastMovementAt = null;
+    autoPauseResumeCandidate = null;
 }
 
 function resetRecordingState() {
@@ -373,12 +404,13 @@ function pauseRecording(automatic = false) {
         stopBgWatcher();
     } else if (autoPauseLastPosition) {
         autoPauseAnchor = autoPauseLastPosition;
+        autoPauseResumeCandidate = null;
     }
     removeMyLiveLocation();
     setBtnState(automatic ? 'auto-paused' : 'paused');
     $('m-speed').textContent = '0.0';
     saveDraft();
-    if (automatic) toast('Pausa automática: sin movimiento durante 10 segundos.');
+    if (automatic) toast(`Pausa automática: sin movimiento durante ${AUTO_PAUSE_AFTER_MS / 1000} segundos.`);
 }
 
 function resumeRecording(automatic = false, position = null) {
@@ -390,6 +422,7 @@ function resumeRecording(automatic = false, position = null) {
     autoPauseAnchor = position;
     autoPauseLastPosition = position;
     autoPauseLastMovementAt = position ? Date.now() : null;
+    autoPauseResumeCandidate = null;
     setBtnState('recording');
     startTimers();
     startAutoPauseMonitor();

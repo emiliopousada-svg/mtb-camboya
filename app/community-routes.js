@@ -11,17 +11,28 @@ const COMMUNITY_PROVINCES = [
     'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia',
     'Valladolid', 'Bizkaia', 'Zamora', 'Zaragoza', 'Ceuta', 'Melilla'
 ];
+
 const COMMUNITY_TRIM_METERS = 150;
-const COMMUNITY_MAX_RECORDS = 50;
+const COMMUNITY_PAGE_SIZE = 100;
 let communityShareRoute = null;
 let communityCatalogRoutes = [];
 let communityVisibleLayers = new Map();
 let communityLayerGroup = null;
+let communityPreviewMap = null;
+let communityPreviewBaseLayer = null;
+let communityPreviewRouteLayer = null;
 
 function communitySetStatus(message, isError = false) {
     const status = $('community-status');
     status.textContent = message;
     status.classList.toggle('error', isError);
+}
+
+function communityFillActivities(select) {
+    select.replaceChildren(new Option('Todas las actividades', ''));
+    Object.entries(ACTIVITY_TYPES).forEach(([type, activity]) => {
+        select.add(new Option(`${activity.icon} ${activity.label}`, type));
+    });
 }
 
 function communityFillProvinces(select) {
@@ -31,11 +42,12 @@ function communityFillProvinces(select) {
 
 function openCommunityCatalog() {
     $('community-publish').hidden = true;
+    $('community-detail').hidden = true;
     $('community-catalog').hidden = false;
     $('community-title').textContent = 'Rutas de la comunidad';
     $('community-dialog').hidden = false;
-    communitySetStatus('Elige una provincia para buscar rutas publicadas.');
-    $('community-province').focus();
+    communitySetStatus('Busca rutas dentro del radio elegido y filtra por actividad.');
+    $('community-activity').focus();
 }
 
 function closeCommunityDialog() {
@@ -55,15 +67,69 @@ function openCommunityPublish(route) {
     }
     communityShareRoute = route;
     $('community-catalog').hidden = true;
+    $('community-detail').hidden = true;
     $('community-publish').hidden = false;
-    $('community-title').textContent = 'Proponer ruta a la comunidad';
+    $('community-title').textContent = 'Publicar ruta en la comunidad';
     $('community-share-title').textContent = route.name || 'Ruta grabada';
     $('community-share-province').value = '';
     $('community-share-consent').checked = false;
     $('community-submit').disabled = true;
-    communitySetStatus('El envío quedará pendiente de revisión antes de aparecer en el mapa.');
+    communitySetStatus('Al enviarla, la ruta aparecerá publicada en el mapa comunitario.');
     $('community-dialog').hidden = false;
     $('community-share-province').focus();
+}
+
+function openCommunityDetail(record, lines) {
+    $('community-catalog').hidden = true;
+    $('community-publish').hidden = true;
+    $('community-detail').hidden = false;
+    $('community-title').textContent = record.title || 'Ruta de la comunidad';
+    communitySetStatus('');
+
+    const movingTimeSec = Number(record.movingTimeSec);
+    const activity = ACTIVITY_TYPES[record.activityType]?.label || record.activityType || 'No disponible';
+    const values = [
+        ['Distancia', `${(Number(record.distanceKm) || 0).toFixed(1)} km`],
+        ['Desnivel', `+${Math.round(Number(record.elevationGain) || 0)} m`],
+        ['Tiempo en movimiento', movingTimeSec > 0 ? fmtDur(movingTimeSec) : 'No disponible'],
+        ['Actividad', activity],
+        ['Provincia', record.province || 'No disponible']
+    ];
+    const stats = $('community-detail-stats');
+    stats.replaceChildren();
+    values.forEach(([label, value]) => {
+        const item = document.createElement('div');
+        item.className = 'community-detail-stat';
+        const caption = document.createElement('span');
+        caption.textContent = label;
+        const detail = document.createElement('strong');
+        detail.textContent = value;
+        item.append(caption, detail);
+        stats.append(item);
+    });
+
+    $('community-dialog').hidden = false;
+    setTimeout(() => {
+        try {
+            if (!communityPreviewMap) {
+                communityPreviewMap = L.map('community-detail-map', { scrollWheelZoom: false });
+                communityPreviewBaseLayer = !navigator.onLine || preferredMapStyle === 'ign'
+                    ? createOfflineTileLayer()
+                    : createMapStyleLayers().topographic;
+                communityPreviewBaseLayer.addTo(communityPreviewMap);
+            }
+            if (communityPreviewRouteLayer) communityPreviewMap.removeLayer(communityPreviewRouteLayer);
+            communityPreviewRouteLayer = L.polyline(lines, {
+                color: '#e040fb', weight: 5, opacity: 0.9
+            }).addTo(communityPreviewMap);
+            communityPreviewMap.invalidateSize({ pan: false });
+            const bounds = communityPreviewRouteLayer.getBounds();
+            if (bounds.isValid()) communityPreviewMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+        } catch (error) {
+            console.warn('No se pudo mostrar el mapa de detalle comunitario:', error);
+            $('community-detail-map').textContent = 'No se pudo cargar el mapa de esta ruta.';
+        }
+    }, 0);
 }
 
 function communityDistance(a, b) {
@@ -72,6 +138,25 @@ function communityDistance(a, b) {
     const h = Math.sin(dLat / 2) ** 2 +
         Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2;
     return 12742000 * Math.asin(Math.sqrt(h));
+}
+
+function communityRecordLines(record) {
+    try {
+        const lines = typeof record.trackJson === 'string' ? JSON.parse(record.trackJson) : record.trackJson;
+        if (!Array.isArray(lines) || !lines.every(line => Array.isArray(line) && line.length > 1 &&
+            line.every(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])))) return null;
+        return lines;
+    } catch (error) {
+        return null;
+    }
+}
+
+function communityDistanceToRoute(position, lines) {
+    let nearest = Infinity;
+    lines.forEach(line => line.forEach(point => {
+        nearest = Math.min(nearest, communityDistance(position, point));
+    }));
+    return nearest;
 }
 
 function communityRawSegments(points) {
@@ -179,12 +264,13 @@ async function submitCommunityRoute() {
             activityType: activityTypeForRoute(route) || 'mtb',
             distanceKm: Number(route.distanceKm) || 0,
             elevationGain: Number(route.elevationGain) || 0,
+            movingTimeSec: Number(route.movingTimeSec) || 0,
             trackJson,
-            published: false
+            published: true
         });
-        communitySetStatus('Ruta enviada. Aparecerá en el mapa cuando se apruebe.');
-        toast('Ruta enviada para revisión.');
-        button.textContent = 'Enviada';
+        communitySetStatus('Ruta publicada. Ya aparece en el mapa comunitario.');
+        toast('Ruta publicada en la comunidad.');
+        button.textContent = 'Publicada';
         setTimeout(closeCommunityDialog, 1400);
         return record;
     } catch (error) {
@@ -291,22 +377,23 @@ function renderCommunityRoutes(records) {
     if (!records.length) {
         const empty = document.createElement('p');
         empty.className = 'community-empty';
-        empty.textContent = 'No hay rutas aprobadas en esta provincia todavía.';
+        empty.textContent = 'No hay rutas publicadas cerca con estos filtros.';
         list.append(empty);
         return;
     }
     records.forEach(record => {
-        let lines;
-        try {
-            lines = typeof record.trackJson === 'string' ? JSON.parse(record.trackJson) : record.trackJson;
-            if (!Array.isArray(lines) || !lines.every(line => Array.isArray(line) && line.length > 1)) return;
-        } catch (error) { return; }
+        const lines = communityRecordLines(record);
+        if (!lines) return;
         const card = document.createElement('article');
         card.className = 'community-route-card';
-        const heading = document.createElement('strong');
+        const heading = document.createElement('button');
+        heading.type = 'button';
+        heading.className = 'community-route-title';
         heading.textContent = record.title || 'Ruta de la comunidad';
+        heading.addEventListener('click', () => openCommunityDetail(record, lines));
         const facts = document.createElement('p');
-        facts.textContent = (record.province || '') + ' · ' +
+        facts.textContent = (record.proximityKm != null ? `A ${record.proximityKm.toFixed(1)} km · ` : '') +
+            (record.province || '') + ' · ' +
             ((Number(record.distanceKm) || 0).toFixed(1)) + ' km · +' +
             (Number(record.elevationGain) || 0) + ' m';
         const actions = document.createElement('div');
@@ -336,27 +423,44 @@ function renderCommunityRoutes(records) {
 }
 
 async function loadCommunityRoutes() {
-    const province = $('community-province').value;
-    if (!province) {
-        communitySetStatus('Elige una provincia para buscar rutas.', true);
-        return;
-    }
     if (!navigator.onLine) {
         communitySetStatus('El catálogo necesita conexión. Las rutas guardadas sí están disponibles sin conexión.', true);
         return;
     }
+    if (lastLat === null || lastLon === null) {
+        communitySetStatus('Esperando una ubicación GPS para buscar rutas cercanas. Comprueba el permiso de ubicación e inténtalo de nuevo.', true);
+        if (typeof requestCurrentGpsFix === 'function') requestCurrentGpsFix();
+        return;
+    }
+    const searchPosition = [lastLat, lastLon];
     const button = $('community-search');
     button.disabled = true;
-    communitySetStatus('Buscando rutas aprobadas…');
+    communitySetStatus('Buscando rutas cercanas…');
     try {
-        const filter = 'published = true && province = "' + province.replace(/"/g, '\\"') + '"';
-        const result = await cloudApi('/api/collections/community_routes/records?page=1&perPage=' +
-            COMMUNITY_MAX_RECORDS + '&sort=-created&fields=id,title,province,activityType,distanceKm,elevationGain,trackJson,created&filter=' + encodeURIComponent(filter));
-        communityCatalogRoutes = Array.isArray(result.items) ? result.items : [];
+        const activity = $('community-activity').value;
+        const radiusKm = Number($('community-radius').value) || 25;
+        const filters = ['published = true'];
+        if (activity) filters.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
+        const filter = filters.join(' && ');
+        const allRoutes = [];
+        let page = 1, totalPages = 1;
+        do {
+            const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
+                COMMUNITY_PAGE_SIZE + '&fields=id,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson&filter=' + encodeURIComponent(filter));
+            if (Array.isArray(result.items)) allRoutes.push(...result.items);
+            totalPages = Number(result.totalPages) || 1;
+            page++;
+        } while (page <= totalPages);
+
+        communityCatalogRoutes = allRoutes.map(record => {
+            const lines = communityRecordLines(record);
+            return lines ? { ...record, proximityKm: communityDistanceToRoute(searchPosition, lines) / 1000 } : null;
+        }).filter(record => record && record.proximityKm <= radiusKm)
+            .sort((a, b) => a.proximityKm - b.proximityKm);
         renderCommunityRoutes(communityCatalogRoutes);
         communitySetStatus(communityCatalogRoutes.length
-            ? communityCatalogRoutes.length + ' rutas disponibles. Puedes mostrarlas en el mapa, seguirlas o guardarlas.'
-            : 'No hay rutas aprobadas en esta provincia todavía.');
+            ? communityCatalogRoutes.length + ' rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.'
+            : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esta actividad.');
     } catch (error) {
         console.warn('No se pudo cargar el catálogo comunitario:', error);
         communitySetStatus(error.status === 404
@@ -367,9 +471,8 @@ async function loadCommunityRoutes() {
         button.disabled = false;
     }
 }
-
 function initCommunityRoutes() {
-    communityFillProvinces($('community-province'));
+    communityFillActivities($('community-activity'));
     communityFillProvinces($('community-share-province'));
     $('btn-community-routes').addEventListener('click', openCommunityCatalog);
     $('community-close').addEventListener('click', closeCommunityDialog);
@@ -385,6 +488,7 @@ function initCommunityRoutes() {
         $('community-submit').disabled = !$('community-share-consent').checked || !$('community-share-province').value;
     });
     $('community-back').addEventListener('click', openCommunityCatalog);
+    $('community-detail-back').addEventListener('click', openCommunityCatalog);
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();
     });

@@ -76,8 +76,6 @@
 
             <div id="map"></div>
             <div id="gps-center-indicator" hidden aria-hidden="true"></div>
-  </section>
-
             <div class="map-zoom-controls" role="group" aria-label="Controles del mapa">
                 <button class="map-zoom-btn" id="btn-map-zoom-in" type="button" aria-label="Acercar el mapa" title="Acercar">+</button>
                 <button class="map-zoom-btn" id="btn-map-zoom-out" type="button" aria-label="Alejar el mapa" title="Alejar">−</button>
@@ -284,12 +282,15 @@
             </div>
             <div class="card">
                 <h2>🗺️ Cartografía del mapa</h2>
-                <label for="map-style-select" class="hint">Mapa online preferido</label>
-                <select id="map-style-select">
-                    <option value="ign">Topográfico IGN (cartografía oficial)</option>
-                    <option value="topographic" selected>Topográfico OpenTopoMap</option>
+                <label for="map-style-select" class="hint">Mapa con conexión</label>
+                <select id="map-style-select" aria-label="Mapa a usar con conexión">
+                    <option value="topographic">⛰️ Topográfico OpenTopoMap</option>
+                    <option value="cyclosm">🚵 CyclOSM (ciclismo)</option>
+                    <option value="osm">🗺️ OpenStreetMap (callejero)</option>
+                    <option value="satellite">🛰️ Satélite Esri</option>
+                    <option value="ign">📥 Topográfico IGN (mapas descargados)</option>
                 </select>
-                <p class="hint" id="map-style-status" role="status" aria-live="polite">OpenTopoMap se guarda para usarlo sin conexión; si falla, se recurre al IGN.</p>
+                <p class="hint" id="map-style-status" role="status" aria-live="polite">Con conexión se usa el mapa elegido; sin conexión, el IGN descargado.</p>
             </div>
             <div class="card">
                 <h2>📡 Sensores Bluetooth</h2>
@@ -317,7 +318,7 @@
 
             <section id="offline-panel" class="card" aria-label="Mapas sin conexión">
     <h2>🗺️ Mapas sin conexión</h2>
-                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. OpenTopoMap guarda automáticamente las zonas que vas viendo para usarlas sin cobertura.</p>
+                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. El mapa online que elijas en Ajustes guarda automáticamente las zonas que vas viendo.</p>
     <label for="offline-region" style="font-size:.8rem;color:#ddd;">Región</label>
     <select id="offline-region">
         <option value="portugal">Portugal</option>
