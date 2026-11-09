@@ -29,7 +29,7 @@ document.addEventListener('touchend', e => {
     const diffX = touchStartX - e.changedTouches[0].screenX;
     const diffY = touchStartY - e.changedTouches[0].screenY;
     if (Math.abs(diffX) > 70 && Math.abs(diffY) < 60) {
-        if (diffX > 0 && currentPage < 5) goToPage(currentPage + 1);
+        if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
         else if (diffX < 0 && currentPage > 0) goToPage(currentPage - 1);
     }
 }, { passive: true });

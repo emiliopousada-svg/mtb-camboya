@@ -31,7 +31,7 @@ html, body {
 /* Contenedor Horizontal de Páginas */
 .swiper-wrapper {
     display: flex;
-    width: 600vw;
+    width: 500vw;
     height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px));
     transition: transform 0.25s ease-out;
     will-change: transform;
@@ -92,43 +92,6 @@ html, body {
     box-shadow: 0 1px 5px rgba(0, 0, 0, .8);
 }
 
-#albergue-popup-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 2000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
-    background: rgba(0, 0, 0, .58);
-}
-#albergue-popup-overlay[hidden] { display: none; }
-#albergue-popup-card {
-    position: relative;
-    width: min(340px, 100%);
-    max-height: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 38px 12px 12px;
-    border-radius: 16px;
-    background: #fff;
-    color: #121212;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, .5);
-}
-#albergue-popup-close {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 34px;
-    height: 34px;
-    border: 0;
-    border-radius: 50%;
-    background: #e8e8e8;
-    color: #222;
-    font-size: 1.2rem;
-    cursor: pointer;
-}
-
 /* Barra de Métricas Superiores */
 .metrics-bar {
     position: absolute;
@@ -162,21 +125,6 @@ html, body {
     pointer-events: none;
 }
 #map-route-profile.show { display: block; }
-#camino-hud { margin-top: 5px; color: #fff; font-size: .74rem; line-height: 1.35; }
-#camino-hud[hidden] { display: none; }
-#camino-hud-main { font-weight: 700; font-size: .82rem; }
-#camino-hud-stage { color: #cfd8e3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#camino-hud.off #camino-hud-main { color: #ff8a80; }
-.guide-arrow { font-size: 26px; line-height: 30px; text-align: center; color: #ffc107; text-shadow: 0 0 3px #000, 0 0 6px #000; }
-.guide-arrow span { display: inline-block; transition: transform .3s; }
-.camino-chips { display: flex; flex-wrap: wrap; gap: 7px; }
-.camino-chip { padding: 7px 11px; border-radius: 16px; border: 1px solid #444; background: #121212; color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
-.camino-chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
-.guide-stage { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; padding: 8px; border-radius: 10px; background: #121212; font-size: .8rem; color: var(--text); }
-.guide-stage small { display: block; color: var(--text-secondary); font-size: .7rem; }
-.guide-stage.done { background: rgba(46, 125, 50, .25); }
-#guide-progress { height: 8px; border-radius: 4px; background: #121212; overflow: hidden; margin-top: 8px; }
-#guide-progress-fill { height: 100%; width: 0; background: var(--primary); transition: width .2s; }
 .route-profile-head {
     display: flex;
     align-items: center;
@@ -309,16 +257,6 @@ html, body {
 }
 
 .controls-overlay > * { pointer-events: auto; }
-.btn-main-action.btn-follow-camino {
-    padding: 0 16px;
-    height: 60px;
-    background: #7b1fa2;
-    font-size: .85rem;
-    line-height: 1.1;
-    text-align: center;
-    justify-content: center;
-}
-.btn-follow-camino[hidden] { display: none; }
 
 .btn-main-action {
     height: 60px;
@@ -349,18 +287,12 @@ html, body {
     gap: 6px;
     justify-content: center;
 }
-.controls-overlay .btn-main-action.btn-follow-camino {
-    height: 44px;
-    padding: 0 12px;
-    font-size: .78rem;
-}
 .controls-overlay #btn-stop {
     flex: 0 0 42px;
     width: 42px;
     height: 42px;
     font-size: 1rem;
 }
-
 
 .btn-icon-only {
     width: 50px;
@@ -404,12 +336,6 @@ html, body {
     gap: 12px;
     z-index: 1000;
 }
-.route-destination-control {
-    position: absolute;
-    right: 10px;
-    top: calc(env(safe-area-inset-top, 0px) + 350px);
-    z-index: 1000;
-}
 .map-zoom-controls {
     position: absolute;
     top: calc(env(safe-area-inset-top, 0px) + 190px);
@@ -419,7 +345,6 @@ html, body {
     gap: 7px;
     justify-items: center;
 }
-body.guide-on .map-zoom-controls, body.guide-on .side-controls { top: calc(env(safe-area-inset-top, 0px) + 255px); }
 .map-zoom-btn {
     width: 44px;
     height: 44px;
@@ -835,48 +760,13 @@ nav {
 .setting-toggle input { width: 20px; height: 20px; flex: 0 0 20px; margin: 1px 0 0; accent-color: var(--primary); }
 .setting-toggle span { display: block; }
 .setting-toggle .hint { margin-top: 4px; }
-
-#page-camino {
-    display: block;
-    overflow-y: auto;
-    padding: 0 0 calc(82px + env(safe-area-inset-bottom, 0px));
-    background: var(--bg);
-    color: var(--text);
-}
-.camino-shell { max-width: 1180px; margin: 0 auto; padding: 0 12px 18px; }
-.camino-header {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-height: 100px;
-    margin: 0 -12px;
-    padding: 18px 20px;
-    overflow: hidden;
-    color: #fff;
-    background: var(--surface);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
-}
-.camino-header::after {
-    content: "✺";
-    position: absolute;
-    right: 12px;
-    top: -34px;
-    color: rgba(255, 193, 7, .18);
-    font-size: 150px;
-    line-height: 1;
-    pointer-events: none;
-}
-.camino-header-mark { color: var(--accent); font-size: 2.7rem; line-height: 1; }
-.camino-header h1 { font-size: clamp(1.25rem, 4vw, 1.8rem); line-height: 1.15; color: var(--primary); }
-.camino-header p { margin-top: 5px; color: var(--text-secondary); font-size: .82rem; }
-.camino-tabs {
+.seg-tabs {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 7px;
     padding: 10px 0 12px;
 }
-.camino-tab {
+.seg-tab {
     min-height: 46px;
     padding: 8px 6px;
     border: 0;
@@ -887,148 +777,19 @@ nav {
     font-weight: 700;
     cursor: pointer;
 }
-.camino-tab[aria-pressed="true"] {
+.seg-tab[aria-pressed="true"] {
     color: #fff;
     background: var(--primary);
     box-shadow: 0 3px 8px rgba(0, 0, 0, .3);
 }
-.camino-tabs.big-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.camino-tabs.big-tabs .camino-tab {
+.seg-tabs.big-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.seg-tabs.big-tabs .seg-tab {
     min-height: 84px;
     padding: 10px 8px;
     font-size: 1rem;
     line-height: 1.25;
 }
-.camino-tabs.big-tabs .camino-tab .tab-ico { display: block; font-size: 2.2rem; line-height: 1.1; margin-bottom: 4px; }
-.camino-dashboard.guide-mode { grid-template-columns: minmax(0, 1fr); }
-.camino-dashboard.guide-mode .camino-sidebar { display: none; }
-.camino-dashboard {
-    display: grid;
-    grid-template-columns: minmax(210px, .78fr) minmax(0, 1.8fr);
-    align-items: start;
-    gap: 12px;
-}
-#page-camino .camino-card {
-    min-width: 0;
-    padding: 14px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px;
-    color: var(--text);
-    background: var(--surface-card);
-    box-shadow: none;
-}
-#page-camino .camino-card h2 {
-    margin: 0 0 10px;
-    padding: 0;
-    border-radius: 0;
-    color: var(--primary);
-    background: none;
-    font-size: 1rem;
-}
-#page-camino .camino-list { display: grid; gap: 3px; margin: 0; }
-.camino-option {
-    display: grid;
-    grid-template-columns: 39px minmax(0, 1fr) 18px;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 54px;
-    padding: 7px 5px;
-    border: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    border-radius: 0;
-    background: transparent;
-    color: var(--text);
-    text-align: left;
-    font-size: .84rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-.camino-option[aria-pressed="true"] {
-    border-radius: 9px;
-    background: rgba(46, 125, 50, .22);
-    box-shadow: inset 3px 0 var(--primary);
-}
-.camino-option:last-child { border-bottom: 0; }
-.camino-option-icon { text-align: center; font-size: 1.65rem; line-height: 1; }
-.camino-option-copy { min-width: 0; }
-.camino-option-copy small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: .68rem; font-weight: 400; }
-.camino-option-arrow { color: var(--text-secondary); font-size: 1.3rem; text-align: center; }
-.camino-main { display: grid; gap: 10px; min-width: 0; }
-.camino-panel[hidden] { display: none; }
-.camino-route-hero {
-    position: relative;
-    min-height: 100px;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    padding: 17px;
-    overflow: hidden;
-    border-radius: 14px;
-    color: #fff;
-    background:
-        radial-gradient(ellipse at 86% 15%, rgba(255,255,255,.12), transparent 35%),
-        linear-gradient(120deg, #1b5e20, var(--primary) 60%, #558b2f);
-}
-.camino-route-hero::after {
-    content: "✦";
-    position: absolute;
-    right: 14px;
-    top: 0;
-    color: rgba(255,255,255,.2);
-    font-size: 6rem;
-    line-height: 1;
-}
-.camino-route-hero h2 { position: relative; z-index: 1; font-size: 1.35rem; }
-.camino-route-hero p { position: relative; z-index: 1; margin-top: 5px; color: #eff7ff; font-size: .82rem; }
-.camino-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.camino-stat {
-    min-width: 0;
-    padding: 10px 6px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 11px;
-    background: var(--surface-card);
-    text-align: center;
-}
-.camino-stat strong { display: block; color: var(--primary); font-size: 1rem; }
-.camino-stat span { display: block; margin-top: 3px; color: var(--text-secondary); font-size: .68rem; }
-.camino-section-title { color: var(--primary); font-size: 1rem; }
-.camino-note { color: var(--text-secondary); font-size: .78rem; line-height: 1.45; }
-.camino-poi-legend { display: flex; flex-wrap: wrap; gap: 7px 12px; color: var(--text-secondary); font-size: .76rem; }
-.camino-actions { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
-#page-camino .camino-action {
-    min-height: 48px;
-    margin: 0;
-    padding: 10px;
-    border-radius: 11px;
-    font-size: .84rem;
-}
-.camino-tools {
-    padding: 10px 12px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    background: var(--surface-card);
-}
-.camino-tools summary { color: var(--primary); font-size: .84rem; font-weight: 700; cursor: pointer; }
-.camino-tools .hint, #camino-attribution { color: var(--text-secondary); }
-#camino-attribution a { color: #81c784; }
-#camino-track-select { background: #121212; color: var(--text); border-color: #444; }
-#page-camino #camino-status { min-height: 1.3em; margin: 0; color: var(--text-secondary); font-size: .78rem; }
-.camino-stage-list, .camino-favorite-list { display: grid; gap: 8px; }
-.camino-stage {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
-    background: #121212;
-}
-.camino-stage-name { min-width: 0; font-size: .8rem; font-weight: 700; overflow-wrap: anywhere; }
-.camino-stage .btn-small { flex: 0 0 auto; background: var(--primary); }
-.camino-empty { padding: 14px; border-radius: 10px; color: var(--text-secondary); background: #121212; font-size: .84rem; line-height: 1.45; }
-.camino-attribution { display: grid; gap: 5px; }
+.seg-tabs.big-tabs .seg-tab .tab-ico { display: block; font-size: 2.2rem; line-height: 1.1; margin-bottom: 4px; }
 
 @media (orientation: landscape) and (max-height: 600px) {
     .swiper-wrapper { height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px)); }
@@ -1055,17 +816,13 @@ nav {
     }
     .route-profile-head { font-size: .58rem; }
     #map-route-svg { height: 24px; }
-    #camino-hud { margin-top: 2px; font-size: .62rem; }
-    #camino-hud-main { font-size: .68rem; }
 
     .side-controls {
         left: calc(env(safe-area-inset-left, 0px) + 16px);
         top: calc(env(safe-area-inset-top, 0px) + 52px);
         gap: 4px;
     }
-    .map-zoom-controls,
-    body.guide-on .map-zoom-controls,
-    body.guide-on .side-controls {
+    .map-zoom-controls{
         top: calc(env(safe-area-inset-top, 0px) + 52px);
     }
     .map-zoom-controls { right: calc(env(safe-area-inset-right, 0px) + 16px); gap: 4px; }
@@ -1087,19 +844,9 @@ nav {
     }
     #map-battery-icon { width: 21px; height: 11px; }
     .btn-logo { width: 24px; }
-    .route-destination-control {
-        top: calc(env(safe-area-inset-top, 0px) + 96px);
-        right: calc(env(safe-area-inset-right, 0px) + 16px);
-    }
-    .route-destination-control .btn-icon-only {
-        width: 34px;
-        height: 34px;
-        font-size: .9rem;
-    }
 
     .controls-overlay { bottom: 2px; gap: 6px; padding: 0 6px; }
-    .controls-overlay .btn-main-action,
-    .controls-overlay .btn-main-action.btn-follow-camino {
+    .controls-overlay .btn-main-action{
         height: 38px;
         max-width: 210px;
         padding: 0 10px;
@@ -1123,22 +870,12 @@ nav {
     #big-unit { min-height: 1rem; margin-top: 3px; font-size: 1rem; }
     #big-hint { bottom: calc(50px + env(safe-area-inset-bottom, 0px)); font-size: .62rem; }
 }
-
-@media (max-width: 520px) {
-    .camino-dashboard { grid-template-columns: 1fr; }
-    .camino-sidebar .camino-list { grid-template-columns: 1fr; }
-    .camino-sidebar .camino-option { grid-template-columns: 32px minmax(0, 1fr) 14px; min-height: 58px; }
-    .camino-sidebar .camino-option-icon { font-size: 1.35rem; }
-    .camino-sidebar .camino-option-copy { font-size: .76rem; }
-    .camino-sidebar .camino-option-copy small { font-size: .62rem; }
-}
 @media (max-width: 370px) {
-    .camino-tabs { gap: 4px; }
-    .camino-tab { font-size: .72rem; }
+    .seg-tabs { gap: 4px; }
+    .seg-tab { font-size: .72rem; }
 }
 
 .leaflet-popup-content-wrapper { color: #121212; }
-#camino-attribution { font-size: .72rem; }
 
 /* Catálogo comunitario */
 .community-overlay {

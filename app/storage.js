@@ -34,7 +34,8 @@ const DB = {
     del(id)     { return this.run('routes', 'readwrite', s => s.delete(id)); },
     kvGet(k)    { return this.run('kv', 'readonly',  s => s.get(k)); },
     kvSet(k, v) { return this.run('kv', 'readwrite', s => s.put(v, k)); },
-    kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); }
+    kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); },
+    kvKeys()    { return this.run('kv', 'readonly',  s => s.getAllKeys()); }
 };
 
 /*

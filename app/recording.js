@@ -433,7 +433,6 @@ async function finishRecording() {
     stopBgWatcher();
     removeMyLiveLocation();
     setBtnState('idle');
-    if (guide.active) guideStop(true);
     $('m-speed').textContent = '0.0';
     DB.kvDel('draft').catch(() => {});
 

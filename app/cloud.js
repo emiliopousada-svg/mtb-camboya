@@ -303,6 +303,22 @@ async function migrateOldRoutes() {
     } catch (e) { console.warn('Migración incompleta', e); }
 }
 
+// Limpieza única de lo que dejó la antigua pestaña Camino (ya eliminada).
+// Los tracks que el usuario importó allí (camino-tracks:*) no se tocan.
+async function purgeLegacyCaminoData() {
+    if (localStorage.getItem('mtb_camino_purged') === '1') return;
+    try {
+        ['mtb_camino_guide', 'mtb_camino_guide_paused', 'mtb_camino_active', 'mtb_camino_track',
+         'mtb_camino_saved_track', 'mtb_camino_filters', 'mtb_camino_favorites', 'mtb_albergue_favorites']
+            .forEach(key => localStorage.removeItem(key));
+        const keys = await DB.kvKeys();
+        for (const key of keys) {
+            if (/^camino-(full|pois|dl):/.test(String(key))) await DB.kvDel(key);
+        }
+        localStorage.setItem('mtb_camino_purged', '1');
+    } catch (e) { console.warn('No se pudo limpiar los datos del antiguo Camino:', e); }
+}
+
 async function init() {
     initMap();
     initCharts();
@@ -319,8 +335,7 @@ async function init() {
         console.warn('Sin IndexedDB:', e);
         toast('⚠️ Sin almacenamiento persistente: las rutas se perderán al cerrar la app.', 6000);
     }
-    try { await restoreCamino(); }
-    catch (e) { console.warn('No se pudo restaurar el Camino del mapa:', e); }
+    purgeLegacyCaminoData();
 
     renderSavedRoutes();
     refreshStats();
@@ -332,19 +347,6 @@ async function init() {
     await restoreGroup();
     startGps();
     await maybeRestoreDraft();
-    try {
-        const activeGuide = localStorage.getItem(GUIDE_ACTIVE_KEY) || localStorage.getItem(GUIDE_PAUSED_KEY);
-        if (activeGuide && GUIDE_IDS.has(activeGuide)) {
-            $('camino-select').value = activeGuide;
-            if (await guideAskResume(activeGuide)) {
-                await guideStart();
-                goToPage(0);
-            } else {
-                try { localStorage.removeItem(GUIDE_ACTIVE_KEY); localStorage.removeItem(GUIDE_PAUSED_KEY); } catch (e) {}
-                clearCamino();
-            }
-        }
-    } catch (e) { console.warn('No se pudo reanudar el Camino guiado:', e); }
 }
 
 init();

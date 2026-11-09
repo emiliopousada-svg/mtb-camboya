@@ -4,13 +4,6 @@
 // ============================================================
 let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null, offlineTileLayer = null;
 let activeMapStyle = null, mapStyleLayers = {};
-let caminoLayer = null, caminoAlberguesLayer = null, caminoAlberguesPromise = null, caminoAlberguesRequest = 0, caminoAlbergueCount = null, caminoTracks = [];
-let caminoServicePoiLayer = null, caminoServicePoiRequest = 0;
-let caminoServicePoiController = null;
-const caminoServicePoiCache = new Map();
-let bundledCaminoTrack = null, caminoOfficialStages = [], caminoTracksDataPromise = null, caminoFavorites = [], caminoActiveTab = 'routes';
-let albergueRouteLayer = null, albergueRouteRequest = 0;
-const ALBERGUE_FAVORITES_KEY = 'mtb_albergue_favorites';
 let isRecording = false, isPaused = false;
 let autoPaused = false, autoPauseInterval = null;
 let autoPauseAnchor = null, autoPauseLastPosition = null, autoPauseLastMovementAt = null;

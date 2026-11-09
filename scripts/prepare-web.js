@@ -10,15 +10,10 @@ const nm = path.join(root, 'node_modules');
 
 fs.rmSync(www, { recursive: true, force: true });
 fs.mkdirSync(path.join(www, 'lib', 'leaflet'), { recursive: true });
-fs.mkdirSync(path.join(www, 'data'), { recursive: true });
 
 for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'estrella-galicia.svg']) {
   fs.copyFileSync(path.join(root, f), path.join(www, f));
 }
-for (const f of ['albergues.geojson', 'caminos.geojson']) {
-  fs.copyFileSync(path.join(root, 'data', f), path.join(www, 'data', f));
-}
-fs.cpSync(path.join(root, 'data', 'camino'), path.join(www, 'data', 'camino'), { recursive: true });
 fs.cpSync(path.join(root, 'app'), path.join(www, 'app'), { recursive: true });
 // sw.js no se copia: dentro del APK los archivos ya van empaquetados.
 

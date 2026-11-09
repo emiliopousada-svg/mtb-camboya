@@ -131,7 +131,6 @@ function onPos(pos) {
     }
     const followedMatch = followedRoute ? findFollowedRouteMatch(lat, lon) : null;
     if (followedMatch) updateMapRouteProfilePosition(followedMatch);
-    if (guide.active) guideOnPos(lat, lon);
 
     // El GPS nativo puede no incluir rumbo: en ese caso lo calculamos
     // con el desplazamiento entre posiciones fiables mientras avanzamos.
@@ -160,9 +159,6 @@ function onPos(pos) {
             lastHeading = routeHeading;
             applyMapHeading(routeHeading);
         }
-    } else if (guide.active && guide.heading != null) {
-        lastHeading = guide.heading;
-        applyMapHeading(guide.heading);
     } else if (heading != null && Number.isFinite(heading)) {
         lastHeading = heading;
         applyMapHeading(heading);

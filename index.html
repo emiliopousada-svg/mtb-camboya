@@ -68,10 +68,6 @@
                     <line id="map-route-cursor-line" x1="0" y1="7" x2="0" y2="60" style="display:none"></line>
                     <circle id="map-route-cursor" cx="0" cy="0" r="5" style="display:none"></circle>
                 </svg>
-                <div id="camino-hud" hidden>
-                    <div id="camino-hud-main"></div>
-                    <div id="camino-hud-stage"></div>
-                </div>
             </div>
 
             <div id="map"></div>
@@ -116,23 +112,12 @@
                 </button>
                 <button class="btn-icon-only" id="btn-poi-food" title="Marcar un sitio de comida">🍽️</button>
             </div>
-            <div class="route-destination-control">
-                <button class="btn-icon-only" id="btn-albergue-route-clear" type="button" title="Quitar ruta al albergue" aria-label="Quitar ruta al albergue" style="display:none;">✖️</button>
-            </div>
 
             <div class="controls-overlay">
                 <button class="btn-main-action" id="btn-start">
                     <span id="ico-start">▶️</span> <span id="lbl-start">COMENZAR RUTA</span>
                 </button>
-                <button class="btn-main-action btn-follow-camino" id="btn-follow-camino" type="button" hidden>🧭 SEGUIR CAMINO</button>
                 <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
-            </div>
-
-            <div id="albergue-popup-overlay" hidden>
-                <section id="albergue-popup-card" role="dialog" aria-modal="true" aria-label="Información del albergue" tabindex="-1">
-                    <button id="albergue-popup-close" type="button" aria-label="Cerrar información del albergue">×</button>
-                    <div id="albergue-popup-content"></div>
-                </section>
             </div>
         </div>
 
@@ -237,10 +222,10 @@
         <div class="page content-panel">
             <div class="card">
                 <h2>🗺️ Mis Rutas</h2>
-                <div class="camino-tabs big-tabs" role="group" aria-label="Tipo de rutas">
-                    <button class="camino-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
-                    <button class="camino-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
-                    <button class="camino-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
+                <div class="seg-tabs big-tabs" role="group" aria-label="Tipo de rutas">
+                    <button class="seg-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
+                    <button class="seg-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
+                    <button class="seg-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
                 </div>
                 <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
                 <div id="routes-import-box" hidden>
@@ -368,108 +353,6 @@
             </div>
         </div>
 
-        <!-- PÁGINA 6: CAMINOS DE SANTIAGO -->
-        <div class="page content-panel" id="page-camino">
-            <div class="camino-shell">
-                <header class="camino-header">
-                    <span class="camino-header-mark" aria-hidden="true">✺</span>
-                    <div>
-                        <h1>Camino de Santiago</h1>
-                        <p>Explora rutas, etapas y servicios del Camino</p>
-                    </div>
-                </header>
-                <div class="camino-tabs" role="group" aria-label="Secciones del Camino de Santiago">
-                    <button class="camino-tab" id="camino-tab-routes" type="button" aria-pressed="true" data-camino-tab="routes">✣ Caminos</button>
-                    <button class="camino-tab" id="camino-tab-guide" type="button" aria-pressed="false" data-camino-tab="guide">🧭 Guiado</button>
-                    <button class="camino-tab" id="camino-tab-favorites" type="button" aria-pressed="false" data-camino-tab="favorites">★ Mis Caminos</button>
-                </div>
-                <div class="camino-dashboard">
-                    <aside class="camino-card camino-sidebar">
-                        <h2>Caminos principales</h2>
-                        <div id="camino-list" class="camino-list" aria-label="Todos los Caminos de Santiago"></div>
-                    </aside>
-                    <section class="camino-main" aria-label="Detalle del Camino seleccionado">
-                        <div class="camino-panel" id="camino-panel-routes" role="tabpanel" aria-labelledby="camino-tab-routes">
-                            <div class="camino-route-hero">
-                                <h2 id="camino-route-title">Elige un Camino</h2>
-                                <p id="camino-route-subtitle">Track oficial incluido en la app</p>
-                            </div>
-                            <div class="camino-stats" aria-label="Resumen del Camino">
-                                <div class="camino-stat"><strong id="camino-stage-count">—</strong><span>Tramos incluidos</span></div>
-                                <div class="camino-stat"><strong id="camino-albergue-count">—</strong><span>Albergues cargados</span></div>
-                                <div class="camino-stat"><strong id="camino-import-count">0</strong><span>Tracks personales</span></div>
-                            </div>
-                            <p class="camino-note" id="camino-poi-status" role="status" aria-live="polite" hidden></p>
-                            <div class="camino-card">
-                                <p class="camino-note" id="guide-offline-state"></p>
-                                <div class="camino-actions">
-                                    <button class="btn camino-action" id="btn-guide-start" type="button">▶ Seguir camino</button>
-                                </div>
-                            </div>
-                            <details class="camino-tools">
-                                <summary>Importar o elegir otro track</summary>
-                                <p class="hint">Puedes importar un track GPX, KML o GeoJSON para el Camino seleccionado.</p>
-                                <label for="camino-track-select" class="hint">Track oficial o track personal</label>
-                                <select id="camino-track-select" aria-label="Selecciona un track para este Camino">
-                                    <option value="">Selecciona un Camino primero</option>
-                                </select>
-                                <label for="camino-file-input" class="hint">Importar track para el Camino seleccionado</label>
-                                <input type="file" id="camino-file-input" accept=".gpx,.kml,.geojson,.json" aria-label="Archivo del track del Camino">
-                                <button class="btn secondary camino-action" id="btn-camino-import" type="button" disabled>Importar track de este Camino</button>
-                            </details>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-guide" role="tabpanel" aria-labelledby="camino-tab-guide" hidden>
-                            <div class="camino-card">
-                                <h2 class="camino-section-title">Descargar para usar sin conexión</h2>
-                                <p class="camino-note" id="guide-stage-note">Marca las etapas que necesitas. Se guardan el track, albergues, servicios y el mapa IGN de un corredor de 5 km (zoom 10–14).</p>
-                                <div class="camino-stage-list" id="guide-stage-list"></div>
-                                <div class="camino-actions">
-                                    <button class="btn camino-action" id="btn-guide-download" type="button">⬇ Descargar selección</button>
-                                    <button class="btn secondary camino-action" id="btn-guide-update" type="button">⟳ Actualizar datos</button>
-                                </div>
-                                <button class="btn secondary camino-action" id="btn-guide-all" type="button">Marcar / desmarcar todas</button>
-                                <button class="btn secondary camino-action" id="btn-guide-cancel" type="button" style="display:none;">Cancelar descarga</button>
-                                <button class="btn secondary camino-action" id="btn-guide-delete" type="button">Borrar descarga de este Camino</button>
-                                <div id="guide-progress"><div id="guide-progress-fill"></div></div>
-                                <p class="camino-note" id="guide-progress-text" role="status" aria-live="polite"></p>
-                            </div>
-                            <p class="hint" id="guide-attribution"></p>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-favorites" role="tabpanel" aria-labelledby="camino-tab-favorites" hidden>
-                            <div class="camino-card">
-                                <h2>Mis Caminos</h2>
-                                <p class="camino-note">Guarda tus caminos favoritos con la estrella y vuelve a ellos cuando quieras.</p>
-                            </div>
-                            <div class="camino-favorite-list" id="camino-favorite-list"></div>
-                            <div class="camino-card">
-                                <h2>Tracks personales</h2>
-                                <div class="camino-favorite-list" id="camino-imported-list"></div>
-                            </div>
-                        </div>
-                        <p class="hint" id="camino-status" role="status" aria-live="polite"></p>
-                        <div class="camino-attribution">
-                            <p class="hint">Albergues: datos de <a href="https://caminoahora.com" target="_blank" rel="noopener noreferrer">Camino Ahora</a>, del Registro de Empresas y Actividades Turísticas de la Xunta de Galicia y de <a href="https://www.caminodesantiago.gal" target="_blank" rel="noopener noreferrer">caminodesantiago.gal</a>. Licencia <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>.</p>
-                            <p class="hint">Restaurantes, talleres, monumentos, fuentes, supermercados y centros médicos: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL).</p>
-                            <p class="hint">Tracks: Axencia Turismo de Galicia / Xunta de Galicia, publicados en <a href="https://www.caminodesantiago.gal/es/planifica/las-rutas" target="_blank" rel="noopener noreferrer">Las rutas del Camino</a>. Reutilización según las <a href="https://www.caminodesantiago.gal/es/utilidades-del-portal/aviso-legal" target="_blank" rel="noopener noreferrer">condiciones de la Xunta</a>.</p>
-                        </div>
-                    </section>
-                </div>
-                <select id="camino-select" aria-label="Selecciona un Camino de Santiago" hidden>
-                    <option value="">Selecciona un camino</option>
-                    <option value="frances" selected>Camino Francés</option>
-                    <option value="portugues">Camino Portugués</option>
-                    <option value="portugues-costa">Camino Portugués por la Costa</option>
-                    <option value="primitivo">Camino Primitivo</option>
-                    <option value="norte">Camino del Norte</option>
-                    <option value="ingles">Camino Inglés</option>
-                    <option value="fisterra">Camino de Fisterra y Muxía</option>
-                    <option value="invierno">Camino de Invierno</option>
-                    <option value="plata">Vía de la Plata</option>
-                    <option value="plata-verin">Vía de la Plata por Verín</option>
-                </select>
-            </div>
-        </div>
-
     </div>
 
 
@@ -495,10 +378,6 @@
         <button class="nav-btn" onclick="goToPage(4)">
             <span class="icon">⚙️</span>
             <span>Ajustes</span>
-        </button>
-        <button class="nav-btn" onclick="goToPage(5)">
-            <span class="icon">🥾</span>
-            <span>Camino</span>
         </button>
     </nav>
 
@@ -583,8 +462,6 @@
     <script src="app/state.js"></script>
     <script src="app/offline-maps.js"></script>
     <script src="app/map.js"></script>
-    <script src="app/camino-data.js"></script>
-    <script src="app/camino-guide.js"></script>
     <script src="app/gps.js"></script>
     <script src="app/recording.js"></script>
     <script src="app/route-following.js"></script>
