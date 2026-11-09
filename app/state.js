@@ -7,6 +7,7 @@ let activeMapStyle = null, mapStyleLayers = {};
 let isRecording = false, isPaused = false;
 let autoPaused = false, autoPauseInterval = null;
 let autoPauseAnchor = null, autoPauseLastPosition = null, autoPauseLastMovementAt = null;
+let autoPauseResumeCandidate = null;
 let recordingActivityType = 'mtb', preferredActivityType = 'mtb';
 try {
     const storedActivity = localStorage.getItem('mtb_activity_type');
