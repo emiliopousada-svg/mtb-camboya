@@ -410,8 +410,15 @@
             </header>
             <p id="community-status" class="community-status" role="status" aria-live="polite"></p>
             <section id="community-catalog">
-                <label for="community-region">Comunidad autónoma</label>
-                <select id="community-region"></select>
+                <label for="community-activity">Tipo de actividad</label>
+                <select id="community-activity"></select>
+                <label for="community-radius">Distancia máxima</label>
+                <select id="community-radius">
+                    <option value="10">10 km</option>
+                    <option value="25" selected>25 km</option>
+                    <option value="50">50 km</option>
+                    <option value="100">100 km</option>
+                </select>
                 <button id="community-search" class="btn" type="button">Buscar rutas</button>
                 <div id="community-route-list" class="community-route-list"></div>
             </section>

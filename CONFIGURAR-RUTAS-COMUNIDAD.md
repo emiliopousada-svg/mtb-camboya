@@ -1,6 +1,6 @@
 # Rutas de la comunidad
 
-La app puede compartir una copia pública y reducida de una ruta grabada, separada de la ruta privada que sincroniza la cuenta. El catálogo usa una única colección PocketBase, filtrada por provincia.
+La app puede compartir una copia pública y reducida de una ruta grabada, separada de la ruta privada que sincroniza la cuenta. El catálogo usa una única colección PocketBase; guarda la provincia de cada ruta y permite buscar por cercanía y actividad.
 
 ## Instalar la colección en PocketBase
 
@@ -34,4 +34,4 @@ El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, 
 
 ## Limitación de la primera fase
 
-La provincia se elige manualmente al publicar o buscar; el sistema aún no la deduce automáticamente del recorrido. La base es una colección compartida con índice por provincia, no una base física separada para cada provincia.
+La provincia se elige manualmente al publicar; el sistema aún no la deduce automáticamente del recorrido. La búsqueda usa la ubicación GPS actual, un radio y el tipo de actividad. La base es una colección compartida con índice por provincia, no una base física separada para cada provincia.
