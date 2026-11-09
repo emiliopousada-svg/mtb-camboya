@@ -282,44 +282,39 @@ function setBtnState(s) {
 }
 
 function autoPauseMovementThreshold(accuracy) {
-    return Math.max(10, Math.min(24, accuracy * 1.2));
+    return Math.max(12, Math.min(30, accuracy * 1.5));
 }
 
 function autoResumeMovementThreshold(accuracy) {
-    return Math.max(18, Math.min(30, accuracy * 1.5));
+    return Math.max(20, Math.min(35, accuracy * 1.5));
 }
 
-function autoPauseReportsMovement(speed) {
-    return Number.isFinite(speed) && speed >= 0.8;
-}
-
-function updateAutoPauseMovement(position, accuracy, speed) {
+function updateAutoPauseMovement(position, accuracy) {
     const now = Date.now();
     if (!autoPauseAnchor) {
         autoPauseAnchor = position;
         autoPauseLastMovementAt = now;
-    } else if (autoPauseReportsMovement(speed) || dist(autoPauseAnchor, position) >= autoPauseMovementThreshold(accuracy)) {
+    } else if (dist(autoPauseAnchor, position) >= autoPauseMovementThreshold(accuracy)) {
         autoPauseAnchor = position;
         autoPauseLastMovementAt = now;
     }
     autoPauseLastPosition = position;
 }
 
-function updateAutoPauseResume(position, accuracy, speed) {
+function updateAutoPauseResume(position, accuracy) {
     const now = Date.now();
-    const reportedMovement = autoPauseReportsMovement(speed);
     const fromPauseAnchor = autoPauseAnchor ? dist(autoPauseAnchor, position) : 0;
     if (!autoPauseResumeCandidate) {
-        if (reportedMovement || fromPauseAnchor >= autoResumeMovementThreshold(accuracy)) {
+        if (fromPauseAnchor >= autoResumeMovementThreshold(accuracy)) {
             autoPauseResumeCandidate = { distance: fromPauseAnchor, startedAt: now };
         }
         return;
     }
 
-    const confirmedTravel = Math.max(6, Math.min(10, accuracy * 0.5));
+    const confirmedTravel = Math.max(6, Math.min(10, accuracy * 0.4));
     const confirmed = now - autoPauseResumeCandidate.startedAt >= AUTO_RESUME_CONFIRM_MS &&
-        (reportedMovement || (fromPauseAnchor >= autoResumeMovementThreshold(accuracy) &&
-            fromPauseAnchor >= autoPauseResumeCandidate.distance + confirmedTravel));
+        fromPauseAnchor >= autoResumeMovementThreshold(accuracy) &&
+        fromPauseAnchor >= autoPauseResumeCandidate.distance + confirmedTravel;
     if (confirmed) {
         resumeRecording(true, position);
     } else if (now - autoPauseResumeCandidate.startedAt >= AUTO_RESUME_CONFIRM_MS * 6) {

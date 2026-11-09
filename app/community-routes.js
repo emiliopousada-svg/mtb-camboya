@@ -113,9 +113,10 @@ function openCommunityDetail(record, lines) {
         try {
             if (!communityPreviewMap) {
                 communityPreviewMap = L.map('community-detail-map', { scrollWheelZoom: false });
-                communityPreviewBaseLayer = !navigator.onLine || preferredMapStyle === 'ign'
+                const style = selectedMapStyle();
+                communityPreviewBaseLayer = !navigator.onLine || style === 'ign'
                     ? createOfflineTileLayer()
-                    : createMapStyleLayers().topographic;
+                    : createMapStyleLayers()[style];
                 communityPreviewBaseLayer.addTo(communityPreviewMap);
             }
             if (communityPreviewRouteLayer) communityPreviewMap.removeLayer(communityPreviewRouteLayer);

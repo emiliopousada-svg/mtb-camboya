@@ -198,9 +198,9 @@ function onPos(pos) {
 
     if (isRecording && accuracy <= AUTO_PAUSE_MAX_ACCURACY_M) {
         if (isPaused && autoPaused && autoPauseAnchor) {
-            updateAutoPauseResume(ll, accuracy, speed);
+            updateAutoPauseResume(ll, accuracy);
         } else if (!isPaused) {
-            updateAutoPauseMovement(ll, accuracy, speed);
+            updateAutoPauseMovement(ll, accuracy);
         }
     }
 
