@@ -87,7 +87,7 @@ function renderSavedRoutes() {
             ['gpx', '⬇️ GPX', 'secondary'],
             ['del', '🗑️', 'danger']
         ];
-        if (r.kind !== 'imported' && r.kind !== 'community') {
+        if (r.kind !== 'community' && !r.communityRouteId) {
             routeActions.splice(1, 0, ['community', '🌍 Publicar', 'secondary']);
         }
         routeActions.forEach(([act, label, cls]) => {

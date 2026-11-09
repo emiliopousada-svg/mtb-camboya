@@ -11,6 +11,27 @@ const COMMUNITY_PROVINCES = [
     'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia',
     'Valladolid', 'Bizkaia', 'Zamora', 'Zaragoza', 'Ceuta', 'Melilla'
 ];
+const COMMUNITY_REGIONS = {
+    'Andalucía': ['Almería', 'Cádiz', 'Córdoba', 'Granada', 'Huelva', 'Jaén', 'Málaga', 'Sevilla'],
+    'Aragón': ['Huesca', 'Teruel', 'Zaragoza'],
+    'Principado de Asturias': ['Asturias'],
+    'Illes Balears': ['Illes Balears'],
+    'Canarias': ['Las Palmas', 'Santa Cruz de Tenerife'],
+    'Cantabria': ['Cantabria'],
+    'Castilla-La Mancha': ['Albacete', 'Ciudad Real', 'Cuenca', 'Guadalajara', 'Toledo'],
+    'Castilla y León': ['Ávila', 'Burgos', 'León', 'Palencia', 'Salamanca', 'Segovia', 'Soria', 'Valladolid', 'Zamora'],
+    'Cataluña': ['Barcelona', 'Girona', 'Lleida', 'Tarragona'],
+    'Comunitat Valenciana': ['Alicante', 'Castellón', 'Valencia'],
+    'Extremadura': ['Badajoz', 'Cáceres'],
+    'Galicia': ['A Coruña', 'Lugo', 'Ourense', 'Pontevedra'],
+    'Comunidad de Madrid': ['Madrid'],
+    'Región de Murcia': ['Murcia'],
+    'Comunidad Foral de Navarra': ['Navarra'],
+    'País Vasco': ['Álava', 'Bizkaia', 'Gipuzkoa'],
+    'La Rioja': ['La Rioja'],
+    'Ceuta': ['Ceuta'],
+    'Melilla': ['Melilla']
+};
 const COMMUNITY_TRIM_METERS = 150;
 const COMMUNITY_MAX_RECORDS = 50;
 let communityShareRoute = null;
@@ -24,6 +45,11 @@ function communitySetStatus(message, isError = false) {
     status.classList.toggle('error', isError);
 }
 
+function communityFillRegions(select) {
+    select.replaceChildren(new Option('Elige una comunidad autónoma', ''));
+    Object.keys(COMMUNITY_REGIONS).forEach(region => select.add(new Option(region, region)));
+}
+
 function communityFillProvinces(select) {
     select.replaceChildren(new Option('Elige una provincia', ''));
     COMMUNITY_PROVINCES.forEach(province => select.add(new Option(province, province)));
@@ -34,8 +60,8 @@ function openCommunityCatalog() {
     $('community-catalog').hidden = false;
     $('community-title').textContent = 'Rutas de la comunidad';
     $('community-dialog').hidden = false;
-    communitySetStatus('Elige una provincia para buscar rutas publicadas.');
-    $('community-province').focus();
+    communitySetStatus('Elige una comunidad autónoma para buscar rutas publicadas.');
+    $('community-region').focus();
 }
 
 function closeCommunityDialog() {
@@ -291,7 +317,7 @@ function renderCommunityRoutes(records) {
     if (!records.length) {
         const empty = document.createElement('p');
         empty.className = 'community-empty';
-        empty.textContent = 'No hay rutas aprobadas en esta provincia todavía.';
+        empty.textContent = 'No hay rutas aprobadas en esta comunidad autónoma todavía.';
         list.append(empty);
         return;
     }
@@ -336,9 +362,10 @@ function renderCommunityRoutes(records) {
 }
 
 async function loadCommunityRoutes() {
-    const province = $('community-province').value;
-    if (!province) {
-        communitySetStatus('Elige una provincia para buscar rutas.', true);
+    const region = $('community-region').value;
+    const provinces = COMMUNITY_REGIONS[region];
+    if (!provinces) {
+        communitySetStatus('Elige una comunidad autónoma para buscar rutas.', true);
         return;
     }
     if (!navigator.onLine) {
@@ -349,14 +376,15 @@ async function loadCommunityRoutes() {
     button.disabled = true;
     communitySetStatus('Buscando rutas aprobadas…');
     try {
-        const filter = 'published = true && province = "' + province.replace(/"/g, '\\"') + '"';
+        const provinceFilter = provinces.map(province => 'province = "' + province.replace(/"/g, '\\"') + '"').join(' || ');
+        const filter = 'published = true && (' + provinceFilter + ')';
         const result = await cloudApi('/api/collections/community_routes/records?page=1&perPage=' +
-            COMMUNITY_MAX_RECORDS + '&sort=-created&fields=id,title,province,activityType,distanceKm,elevationGain,trackJson,created&filter=' + encodeURIComponent(filter));
+            COMMUNITY_MAX_RECORDS + '&fields=id,title,province,activityType,distanceKm,elevationGain,trackJson&filter=' + encodeURIComponent(filter));
         communityCatalogRoutes = Array.isArray(result.items) ? result.items : [];
         renderCommunityRoutes(communityCatalogRoutes);
         communitySetStatus(communityCatalogRoutes.length
             ? communityCatalogRoutes.length + ' rutas disponibles. Puedes mostrarlas en el mapa, seguirlas o guardarlas.'
-            : 'No hay rutas aprobadas en esta provincia todavía.');
+            : 'No hay rutas aprobadas en esta comunidad autónoma todavía.');
     } catch (error) {
         console.warn('No se pudo cargar el catálogo comunitario:', error);
         communitySetStatus(error.status === 404
@@ -369,7 +397,7 @@ async function loadCommunityRoutes() {
 }
 
 function initCommunityRoutes() {
-    communityFillProvinces($('community-province'));
+    communityFillRegions($('community-region'));
     communityFillProvinces($('community-share-province'));
     $('btn-community-routes').addEventListener('click', openCommunityCatalog);
     $('community-close').addEventListener('click', closeCommunityDialog);
