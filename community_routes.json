@@ -71,6 +71,13 @@
         "min": 0
       },
       {
+        "id": "commtime0000001",
+        "name": "movingTimeSec",
+        "type": "number",
+        "required": false,
+        "min": 0
+      },
+      {
         "id": "commtrack000001",
         "name": "trackJson",
         "type": "text",

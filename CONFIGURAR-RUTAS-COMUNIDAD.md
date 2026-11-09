@@ -30,7 +30,7 @@ La app solo envía una copia para el catálogo después de que el usuario pulse 
 
 El recorte reduce la exposición de los puntos de salida y llegada, pero no garantiza anonimato: una ruta puede revelar lugares reconocibles. El usuario debe revisar y confirmar antes de enviarla.
 
-El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, trazado simplificado y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. Fotos y comentarios quedan fuera de esta primera fase.
+El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. El detalle de cada ruta muestra un recorte del mapa con su trazado y las métricas disponibles. Fotos y comentarios quedan fuera de esta primera fase.
 
 ## Limitación de la primera fase
 

@@ -38,6 +38,9 @@ let communityShareRoute = null;
 let communityCatalogRoutes = [];
 let communityVisibleLayers = new Map();
 let communityLayerGroup = null;
+let communityPreviewMap = null;
+let communityPreviewBaseLayer = null;
+let communityPreviewRouteLayer = null;
 
 function communitySetStatus(message, isError = false) {
     const status = $('community-status');
@@ -57,6 +60,7 @@ function communityFillProvinces(select) {
 
 function openCommunityCatalog() {
     $('community-publish').hidden = true;
+    $('community-detail').hidden = true;
     $('community-catalog').hidden = false;
     $('community-title').textContent = 'Rutas de la comunidad';
     $('community-dialog').hidden = false;
@@ -81,6 +85,7 @@ function openCommunityPublish(route) {
     }
     communityShareRoute = route;
     $('community-catalog').hidden = true;
+    $('community-detail').hidden = true;
     $('community-publish').hidden = false;
     $('community-title').textContent = 'Publicar ruta en la comunidad';
     $('community-share-title').textContent = route.name || 'Ruta grabada';
@@ -90,6 +95,59 @@ function openCommunityPublish(route) {
     communitySetStatus('Al enviarla, la ruta aparecerá publicada en el mapa comunitario.');
     $('community-dialog').hidden = false;
     $('community-share-province').focus();
+}
+
+function openCommunityDetail(record, lines) {
+    $('community-catalog').hidden = true;
+    $('community-publish').hidden = true;
+    $('community-detail').hidden = false;
+    $('community-title').textContent = record.title || 'Ruta de la comunidad';
+    communitySetStatus('');
+
+    const movingTimeSec = Number(record.movingTimeSec);
+    const activity = ACTIVITY_TYPES[record.activityType]?.label || record.activityType || 'No disponible';
+    const values = [
+        ['Distancia', `${(Number(record.distanceKm) || 0).toFixed(1)} km`],
+        ['Desnivel', `+${Math.round(Number(record.elevationGain) || 0)} m`],
+        ['Tiempo en movimiento', movingTimeSec > 0 ? fmtDur(movingTimeSec) : 'No disponible'],
+        ['Actividad', activity],
+        ['Provincia', record.province || 'No disponible']
+    ];
+    const stats = $('community-detail-stats');
+    stats.replaceChildren();
+    values.forEach(([label, value]) => {
+        const item = document.createElement('div');
+        item.className = 'community-detail-stat';
+        const caption = document.createElement('span');
+        caption.textContent = label;
+        const detail = document.createElement('strong');
+        detail.textContent = value;
+        item.append(caption, detail);
+        stats.append(item);
+    });
+
+    $('community-dialog').hidden = false;
+    setTimeout(() => {
+        try {
+            if (!communityPreviewMap) {
+                communityPreviewMap = L.map('community-detail-map', { scrollWheelZoom: false });
+                communityPreviewBaseLayer = !navigator.onLine || preferredMapStyle === 'ign'
+                    ? createOfflineTileLayer()
+                    : createMapStyleLayers().topographic;
+                communityPreviewBaseLayer.addTo(communityPreviewMap);
+            }
+            if (communityPreviewRouteLayer) communityPreviewMap.removeLayer(communityPreviewRouteLayer);
+            communityPreviewRouteLayer = L.polyline(lines, {
+                color: '#e040fb', weight: 5, opacity: 0.9
+            }).addTo(communityPreviewMap);
+            communityPreviewMap.invalidateSize({ pan: false });
+            const bounds = communityPreviewRouteLayer.getBounds();
+            if (bounds.isValid()) communityPreviewMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+        } catch (error) {
+            console.warn('No se pudo mostrar el mapa de detalle comunitario:', error);
+            $('community-detail-map').textContent = 'No se pudo cargar el mapa de esta ruta.';
+        }
+    }, 0);
 }
 
 function communityDistance(a, b) {
@@ -205,6 +263,7 @@ async function submitCommunityRoute() {
             activityType: activityTypeForRoute(route) || 'mtb',
             distanceKm: Number(route.distanceKm) || 0,
             elevationGain: Number(route.elevationGain) || 0,
+            movingTimeSec: Number(route.movingTimeSec) || 0,
             trackJson,
             published: true
         });
@@ -329,8 +388,11 @@ function renderCommunityRoutes(records) {
         } catch (error) { return; }
         const card = document.createElement('article');
         card.className = 'community-route-card';
-        const heading = document.createElement('strong');
+        const heading = document.createElement('button');
+        heading.type = 'button';
+        heading.className = 'community-route-title';
         heading.textContent = record.title || 'Ruta de la comunidad';
+        heading.addEventListener('click', () => openCommunityDetail(record, lines));
         const facts = document.createElement('p');
         facts.textContent = (record.province || '') + ' · ' +
             ((Number(record.distanceKm) || 0).toFixed(1)) + ' km · +' +
@@ -379,7 +441,7 @@ async function loadCommunityRoutes() {
         const provinceFilter = provinces.map(province => 'province = "' + province.replace(/"/g, '\\"') + '"').join(' || ');
         const filter = 'published = true && (' + provinceFilter + ')';
         const result = await cloudApi('/api/collections/community_routes/records?page=1&perPage=' +
-            COMMUNITY_MAX_RECORDS + '&fields=id,title,province,activityType,distanceKm,elevationGain,trackJson&filter=' + encodeURIComponent(filter));
+            COMMUNITY_MAX_RECORDS + '&fields=id,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson&filter=' + encodeURIComponent(filter));
         communityCatalogRoutes = Array.isArray(result.items) ? result.items : [];
         renderCommunityRoutes(communityCatalogRoutes);
         communitySetStatus(communityCatalogRoutes.length
@@ -413,6 +475,7 @@ function initCommunityRoutes() {
         $('community-submit').disabled = !$('community-share-consent').checked || !$('community-share-province').value;
     });
     $('community-back').addEventListener('click', openCommunityCatalog);
+    $('community-detail-back').addEventListener('click', openCommunityCatalog);
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();
     });
