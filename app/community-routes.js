@@ -82,12 +82,12 @@ function openCommunityPublish(route) {
     communityShareRoute = route;
     $('community-catalog').hidden = true;
     $('community-publish').hidden = false;
-    $('community-title').textContent = 'Proponer ruta a la comunidad';
+    $('community-title').textContent = 'Publicar ruta en la comunidad';
     $('community-share-title').textContent = route.name || 'Ruta grabada';
     $('community-share-province').value = '';
     $('community-share-consent').checked = false;
     $('community-submit').disabled = true;
-    communitySetStatus('El envío quedará pendiente de revisión antes de aparecer en el mapa.');
+    communitySetStatus('Al enviarla, la ruta aparecerá publicada en el mapa comunitario.');
     $('community-dialog').hidden = false;
     $('community-share-province').focus();
 }
@@ -206,11 +206,11 @@ async function submitCommunityRoute() {
             distanceKm: Number(route.distanceKm) || 0,
             elevationGain: Number(route.elevationGain) || 0,
             trackJson,
-            published: false
+            published: true
         });
-        communitySetStatus('Ruta enviada. Aparecerá en el mapa cuando se apruebe.');
-        toast('Ruta enviada para revisión.');
-        button.textContent = 'Enviada';
+        communitySetStatus('Ruta publicada. Ya aparece en el mapa comunitario.');
+        toast('Ruta publicada en la comunidad.');
+        button.textContent = 'Publicada';
         setTimeout(closeCommunityDialog, 1400);
         return record;
     } catch (error) {

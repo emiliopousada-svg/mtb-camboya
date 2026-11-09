@@ -6,8 +6,8 @@
     "system": false,
     "listRule": "published = true || owner = @request.auth.id",
     "viewRule": "published = true || owner = @request.auth.id",
-    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && @request.body.published = false",
-    "updateRule": "owner = @request.auth.id && published = false && @request.body.owner:changed = false && @request.body.published:changed = false",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && @request.body.published = true",
+    "updateRule": "owner = @request.auth.id && @request.body.owner:changed = false && @request.body.published:changed = false",
     "deleteRule": "owner = @request.auth.id",
     "fields": [
       {
