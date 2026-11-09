@@ -8,8 +8,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -21,17 +19,14 @@ jobs:
           java-version: 21
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm ci
 
       - name: Preparar la web (copias locales de Leaflet y Chart.js, Bluetooth)
         run: node scripts/prepare-web.js
 
-      - name: Versión visible en la app
-        run: |
-          WEB_INDEX=www/app/config.js
-          APP_VERSION="1.${{ github.run_number }}"
-          sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${APP_VERSION}';/" "$WEB_INDEX"
-          grep -Fq "const APP_VERSION = '${APP_VERSION}';" "$WEB_INDEX" || { echo "::error::No se pudo actualizar la versión visible"; exit 1; }
+      - name: Leer versión de la app
+        id: app-version
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_OUTPUT, "version=" + require("./package.json").version + "\n")'
 
       - name: Recursos de notificación de tracking
         run: |
@@ -64,9 +59,6 @@ jobs:
 
       - name: Compilar APK
         working-directory: android
-        env:
-          VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: "1.${{ github.run_number }}"
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -74,5 +66,5 @@ jobs:
       - name: Subir APK
         uses: actions/upload-artifact@v4
         with:
-          name: mtb-camboya-apk
+          name: mtb-camboya-apk-v${{ steps.app-version.outputs.version }}-run-${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/app-debug.apk

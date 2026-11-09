@@ -7,6 +7,11 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const www = path.join(root, 'www');
 const nm = path.join(root, 'node_modules');
+const appVersion = require(path.join(root, 'package.json')).version;
+
+if (!/^\d+\.\d+\.\d+$/.test(appVersion)) {
+  throw new Error(`Versión de aplicación no válida en package.json: ${appVersion}`);
+}
 
 fs.rmSync(www, { recursive: true, force: true });
 fs.mkdirSync(path.join(www, 'lib', 'leaflet'), { recursive: true });
@@ -15,6 +20,16 @@ for (const f of ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 
   fs.copyFileSync(path.join(root, f), path.join(www, f));
 }
 fs.cpSync(path.join(root, 'app'), path.join(www, 'app'), { recursive: true });
+const appConfig = path.join(www, 'app', 'config.js');
+const configText = fs.readFileSync(appConfig, 'utf8');
+if (!/const APP_VERSION = '[^']*';/.test(configText)) {
+  throw new Error('No se pudo encontrar APP_VERSION en app/config.js');
+}
+const versionedConfig = configText.replace(
+  /const APP_VERSION = '[^']*';/,
+  `const APP_VERSION = '${appVersion}';`
+);
+fs.writeFileSync(appConfig, versionedConfig);
 // sw.js no se copia: dentro del APK los archivos ya van empaquetados.
 
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/leaflet/leaflet.css'));

@@ -1,36 +1,21 @@
 apply plugin: 'com.android.application'
 
-// Usa VERSION_CODE de entorno (CI) o el número de commits del historial Git.
-def autoVersionCode = 1
-def autoVersionName = "1.2.0"
-
-try {
-    def envCode = System.getenv("VERSION_CODE")
-    if (envCode && envCode.isInteger()) {
-        autoVersionCode = envCode.toInteger()
-    } else {
-        def repoDir = rootProject.projectDir.absolutePath
-        def versionProcess = new ProcessBuilder('git', '-C', repoDir, 'rev-list', '--count', 'HEAD')
-            .redirectErrorStream(true).start()
-        def versionOutput = versionProcess.inputStream.getText('UTF-8').trim()
-        if (versionProcess.waitFor() == 0 && versionOutput.isInteger()) {
-            autoVersionCode = versionOutput.toInteger()
-        }
-    }
-} catch (Exception ignored) {
-    autoVersionCode = 1
+def appVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def versionMatcher = (appVersion =~ /^(\d+)\.(\d+)\.(\d+)$/)
+if (!versionMatcher.matches()) {
+    throw new GradleException("Invalid package.json version: ${appVersion}")
 }
-
-try {
-    def envName = System.getenv("VERSION_NAME")
-    if (envName && !envName.trim().isEmpty()) {
-        autoVersionName = envName.trim()
-    } else {
-        autoVersionName = "1.${autoVersionCode}"
-    }
-} catch (Exception ignored) {
-    autoVersionName = "1.2.0"
+def versionMajor = versionMatcher[0][1].toLong()
+def versionMinor = versionMatcher[0][2].toLong()
+def versionPatch = versionMatcher[0][3].toLong()
+if (versionMinor > 999 || versionPatch > 999) {
+    throw new GradleException("Version components must be less than 1000: ${appVersion}")
 }
+def appVersionCodeLong = versionMajor * 1000000L + versionMinor * 1000L + versionPatch
+if (appVersionCodeLong < 1 || appVersionCodeLong > 2100000000L) {
+    throw new GradleException("Version code is outside Android's supported range: ${appVersion}")
+}
+def appVersionCode = appVersionCodeLong.intValue()
 
 android {
     namespace = "com.emiliopousada.mtbcamboya"
@@ -39,8 +24,8 @@ android {
         applicationId "com.emiliopousada.mtbcamboya"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode autoVersionCode
-        versionName autoVersionName
+        versionCode appVersionCode
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
