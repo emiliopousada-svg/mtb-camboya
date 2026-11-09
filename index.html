@@ -269,7 +269,15 @@
             </div>
             <div class="card">
                 <h2>🗺️ Cartografía del mapa</h2>
-                <p class="hint" id="map-style-status" role="status" aria-live="polite">Se usa OpenTopoMap con conexión e IGN sin conexión.</p>
+                <label for="map-style-select" class="hint">Mapa con conexión</label>
+                <select id="map-style-select" aria-label="Mapa a usar con conexión">
+                    <option value="topographic">⛰️ Topográfico OpenTopoMap</option>
+                    <option value="cyclosm">🚵 CyclOSM (ciclismo)</option>
+                    <option value="osm">🗺️ OpenStreetMap (callejero)</option>
+                    <option value="satellite">🛰️ Satélite Esri</option>
+                    <option value="ign">📥 Topográfico IGN (mapas descargados)</option>
+                </select>
+                <p class="hint" id="map-style-status" role="status" aria-live="polite">Con conexión se usa el mapa elegido; sin conexión, el IGN descargado.</p>
             </div>
             <div class="card">
                 <h2>📡 Sensores Bluetooth</h2>
@@ -297,7 +305,7 @@
 
             <section id="offline-panel" class="card" aria-label="Mapas sin conexión">
     <h2>🗺️ Mapas sin conexión</h2>
-                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. OpenTopoMap guarda automáticamente las zonas que vas viendo para usarlas sin cobertura.</p>
+                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. El mapa online que elijas en Ajustes guarda automáticamente las zonas que vas viendo.</p>
     <label for="offline-region" style="font-size:.8rem;color:#ddd;">Región</label>
     <select id="offline-region">
         <option value="portugal">Portugal</option>

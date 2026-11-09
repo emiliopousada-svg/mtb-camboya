@@ -9,8 +9,18 @@ const MAX_CACHED_ONLINE_TILES = 10000;
 const IGN_TILE_URL = 'https://tms-mapa-raster.ign.es/1.0.0/mapa-raster/{z}/{x}/{ty}.jpeg';
 const MAP_STYLE_NAMES = {
     ign: 'Topográfico IGN',
-    topographic: 'Topográfico OpenTopoMap'
+    topographic: 'Topográfico OpenTopoMap',
+    cyclosm: 'CyclOSM (ciclismo)',
+    osm: 'OpenStreetMap',
+    satellite: 'Satélite Esri'
 };
+const MAP_STYLE_KEY = 'mtb_map_style';
+const DEFAULT_MAP_STYLE = 'topographic';
+function selectedMapStyle() {
+    let value = null;
+    try { value = localStorage.getItem(MAP_STYLE_KEY); } catch (e) {}
+    return Object.prototype.hasOwnProperty.call(MAP_STYLE_NAMES, value) ? value : DEFAULT_MAP_STYLE;
+}
 const MAP_RETINA = window.devicePixelRatio >= 2;
 const MAP_TILE_ZOOM_OFFSET = MAP_RETINA ? 1 : 0;
 const MAP_TILE_SIZE = MAP_RETINA ? 128 : 256;
@@ -327,13 +337,27 @@ function createMapStyleLayers() {
         topographic: createCachedOnlineTileLayer('topographic', 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
             maxNativeZoom: 17, subdomains: ['a', 'b', 'c'],
             attribution: `${osmAttribution}, SRTM | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`
+        }),
+        cyclosm: createCachedOnlineTileLayer('cyclosm', 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+            maxNativeZoom: 19, subdomains: ['a', 'b', 'c'],
+            attribution: `${osmAttribution} | style: <a href="https://www.cyclosm.org">CyclOSM</a>`
+        }),
+        osm: createCachedOnlineTileLayer('osm', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxNativeZoom: 19, subdomains: ['a'],
+            attribution: osmAttribution
+        }),
+        satellite: createCachedOnlineTileLayer('satellite', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxNativeZoom: 19, subdomains: ['a'],
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
         })
     };
 }
 
 function applyMapStyle() {
     if (!map || !mapStyleLayers.ign) return;
-    const style = navigator.onLine ? 'topographic' : 'ign';
+    // Con conexión se usa el mapa elegido; sin conexión siempre el IGN guardado.
+    const chosen = selectedMapStyle();
+    const style = navigator.onLine ? chosen : 'ign';
     if (activeMapStyle !== style) {
         if (activeMapStyle && mapStyleLayers[activeMapStyle]) map.removeLayer(mapStyleLayers[activeMapStyle]);
         mapStyleLayers[style].addTo(map);
@@ -342,9 +366,13 @@ function applyMapStyle() {
     const status = $('map-style-status');
     if (!status) return;
     const retinaText = MAP_RETINA ? ' En pantallas de alta densidad se cargan teselas un nivel más detalladas.' : '';
-    status.textContent = style === 'ign'
-        ? `Sin conexión: ${MAP_STYLE_NAMES.ign} y teselas guardadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`
-        : `${MAP_STYLE_NAMES.topographic} guarda automáticamente las zonas visitadas (hasta 10.000 teselas). Sin conexión se usa ${MAP_STYLE_NAMES.ign} y las teselas guardadas.${retinaText}`;
+    if (style === 'ign') {
+        status.textContent = navigator.onLine
+            ? `${MAP_STYLE_NAMES.ign} con las teselas descargadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`
+            : `Sin conexión: ${MAP_STYLE_NAMES.ign} y teselas guardadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`;
+    } else {
+        status.textContent = `${MAP_STYLE_NAMES[style]} guarda automáticamente las zonas visitadas (hasta 10.000 teselas). Sin conexión se usa ${MAP_STYLE_NAMES.ign} y las teselas guardadas.${retinaText}`;
+    }
 }
 
 // Rectángulos aproximados para descargar una comunidad cada vez.
@@ -481,6 +509,14 @@ async function clearOfflineTiles() {
     }
 }
 $('btn-clear-offline').addEventListener('click', clearOfflineTiles);
+
+const mapStyleSelect = $('map-style-select');
+mapStyleSelect.value = selectedMapStyle();
+mapStyleSelect.addEventListener('change', () => {
+    try { localStorage.setItem(MAP_STYLE_KEY, mapStyleSelect.value); }
+    catch (e) { console.warn('No se pudo guardar el mapa elegido:', e); }
+    applyMapStyle();
+});
 
 
 // ============================================================
