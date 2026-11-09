@@ -219,10 +219,10 @@
         <div class="page content-panel">
             <div class="card">
                 <h2>🗺️ Mis Rutas</h2>
-                <div class="camino-tabs big-tabs" role="group" aria-label="Tipo de rutas">
-                    <button class="camino-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
-                    <button class="camino-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
-                    <button class="camino-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
+                <div class="seg-tabs big-tabs" role="group" aria-label="Tipo de rutas">
+                    <button class="seg-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
+                    <button class="seg-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
+                    <button class="seg-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
                 </div>
                 <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
                 <div id="routes-import-box" hidden>
@@ -358,132 +358,6 @@
             </div>
         </div>
 
-        <!-- PÁGINA 6: CAMINOS DE SANTIAGO -->
-        <div class="page content-panel" id="page-camino">
-            <div class="camino-shell">
-                <header class="camino-header">
-                    <span class="camino-header-mark" aria-hidden="true">✺</span>
-                    <div>
-                        <h1>Camino de Santiago</h1>
-                        <p>Explora rutas, etapas y servicios del Camino</p>
-                    </div>
-                </header>
-                <div class="camino-tabs" role="group" aria-label="Secciones del Camino de Santiago">
-                    <button class="camino-tab" id="camino-tab-routes" type="button" aria-pressed="true" data-camino-tab="routes">✣ Caminos</button>
-                    <button class="camino-tab" id="camino-tab-guide" type="button" aria-pressed="false" data-camino-tab="guide">🧭 Guiado por etapas</button>
-                    <button class="camino-tab" id="camino-tab-services" type="button" aria-pressed="false" data-camino-tab="services">🧰 Servicios</button>
-                    <button class="camino-tab" id="camino-tab-albergues" type="button" aria-pressed="false" data-camino-tab="albergues">🛏️ Albergues</button>
-                </div>
-                <div class="camino-dashboard">
-                    <aside class="camino-card camino-sidebar">
-                        <h2>Caminos principales</h2>
-                        <div id="camino-list" class="camino-list" aria-label="Todos los Caminos de Santiago"></div>
-                    </aside>
-                    <section class="camino-main" aria-label="Detalle del Camino seleccionado">
-                        <div class="camino-panel" id="camino-panel-routes" role="tabpanel" aria-labelledby="camino-tab-routes">
-                            <div class="camino-route-hero">
-                                <h2 id="camino-route-title">Elige un Camino</h2>
-                                <p id="camino-route-subtitle">Track oficial incluido en la app</p>
-                            </div>
-                            <div class="camino-stats" aria-label="Resumen del Camino">
-                                <div class="camino-stat"><strong id="camino-stage-count">—</strong><span>Tramos incluidos</span></div>
-                                <div class="camino-stat"><strong id="camino-albergue-count">—</strong><span>Albergues cargados</span></div>
-                                <div class="camino-stat"><strong id="camino-import-count">0</strong><span>Tracks personales</span></div>
-                            </div>
-                            <p class="camino-note" id="camino-poi-status" role="status" aria-live="polite" hidden></p>
-                            <div class="camino-card">
-                                <p class="camino-note" id="guide-offline-state"></p>
-                                <div class="camino-actions">
-                                    <button class="btn camino-action" id="btn-guide-start" type="button">▶ Seguir camino</button>
-                                </div>
-                            </div>
-                            <details class="camino-tools">
-                                <summary>Importar o elegir otro track</summary>
-                                <p class="hint">Puedes importar un track GPX, KML o GeoJSON para el Camino seleccionado.</p>
-                                <label for="camino-track-select" class="hint">Track oficial o track personal</label>
-                                <select id="camino-track-select" aria-label="Selecciona un track para este Camino">
-                                    <option value="">Selecciona un Camino primero</option>
-                                </select>
-                                <label for="camino-file-input" class="hint">Importar track para el Camino seleccionado</label>
-                                <input type="file" id="camino-file-input" accept=".gpx,.kml,.geojson,.json" aria-label="Archivo del track del Camino">
-                                <button class="btn secondary camino-action" id="btn-camino-import" type="button" disabled>Importar track de este Camino</button>
-                            </details>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-guide" role="tabpanel" aria-labelledby="camino-tab-guide" hidden>
-                            <div class="camino-card">
-                                <h2 class="camino-section-title">Descargar para usar sin conexión</h2>
-                                <p class="camino-note" id="guide-stage-note">Marca las etapas que necesitas. Se guardan el track, los servicios y el mapa IGN de un corredor de 5 km (zoom 10–14).</p>
-                                <div class="camino-stage-list" id="guide-stage-list"></div>
-                                <div class="camino-actions">
-                                    <button class="btn camino-action" id="btn-guide-download" type="button">⬇ Descargar selección</button>
-                                    <button class="btn secondary camino-action" id="btn-guide-update" type="button">⟳ Actualizar datos</button>
-                                </div>
-                                <button class="btn secondary camino-action" id="btn-guide-all" type="button">Marcar / desmarcar todas</button>
-                                <button class="btn secondary camino-action" id="btn-guide-cancel" type="button" style="display:none;">Cancelar descarga</button>
-                                <button class="btn secondary camino-action" id="btn-guide-delete" type="button">Borrar descarga de este Camino</button>
-                                <div id="guide-progress"><div id="guide-progress-fill"></div></div>
-                                <p class="camino-note" id="guide-progress-text" role="status" aria-live="polite"></p>
-                            </div>
-                            <p class="hint" id="guide-attribution"></p>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-services" role="tabpanel" aria-labelledby="camino-tab-services" hidden>
-                            <div class="camino-card">
-                                <h2 id="camino-services-route-name">Servicios del Camino</h2>
-                                <p class="camino-note">Consulta farmacias, fuentes, supermercados y otros servicios por etapa en OpenStreetMap. Las etapas descargadas para guiado también incluyen sus servicios sin conexión; los tramos disponibles solo en Galicia requieren internet.</p>
-                                <label for="camino-service-stage" class="hint">Etapa o tramo</label>
-                                <select id="camino-service-stage" aria-label="Etapa o tramo para consultar servicios" disabled>
-                                    <option value="">Selecciona un Camino</option>
-                                </select>
-                                <label for="camino-service-category" class="hint">Tipo de servicio</label>
-                                <select id="camino-service-category" aria-label="Filtrar servicios por tipo" disabled>
-                                    <option value="all">Todos los servicios</option>
-                                    <option value="pharmacy">Farmacias</option>
-                                    <option value="fountain">Fuentes y agua</option>
-                                    <option value="supermarket">Supermercados y tiendas</option>
-                                    <option value="restaurant">Restaurantes y cafeterías</option>
-                                    <option value="bicycle">Talleres de bicicletas</option>
-                                    <option value="medical">Centros médicos</option>
-                                    <option value="atm">Cajeros automáticos</option>
-                                    <option value="transport">Transporte</option>
-                                    <option value="landmark">Monumentos e iglesias</option>
-                                </select>
-                                <p class="camino-note" id="camino-services-status" role="status" aria-live="polite">Selecciona un Camino para consultar sus servicios.</p>
-                            </div>
-                            <div class="camino-service-list" id="camino-service-list"></div>
-                        </div>
-                        <div class="camino-panel" id="camino-panel-albergues" role="tabpanel" aria-labelledby="camino-tab-albergues" hidden>
-                            <div class="camino-card">
-                                <h2 id="camino-albergues-route-name">Albergues del Camino</h2>
-                                <p class="camino-note">Ordenados del más cercano al más lejano según tu ubicación actual. Abre cada ficha para ver toda la información.</p>
-                                <p class="camino-note" id="camino-albergues-status" role="status" aria-live="polite">Selecciona un Camino para ver sus albergues.</p>
-                            </div>
-                            <div class="camino-albergue-list" id="camino-albergue-list"></div>
-                            <button class="btn secondary camino-action" id="btn-camino-albergues-more" type="button" hidden>Mostrar más albergues</button>
-                        </div>
-                        <p class="hint" id="camino-status" role="status" aria-live="polite"></p>
-                        <div class="camino-attribution">
-                            <p class="hint">Albergues: datos de <a href="https://caminoahora.com" target="_blank" rel="noopener noreferrer">Camino Ahora</a>, del Registro de Empresas y Actividades Turísticas de la Xunta de Galicia y de <a href="https://www.caminodesantiago.gal" target="_blank" rel="noopener noreferrer">caminodesantiago.gal</a>. Licencia <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>.</p>
-                            <p class="hint">Servicios: farmacias, fuentes, supermercados, restaurantes, talleres, monumentos, transporte y centros médicos: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> (ODbL).</p>
-                            <p class="hint">Tracks: Axencia Turismo de Galicia / Xunta de Galicia, publicados en <a href="https://www.caminodesantiago.gal/es/planifica/las-rutas" target="_blank" rel="noopener noreferrer">Las rutas del Camino</a>. Reutilización según las <a href="https://www.caminodesantiago.gal/es/utilidades-del-portal/aviso-legal" target="_blank" rel="noopener noreferrer">condiciones de la Xunta</a>.</p>
-                        </div>
-                    </section>
-                </div>
-                <select id="camino-select" aria-label="Selecciona un Camino de Santiago" hidden>
-                    <option value="">Selecciona un camino</option>
-                    <option value="frances" selected>Camino Francés</option>
-                    <option value="portugues">Camino Portugués</option>
-                    <option value="portugues-costa">Camino Portugués por la Costa</option>
-                    <option value="primitivo">Camino Primitivo</option>
-                    <option value="norte">Camino del Norte</option>
-                    <option value="ingles">Camino Inglés</option>
-                    <option value="fisterra">Camino de Fisterra y Muxía</option>
-                    <option value="invierno">Camino de Invierno</option>
-                    <option value="plata">Vía de la Plata</option>
-                    <option value="plata-verin">Vía de la Plata por Verín</option>
-                </select>
-            </div>
-        </div>
-
     </div>
 
 
@@ -509,10 +383,6 @@
         <button class="nav-btn" onclick="goToPage(4)">
             <span class="icon">⚙️</span>
             <span>Ajustes</span>
-        </button>
-        <button class="nav-btn" onclick="goToPage(5)">
-            <span class="icon">🥾</span>
-            <span>Camino</span>
         </button>
     </nav>
 
