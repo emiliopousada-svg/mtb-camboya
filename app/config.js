@@ -43,6 +43,7 @@ function activityTypeFromName(name) {
 }
 
 function activityTypeForRoute(route) {
+    if (!route || typeof route !== 'object') return null;
     return Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, route.activityType)
         ? route.activityType
         : activityTypeFromName(route.name);
@@ -50,13 +51,15 @@ function activityTypeForRoute(route) {
 
 function routeActivityPrefix(type) {
     const activity = ACTIVITY_TYPES[type];
-    return `${activity.icon} ${activity.label} · `;
+    return activity ? `${activity.icon} ${activity.label} · ` : '';
 }
 
 function routeNameWithoutActivity(route) {
+    if (!route || typeof route !== 'object') return '';
+    const name = String(route.name ?? '');
     const type = activityTypeForRoute(route);
     const prefix = type ? routeActivityPrefix(type) : '';
-    return prefix && route.name.startsWith(prefix) ? route.name.slice(prefix.length) : route.name;
+    return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
 }
 
 async function promptRequiredRouteName(suggestion) {

@@ -3,13 +3,16 @@
 //  EXPORTAR / IMPORTAR GPX, KML, GEOJSON
 // ============================================================
 function routeToGpx(r) {
+    const route = r && typeof r === 'object' ? r : {};
+    const title = String(route.name ?? 'Ruta');
+    const points = Array.isArray(route.points) ? route.points : [];
     const out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<gpx version="1.1" creator="MTB CAMBOYA" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">',
-        `<metadata><name>${xmlEsc(r.name)}</name></metadata>`,
-        `<trk><name>${xmlEsc(r.name)}</name>`
+        `<metadata><name>${xmlEsc(title)}</name></metadata>`,
+        `<trk><name>${xmlEsc(title)}</name>`
     ];
-    r.points.forEach((p, i) => {
+    points.forEach((p, i) => {
         if (i === 0 || p[5] === 1) {
             if (i > 0) out.push('</trkseg>');
             out.push('<trkseg>');
@@ -20,7 +23,7 @@ function routeToGpx(r) {
         if (p[4] != null) s += `<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>${p[4]}</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>`;
         out.push(s + '</trkpt>');
     });
-    if (r.points.length) out.push('</trkseg>');
+    if (points.length) out.push('</trkseg>');
     out.push('</trk>', '</gpx>');
     return out.join('\n');
 }

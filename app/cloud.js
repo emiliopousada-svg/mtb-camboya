@@ -112,17 +112,18 @@ async function queueRemoteDelete(remoteId) {
 }
 
 function routeForm(r) {
+    const route = r && typeof r === 'object' ? r : {};
     const fd = new FormData();
     fd.append('owner', Cloud.uid);
-    fd.append('clientId', String(r.id));
-    fd.append('name', r.name);
-    fd.append('kind', r.kind || 'recorded');
-    fd.append('startedAt', r.startedAt);
-    fd.append('movingTimeSec', String(r.movingTimeSec || 0));
-    fd.append('distanceKm', String(r.distanceKm || 0));
-    fd.append('elevationGain', String(r.elevationGain || 0));
-    fd.append('hrAvg', String(r.hrAvg || 0));
-    fd.append('track', new Blob([JSON.stringify(r.points)], { type: 'application/json' }), 'track.json');
+    fd.append('clientId', String(route.id ?? Date.now()));
+    fd.append('name', String(route.name ?? 'Ruta sin nombre'));
+    fd.append('kind', route.kind || 'recorded');
+    fd.append('startedAt', route.startedAt || new Date().toISOString());
+    fd.append('movingTimeSec', String(route.movingTimeSec || 0));
+    fd.append('distanceKm', String(route.distanceKm || 0));
+    fd.append('elevationGain', String(route.elevationGain || 0));
+    fd.append('hrAvg', String(route.hrAvg ?? 0));
+    fd.append('track', new Blob([JSON.stringify(Array.isArray(route.points) ? route.points : [])], { type: 'application/json' }), 'track.json');
     return fd;
 }
 
