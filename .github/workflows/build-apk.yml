@@ -88,11 +88,18 @@ jobs:
             echo "::error::No se encontró apksigner o el APK generado."
             exit 1
           fi
-          APK_CERT_SHA256=$("$APKSIGNER" verify --print-certs "$APK" \
-            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' \
+          if ! APKSIGNER_OUTPUT=$("$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1); then
+            printf '%s\n' "$APKSIGNER_OUTPUT"
+            echo "::error::apksigner no pudo verificar la firma del APK."
+            exit 1
+          fi
+          printf '%s\n' "$APKSIGNER_OUTPUT"
+          APK_CERT_SHA256=$(printf '%s\n' "$APKSIGNER_OUTPUT" \
+            | sed -nE 's/.*certificate SHA-256 digest:[[:space:]]*([[:xdigit:]:]+).*/\1/ip' \
+            | sed -n '1p' \
             | tr -d ':' | tr '[:upper:]' '[:lower:]')
           if [ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::La firma del APK generado no coincide con la keystore configurada."
+            echo "::error::La firma del APK generado no coincide con la keystore configurada, o no se pudo leer su huella."
             echo "::error::Huella SHA-256 del APK: ${APK_CERT_SHA256:-no disponible}"
             exit 1
           fi
