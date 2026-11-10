@@ -2,7 +2,8 @@
 
 //  ESTADO GLOBAL
 // ============================================================
-let map = null, userMarker = null, routePolyline = null, savedRouteLayer = null, offlineTileLayer = null;
+let map = null, userMarker = null, routePolyline = null, routePolylines = [], routePolylinePointCount = 0, savedRouteLayer = null, offlineTileLayer = null;
+const MAX_ROUTE_RENDER_POINTS = 250;
 let activeMapStyle = null, mapStyleLayers = {};
 let isRecording = false, isPaused = false;
 let autoPaused = false, autoPauseInterval = null;

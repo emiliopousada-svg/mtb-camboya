@@ -3,6 +3,32 @@
 //  CONTROL DE GRABACIÓN
 // ============================================================
 let wakeLock = null;
+
+function clearRoutePolylines() {
+    routePolylines.forEach(polyline => { if (map) map.removeLayer(polyline); });
+    routePolylines = [];
+    routePolyline = null;
+    routePolylinePointCount = 0;
+}
+
+function renderRecordingSegments(routeSegments) {
+    clearRoutePolylines();
+    if (!map) return;
+    routeSegments.forEach(segment => {
+        if (!segment.length) return;
+        let start = 0;
+        while (start < segment.length) {
+            const end = Math.min(start + MAX_ROUTE_RENDER_POINTS, segment.length);
+            const polyline = L.polyline(segment.slice(start, end), { color: '#ff9800', weight: 5 }).addTo(map);
+            routePolylines.push(polyline);
+            routePolyline = polyline;
+            routePolylinePointCount = end - start;
+            if (end === segment.length) break;
+            start = end - 1;
+        }
+    });
+}
+
 async function acquireWake() {
     try {
         if ('wakeLock' in navigator) {
@@ -231,12 +257,12 @@ function stopBgWatcher() {
 
 // Empieza a recibir posiciones: en segundo plano si se puede; si no, pantalla encendida
 async function beginTracking(showToast) {
+    acquireWake();
     const ok = await startBgWatcher();
     if (ok) {
         if (showToast) toast('Grabando en segundo plano: puedes bloquear la pantalla.', 5000);
         return;
     }
-    acquireWake();
     if (showToast) {
         toast('wakeLock' in navigator
             ? 'Grabando. Mantén la app abierta en primer plano.'
@@ -260,7 +286,7 @@ function startTimers() {
     clearInterval(draftInterval);
     updateTimerDisplay();
     timerInterval = setInterval(updateTimerDisplay, 1000);
-    draftInterval = setInterval(saveDraft, 10000);
+    draftInterval = setInterval(saveDraft, 30000);
 }
 // En pausa el tiempo total sigue corriendo; solo se detiene el borrador.
 function pauseTimers() {
@@ -372,7 +398,7 @@ function startRecording(activityType) {
     segStart = Date.now();
     $('m-dist').textContent = '0.00';
     $('m-elevation').textContent = '0';
-    if (routePolyline) routePolyline.setLatLngs([]);
+    clearRoutePolylines();
     setBtnState('recording');
     startTimers();
     startAutoPauseMonitor();
@@ -394,8 +420,8 @@ function pauseRecording(automatic = false) {
     stopAutoPauseMonitor();
     pauseTimers();
     stopRideAdvisories();
+    releaseWake();
     if (!automatic) {
-        releaseWake();
         stopBgWatcher();
     } else if (autoPauseLastPosition) {
         autoPauseAnchor = autoPauseLastPosition;
@@ -442,8 +468,9 @@ btnStop.addEventListener('click', async () => {
 });
 
 async function finishRecording() {
+    const hasRoute = points.length > 1 && totalDistance >= 0.05;
     let routeName = null;
-    if (points.length > 1 && totalDistance >= 0.05) {
+    if (hasRoute) {
         routeName = await promptRequiredRouteName(fmtDate(startedAt));
         if (routeName === null) {
             toast('La ruta no se ha guardado; puedes finalizarla cuando quieras.');
@@ -452,19 +479,18 @@ async function finishRecording() {
     }
     if (segStart) { movingMs += Date.now() - segStart; segStart = null; }
     const sec = Math.round(movingMs / 1000);
-    isRecording = false;
-    isPaused = false;
-    resetAutoPauseState();
-    stopTimers();
-    stopRideAdvisories();
-    releaseWake();
-    stopBgWatcher();
-    removeMyLiveLocation();
-    setBtnState('idle');
-    $('m-speed').textContent = '0.0';
-    DB.kvDel('draft').catch(() => {});
-
-    if (points.length > 1 && totalDistance >= 0.05) {
+    if (hasRoute) {
+        isPaused = true;
+        resetAutoPauseState();
+        stopTimers();
+        stopRideAdvisories();
+        releaseWake();
+        stopBgWatcher();
+        removeMyLiveLocation();
+        setBtnState('paused');
+        $('m-speed').textContent = '0.0';
+    }
+    if (hasRoute) {
         const hrs = points.map(p => p[4]).filter(h => h != null);
         const route = {
             id: Date.now(),
@@ -479,11 +505,26 @@ async function finishRecording() {
             followedImportedRoute: followedRoute && followedRoute.kind === 'imported' ? followedRoute.name : null,
             points
         };
-        if (!await saveRoute(route)) return;
+        if (!await saveRoute(route)) {
+            saveDraft();
+            toast('La ruta sigue en pausa. Libera espacio y vuelve a intentar guardarla; también puedes exportarla como GPX.');
+            return;
+        }
         toast(`✅ Ruta guardada: ${route.distanceKm.toFixed(2)} km · ${fmtDur(sec)} · +${route.elevationGain} m`, 5000);
     } else {
         toast('La ruta es muy corta y no se ha guardado.');
     }
+    isRecording = false;
+    isPaused = false;
+    resetAutoPauseState();
+    stopTimers();
+    stopRideAdvisories();
+    releaseWake();
+    stopBgWatcher();
+    removeMyLiveLocation();
+    setBtnState('idle');
+    $('m-speed').textContent = '0.0';
+    DB.kvDel('draft').catch(() => {});
 }
 
 async function saveRoute(r) {
@@ -495,7 +536,15 @@ async function saveRoute(r) {
         await DB.put(r);
     } catch (e) {
         console.warn('Error guardando:', e);
-        toast('⚠️ No se pudo guardar en el dispositivo (¿almacenamiento lleno?). Exporta el GPX ahora desde Rutas.', 7000);
+        toast('⚠️ No se pudo guardar la ruta en el dispositivo (¿almacenamiento lleno?). Se intentará exportar como GPX.', 7000);
+        try {
+            const safe = String(r.name || 'ruta').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
+            await download(`${safe}.gpx`, routeToGpx(r), 'application/gpx+xml');
+        } catch (exportError) {
+            console.warn('No se pudo exportar la ruta como GPX:', exportError);
+            toast('No se pudo exportar la ruta. Sigue en pausa mientras la app permanezca abierta.', 7000);
+        }
+        return false;
     }
     savedRoutes.unshift(r);
     renderSavedRoutes();
@@ -546,8 +595,9 @@ function restoreDraft(d) {
     $('m-moving').textContent = fmtClock(Math.floor(movingMs / 1000));
     $('m-time').textContent = fmtClock(totalSec());
     if (map) {
-        routePolyline.setLatLngs(segments);
-        const b = routePolyline.getBounds();
+        renderRecordingSegments(segments);
+        const b = L.latLngBounds([]);
+        routePolylines.forEach(polyline => b.extend(polyline.getBounds()));
         if (b.isValid()) map.fitBounds(b, { padding: [30, 30] });
         following = false;
         updateCenterBtn();

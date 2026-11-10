@@ -15,6 +15,7 @@ Aplicación para registrar, seguir y analizar actividades al aire libre, con esp
 - Guardar y consultar rutas.
 - Importar archivos GPX, KML y GeoJSON.
 - Exportar recorridos en formato GPX.
+- La importación admite archivos de hasta 10 MB y tracks de hasta 100.000 puntos.
 - Mapas y zonas descargables para utilizarlos sin conexión.
 - Capas y proveedores cartográficos como OpenTopoMap, CyclOSM, OpenStreetMap, Esri Satellite e IGN.
 
@@ -151,7 +152,11 @@ Consulta la pestaña **Actions** del repositorio para ver las ejecuciones y sus 
 
 La aplicación incorpora una PWA y mecanismos de caché para facilitar el uso sin conexión. Para navegar sin cobertura, descarga previamente las zonas o paquetes de mapas que necesites y comprueba que la región está disponible antes de iniciar la actividad.
 
-La disponibilidad sin conexión puede variar según el mapa, los datos descargados y las funciones que necesiten conexión con los servicios en la nube.
+Cada descarga regional está limitada a 25.000 teselas y el dispositivo conserva hasta 30.000 teselas IGN descargadas. Las cachés automáticas de IGN y de mapas online conservan hasta 2.500 teselas cada una y eliminan las más antiguas; estas cachés no sustituyen a una descarga regional.
+
+Durante una grabación larga, el trazado del mapa se dibuja en segmentos acotados para reducir el coste de actualización. Se intenta guardar el borrador cada 30 segundos y también al pausar o dejar la aplicación; una interrupción brusca puede perder los puntos posteriores al último guardado.
+
+La disponibilidad sin conexión puede variar según el mapa, el espacio disponible, los datos descargados y las funciones que necesiten conexión con los servicios en la nube.
 
 ## Privacidad
 

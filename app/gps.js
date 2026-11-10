@@ -240,7 +240,19 @@ function onPos(pos) {
     segments[segments.length - 1].push(ll);
     lastAccepted = { ll, t };
 
-    if (routePolyline) routePolyline.setLatLngs(segments);
+    if (map) {
+        const segment = segments[segments.length - 1];
+        if (brk || !routePolyline || routePolylinePointCount >= MAX_ROUTE_RENDER_POINTS) {
+            const startsChunk = !brk && routePolyline && routePolylinePointCount >= MAX_ROUTE_RENDER_POINTS;
+            const chunkPoints = startsChunk && segment.length > 1 ? [segment[segment.length - 2], ll] : [ll];
+            routePolyline = L.polyline(chunkPoints, { color: '#ff9800', weight: 5 }).addTo(map);
+            routePolylines.push(routePolyline);
+            routePolylinePointCount = chunkPoints.length;
+        } else {
+            routePolyline.addLatLng(ll);
+            routePolylinePointCount++;
+        }
+    }
     $('m-dist').textContent = totalDistance.toFixed(2);
     $('m-elevation').textContent = Math.round(elev.gain);
 

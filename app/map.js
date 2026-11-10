@@ -28,7 +28,6 @@ function initMap() {
     mapStyleLayers = createMapStyleLayers();
     applyMapStyle();
 
-    routePolyline = L.polyline([], { color: '#ff9800', weight: 5 }).addTo(map);
     savedRouteLayer = L.polyline([], { color: '#29b6f6', weight: 4, dashArray: '5, 5' }).addTo(map);
 
     // Al arrastrar el mapa se desactiva el seguimiento automático

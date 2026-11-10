@@ -4,8 +4,12 @@
 // ============================================================
 const OFFLINE_DB = 'mtb-camboya-mapas-v1';
 const OFFLINE_STORE = 'tiles';
+const AUTOMATIC_IGN_STORE = 'automatic-ign-tiles';
 const ONLINE_TILE_STORE = 'online-tiles';
-const MAX_CACHED_ONLINE_TILES = 10000;
+const MAX_AUTOMATIC_IGN_TILES = 2500;
+const MAX_CACHED_ONLINE_TILES = 2500;
+const MAX_DOWNLOADED_IGN_TILES = 30000;
+const MAX_TILES_PER_DOWNLOAD = 25000;
 const IGN_TILE_URL = 'https://tms-mapa-raster.ign.es/1.0.0/mapa-raster/{z}/{x}/{ty}.jpeg';
 const MAP_STYLE_NAMES = {
     ign: 'Topográfico IGN',
@@ -33,10 +37,14 @@ function openOfflineDb() {
     if (offlineDbPromise) return offlineDbPromise;
     offlineDbPromise = new Promise((resolve, reject) => {
         if (!('indexedDB' in window)) { reject(new Error('Este navegador no permite almacenamiento offline')); return; }
-        const req = indexedDB.open(OFFLINE_DB, 3);
+        const req = indexedDB.open(OFFLINE_DB, 4);
         req.onupgradeneeded = () => {
             const db = req.result;
             if (!db.objectStoreNames.contains(OFFLINE_STORE)) db.createObjectStore(OFFLINE_STORE, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(AUTOMATIC_IGN_STORE)) {
+                const store = db.createObjectStore(AUTOMATIC_IGN_STORE, { keyPath: 'id' });
+                store.createIndex('savedAt', 'savedAt');
+            }
             if (!db.objectStoreNames.contains(ONLINE_TILE_STORE)) {
                 const store = db.createObjectStore(ONLINE_TILE_STORE, { keyPath: 'id' });
                 store.createIndex('savedAt', 'savedAt');
@@ -55,18 +63,43 @@ function openOfflineDb() {
 function tileKey(z, x, y) { return `${z}/${x}/${y}`; }
 async function getOfflineTile(z, x, y) {
     const db = await openOfflineDb();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(OFFLINE_STORE, 'readonly');
-        const req = tx.objectStore(OFFLINE_STORE).get(tileKey(z, x, y));
+    const key = tileKey(z, x, y);
+    const read = storeName => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(key);
         req.onsuccess = () => resolve(req.result ? req.result.blob : null);
         req.onerror = () => reject(req.error);
     });
+    return await read(OFFLINE_STORE) || await read(AUTOMATIC_IGN_STORE);
 }
-async function saveOfflineTile(z, x, y, blob) {
+async function saveOfflineTile(z, x, y, blob, automatic = false) {
     const db = await openOfflineDb();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(OFFLINE_STORE, 'readwrite');
-        tx.objectStore(OFFLINE_STORE).put({ id: tileKey(z, x, y), blob, savedAt: Date.now() });
+        const storeName = automatic ? AUTOMATIC_IGN_STORE : OFFLINE_STORE;
+        const tx = automatic
+            ? db.transaction(AUTOMATIC_IGN_STORE, 'readwrite')
+            : db.transaction([OFFLINE_STORE, AUTOMATIC_IGN_STORE], 'readwrite');
+        const store = tx.objectStore(storeName);
+        const id = tileKey(z, x, y);
+        store.put({ id, blob, savedAt: Date.now() });
+        if (automatic) {
+            const index = store.index('savedAt');
+            const count = store.count();
+            count.onsuccess = () => {
+                let remaining = count.result;
+                if (remaining <= MAX_AUTOMATIC_IGN_TILES) return;
+                const cursorRequest = index.openCursor();
+                cursorRequest.onsuccess = () => {
+                    const cursor = cursorRequest.result;
+                    if (!cursor || remaining <= MAX_AUTOMATIC_IGN_TILES) return;
+                    cursor.delete();
+                    remaining--;
+                    cursor.continue();
+                };
+            };
+        } else {
+            tx.objectStore(AUTOMATIC_IGN_STORE).delete(id);
+        }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error || new Error('No se pudo guardar la tesela'));
@@ -79,6 +112,31 @@ async function countOfflineTiles() {
         const req = tx.objectStore(OFFLINE_STORE).count();
         req.onsuccess = () => resolve(req.result || 0);
         req.onerror = () => reject(req.error);
+    });
+}
+async function countAutomaticIgnTiles() {
+    const db = await openOfflineDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTOMATIC_IGN_STORE, 'readonly');
+        const req = tx.objectStore(AUTOMATIC_IGN_STORE).count();
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => reject(req.error);
+    });
+}
+async function countNewDownloadedTiles(tiles) {
+    const db = await openOfflineDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(OFFLINE_STORE, 'readonly');
+        const req = tx.objectStore(OFFLINE_STORE).getAllKeys();
+        let missing = null;
+        req.onsuccess = () => {
+            const existing = new Set(req.result);
+            missing = tiles.reduce((count, tile) => count + (existing.has(tileKey(tile.z, tile.x, tile.y)) ? 0 : 1), 0);
+        };
+        req.onerror = () => reject(req.error);
+        tx.oncomplete = () => resolve(missing);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('No se pudieron comprobar las teselas guardadas'));
     });
 }
 function onlineTileKey(style, z, x, y) { return `${style}/${z}/${x}/${y}`; }
@@ -125,14 +183,31 @@ async function countCachedOnlineTiles() {
     });
 }
 function ignTileUrl(z, x, y) { const tmsY = Math.pow(2, z) - 1 - y; return IGN_TILE_URL.replace('{z}', z).replace('{x}', x).replace('{ty}', tmsY); }
-async function fetchAndStoreTile(z, x, y) {
-    const cached = await getOfflineTile(z, x, y);
-    if (cached) return cached;
+async function fetchAndStoreTile(z, x, y, automatic = false) {
+    const key = tileKey(z, x, y);
+    const db = await openOfflineDb();
+    const manual = await new Promise((resolve, reject) => {
+        const tx = db.transaction(OFFLINE_STORE, 'readonly');
+        const req = tx.objectStore(OFFLINE_STORE).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+        req.onerror = () => reject(req.error);
+    });
+    if (manual) return manual;
+    const cached = await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTOMATIC_IGN_STORE, 'readonly');
+        const req = tx.objectStore(AUTOMATIC_IGN_STORE).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+        req.onerror = () => reject(req.error);
+    });
+    if (cached) {
+        if (!automatic) await saveOfflineTile(z, x, y, cached);
+        return cached;
+    }
     const response = await fetch(ignTileUrl(z, x, y), { mode: 'cors', cache: 'force-cache' });
     if (!response.ok) throw new Error(`IGN respondió ${response.status}`);
     const blob = await response.blob();
     if (!blob || !blob.size) throw new Error('Tesela vacía');
-    await saveOfflineTile(z, x, y, blob);
+    await saveOfflineTile(z, x, y, blob, automatic);
     return blob;
 }
 
@@ -162,7 +237,7 @@ function createOfflineTileLayer() {
                     if (!response.ok) throw new Error('Tesela no disponible');
                     const blobOnline = await response.blob();
                     // Guarda automáticamente las teselas que se van viendo, además de las descargadas manualmente.
-                    saveOfflineTile(sourceCoords.z, sourceCoords.x, sourceCoords.y, blobOnline).catch(error => {
+                    saveOfflineTile(sourceCoords.z, sourceCoords.x, sourceCoords.y, blobOnline, true).catch(error => {
                         console.warn('No se pudo guardar la tesela IGN en caché:', error);
                     });
                     const objectUrl = URL.createObjectURL(blobOnline);
@@ -265,7 +340,7 @@ function createCachedOnlineTileLayer(style, urlTemplate, options) {
                         const igZoom = Math.min(sourceCoords.z, 17);
                         const scale = Math.pow(2, sourceCoords.z - igZoom);
                         const igX = Math.floor(sourceCoords.x / scale), igY = Math.floor(sourceCoords.y / scale);
-                        const blob = await fetchAndStoreTile(igZoom, igX, igY);
+                        const blob = await fetchAndStoreTile(igZoom, igX, igY, true);
                         showBlob(blob, igZoom, igX, igY);
                         return;
                     }
@@ -422,9 +497,40 @@ async function downloadRegionOffline() {
     const regionName = regionSelect.options[regionSelect.selectedIndex].text;
     const maxZoom = Number($('offline-detail').value) || 13;
     const tiles = regionTiles(region, maxZoom);
+    if (tiles.length > MAX_TILES_PER_DOWNLOAD) {
+        toast(`La selección supera el límite de ${MAX_TILES_PER_DOWNLOAD.toLocaleString('es-ES')} teselas por descarga. Elige menos detalle o una región más pequeña.`, 7000);
+        return;
+    }
+    let newTiles, savedTiles, storageNote = '';
+    try {
+        [savedTiles, newTiles] = await Promise.all([countOfflineTiles(), countNewDownloadedTiles(tiles)]);
+        if (savedTiles + newTiles > MAX_DOWNLOADED_IGN_TILES) {
+            toast(`La descarga superaría el límite de ${MAX_DOWNLOADED_IGN_TILES.toLocaleString('es-ES')} teselas IGN descargadas. Borra mapas antiguos o elige menos detalle.`, 7000);
+            return;
+        }
+    } catch (error) {
+        console.warn('No se pudo comprobar el espacio de mapas offline:', error);
+        toast('No se pudo comprobar el almacenamiento de mapas. Inténtalo de nuevo.', 6000);
+        return;
+    }
+    if (navigator.storage && navigator.storage.estimate) {
+        try {
+            const estimate = await navigator.storage.estimate();
+            const approximateBytes = newTiles * 25 * 1024;
+            if (Number.isFinite(estimate.quota) && Number.isFinite(estimate.usage)) {
+                const availableBytes = Math.max(0, estimate.quota - estimate.usage);
+                const approximateMb = Math.ceil(approximateBytes / 1048576);
+                const availableMb = Math.floor(availableBytes / 1048576);
+                storageNote = ` Tamaño orientativo: unos ${approximateMb} MB (estimado a 25 KB por tesela); espacio disponible estimado: ${availableMb} MB. Las teselas ya guardadas reducen el tamaño real.`;
+                if (approximateBytes > availableBytes) storageNote += ' La descarga puede detenerse si se agota el espacio.';
+            }
+        } catch (error) {
+            console.warn('No se pudo estimar el espacio de mapas offline:', error);
+        }
+    }
     const detailName = maxZoom === 14 ? 'alto (zoom 7–14)' : 'estándar (zoom 7–13)';
     const confirmed = await modal({
-        message: `Se descargarán aproximadamente ${tiles.length.toLocaleString('es-ES')} teselas IGN para ${regionName} con detalle ${detailName}. Usa Wi-Fi y mantén la aplicación abierta. Las teselas ya guardadas se omiten.`,
+        message: `Se incorporarán hasta ${newTiles.toLocaleString('es-ES')} teselas IGN al mapa descargado de ${regionName} con detalle ${detailName}.${storageNote} Usa Wi-Fi y mantén la aplicación abierta. Las teselas descargadas se omiten y las de caché se reutilizan.`,
         ok: 'Descargar'
     });
     if (!confirmed) return;
@@ -447,13 +553,13 @@ async function downloadRegionOffline() {
             }
         });
         await Promise.all(workers);
-        const stored = await countOfflineTiles();
+        const [stored, automatic] = await Promise.all([countOfflineTiles(), countAutomaticIgnTiles()]);
         if (stopOfflineDownload) {
             $('offline-progress-text').textContent += ' · Pausado';
             toast('Descarga pausada. Puedes reanudarla más tarde.');
         } else {
             setOfflineProgress(done, tiles.length, errors);
-            $('offline-storage-note').textContent = `Proceso terminado. Teselas guardadas en este móvil: ${stored.toLocaleString('es-ES')}. Los errores se pueden reintentar volviendo a pulsar descargar.`;
+            $('offline-storage-note').textContent = `Proceso terminado. Teselas IGN descargadas: ${stored.toLocaleString('es-ES')}; caché automática: ${automatic.toLocaleString('es-ES')}. Los errores se pueden reintentar volviendo a pulsar descargar.`;
             toast(errors ? `Mapa descargado con ${errors} teselas pendientes` : `Mapa de ${regionName} guardado para usar sin conexión`, 5000);
         }
     } catch (e) {
@@ -468,7 +574,9 @@ async function downloadRegionOffline() {
 async function openOfflineMaps() {
     // Actualiza el espacio local al entrar en Ajustes.
     try {
-        const [count, onlineCount] = await Promise.all([countOfflineTiles(), countCachedOnlineTiles()]);
+        const [count, automaticCount, onlineCount] = await Promise.all([
+            countOfflineTiles(), countAutomaticIgnTiles(), countCachedOnlineTiles()
+        ]);
         let usado = '';
         try {
             if (navigator.storage && navigator.storage.estimate) {
@@ -476,7 +584,7 @@ async function openOfflineMaps() {
                 usado = ` Espacio usado por la app: ${Math.round((est.usage || 0) / 1048576)} MB.`;
             }
         } catch (e) {}
-        $('offline-storage-note').textContent = `${count.toLocaleString('es-ES')} teselas IGN descargadas y ${onlineCount.toLocaleString('es-ES')} teselas online en caché.${usado} La caché online conserva hasta ${MAX_CACHED_ONLINE_TILES.toLocaleString('es-ES')} teselas recientes. Puedes reanudar una descarga incompleta.`;
+        $('offline-storage-note').textContent = `${count.toLocaleString('es-ES')} teselas IGN descargadas, ${automaticCount.toLocaleString('es-ES')} de caché IGN automática y ${onlineCount.toLocaleString('es-ES')} teselas online en caché.${usado} Cada caché automática conserva hasta ${MAX_AUTOMATIC_IGN_TILES.toLocaleString('es-ES')} teselas; los mapas descargados se conservan hasta ${MAX_DOWNLOADED_IGN_TILES.toLocaleString('es-ES')} teselas. Puedes reanudar una descarga incompleta.`;
     } catch (e) {
         console.warn('No se pudieron cargar los mapas offline:', e);
         $('offline-storage-note').textContent = 'El almacenamiento local aún no está inicializado.';
@@ -492,8 +600,9 @@ async function clearOfflineTiles() {
     try {
         const db = await openOfflineDb();
         await new Promise((res, rej) => {
-            const tx = db.transaction([OFFLINE_STORE, ONLINE_TILE_STORE], 'readwrite');
+            const tx = db.transaction([OFFLINE_STORE, AUTOMATIC_IGN_STORE, ONLINE_TILE_STORE], 'readwrite');
             tx.objectStore(OFFLINE_STORE).clear();
+            tx.objectStore(AUTOMATIC_IGN_STORE).clear();
             tx.objectStore(ONLINE_TILE_STORE).clear();
             tx.oncomplete = res;
             tx.onerror = () => rej(tx.error);

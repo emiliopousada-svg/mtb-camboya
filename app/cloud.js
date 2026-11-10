@@ -39,7 +39,11 @@ async function cloudApi(path, method = 'GET', body = null) {
     let payload;
     if (body instanceof FormData) payload = body;
     else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
-    const res = await fetch(Cloud.server + path, { method, headers, body: payload });
+    const url = new URL(Cloud.server + path);
+    if (url.protocol !== 'https:' || url.username || url.password) {
+        throw new Error('El servidor debe usar una dirección HTTPS válida.');
+    }
+    const res = await fetch(url.href, { method, headers, body: payload });
     if (!res.ok) {
         let msg = '';
         try {
@@ -56,9 +60,20 @@ async function cloudApi(path, method = 'GET', body = null) {
 }
 
 function normalizeServer(v) {
-    v = v.trim().replace(/\/+$/, '');
-    if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
-    return v;
+    v = String(v || '').trim().replace(/\/+$/, '');
+    if (!v) return '';
+    if (/^http:\/\//i.test(v)) v = v.replace(/^http:/i, 'https:');
+    else if (/^[a-z][a-z\d+.-]*:\/\//i.test(v) && !/^https:\/\//i.test(v)) {
+        throw new Error('El servidor debe usar HTTPS.');
+    } else if (!/^https:\/\//i.test(v)) v = 'https://' + v;
+
+    let url;
+    try { url = new URL(v); }
+    catch (error) { throw new Error('La dirección del servidor no es válida.'); }
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.search || url.hash) {
+        throw new Error('El servidor debe usar una dirección HTTPS válida.');
+    }
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
 function renderAccount() {
@@ -70,8 +85,9 @@ function renderAccount() {
     $('acc-form').style.display = on ? 'none' : 'block';
     $('acc-logged').style.display = on ? 'block' : 'none';
     const last = localStorage.getItem('mtb_lastsync');
+    const syncFailures = Number(localStorage.getItem('mtb_sync_failures') || 0);
     $('acc-status').textContent = on
-        ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '')
+        ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '') + (syncFailures ? ` · sincronización parcial: ${syncFailures} elemento(s) pendiente(s)` : '')
         : 'Sin sesión: tus rutas se guardan solo en este móvil.';
 }
 
@@ -101,7 +117,7 @@ async function accAuth(register) {
     }
 }
 
-async function putLocal(r) { try { await DB.put(r); } catch (e) { console.warn('put local:', e); } }
+async function putLocal(r) { await DB.put(r); }
 
 async function queueRemoteDelete(remoteId) {
     try {
@@ -133,7 +149,7 @@ async function syncRoutes(manual = false) {
     if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
-    let pushed = 0, pulled = 0;
+    let pushed = 0, pulled = 0, syncFailures = 0;
     try {
         // 0) renovar la sesión (si ha caducado, se cierra)
         try {
@@ -162,7 +178,13 @@ async function syncRoutes(manual = false) {
         const rest = [];
         for (const rid of pend) {
             try { await cloudApi(`/api/collections/routes/records/${rid}`, 'DELETE'); }
-            catch (e) { if (e.status !== 404) rest.push(rid); }
+            catch (e) {
+                if (e.status !== 404) {
+                    rest.push(rid);
+                    syncFailures++;
+                    console.warn(`No se pudo borrar la ruta remota ${rid}:`, e);
+                }
+            }
         }
         try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
         const skip = new Set(pend);
@@ -193,30 +215,43 @@ async function syncRoutes(manual = false) {
         if (missing.length) {
             const ft = (await cloudApi('/api/files/token', 'POST')).token;
             for (const rec of missing) {
-                const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
-                if (!res.ok) continue;
-                const points = await res.json();
-                if (!Array.isArray(points) || points.length < 2) continue;
-                const r = {
-                    id: Number(rec.clientId), remoteId: rec.id, dirty: false,
-                    kind: rec.kind || 'recorded', name: rec.name, startedAt: rec.startedAt,
-                    activityType: Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, rec.activityType)
-                        ? rec.activityType
-                        : activityTypeFromName(rec.name),
-                    movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
-                    elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
-                };
-                await putLocal(r);
-                savedRoutes.push(r);
-                pulled++;
+                try {
+                    const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
+                    if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+                    const points = await res.json();
+                    if (!Array.isArray(points) || points.length < 2 ||
+                        !points.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) {
+                        throw new Error('El track recibido no tiene un formato válido');
+                    }
+                    const id = Number(rec.clientId);
+                    if (!Number.isSafeInteger(id) || id < 0) throw new Error('El identificador de ruta no es válido');
+                    const r = {
+                        id, remoteId: rec.id, dirty: false,
+                        kind: rec.kind || 'recorded', name: rec.name, startedAt: rec.startedAt,
+                        activityType: Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, rec.activityType)
+                            ? rec.activityType
+                            : activityTypeFromName(rec.name),
+                        movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
+                        elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
+                    };
+                    await putLocal(r);
+                    savedRoutes.push(r);
+                    pulled++;
+                } catch (e) {
+                    syncFailures++;
+                    console.warn(`No se pudo descargar la ruta remota ${rec.id}:`, e);
+                }
             }
             savedRoutes.sort((a, b) => b.id - a.id);
         }
 
         localStorage.setItem('mtb_lastsync', String(Date.now()));
+        localStorage.setItem('mtb_sync_failures', String(syncFailures));
         renderSavedRoutes();
         refreshStats();
-        if (manual) toast(`✅ Sincronizado: ${pushed} subidas, ${pulled} descargadas`);
+        if (manual) toast(syncFailures
+            ? `⚠️ Sincronización parcial: ${pushed} subidas, ${pulled} descargadas y ${syncFailures} pendiente(s).`
+            : `✅ Sincronizado: ${pushed} subidas, ${pulled} descargadas`);
     } catch (e) {
         console.warn('Sync:', e);
         if (manual || e.status !== undefined) {
@@ -248,17 +283,27 @@ function initSettings() {
 
 function initAccount() {
     const savedServer = localStorage.getItem('mtb_server');
-    if (!savedServer) {
+    try {
+        localStorage.setItem('mtb_server', normalizeServer(savedServer || DEFAULT_CLOUD_SERVER));
+    } catch (error) {
+        console.warn('La dirección de servidor guardada no es válida:', error);
         localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
-    } else {
-        localStorage.setItem('mtb_server', normalizeServer(savedServer));
+        Cloud.clearSession();
+        toast('La dirección de servidor guardada no era válida; se ha restaurado el servidor predeterminado.', 6000);
     }
 
     const serverInput = $('acc-server');
     if (serverInput) {
         serverInput.value = Cloud.server;
         serverInput.addEventListener('change', () => {
-            const nextServer = Cloud.setServer(serverInput.value);
+            let nextServer;
+            try { nextServer = Cloud.setServer(serverInput.value); }
+            catch (error) {
+                console.warn('Dirección de servidor no válida:', error);
+                toast(error.message, 6000);
+                serverInput.value = Cloud.server;
+                return;
+            }
             serverInput.value = nextServer;
             if (Cloud.loggedIn()) {
                 Cloud.clearSession();

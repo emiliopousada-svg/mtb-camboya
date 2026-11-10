@@ -109,6 +109,11 @@ $('btn-import-route').addEventListener('click', async () => {
     const input = $('route-file-input');
     const file = input.files[0];
     if (!file) { toast('Elige primero un archivo GPX, KML o GeoJSON.'); return; }
+    const maxFileSize = 10 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+        toast('El archivo supera el límite de importación de 10 MB.', 6000);
+        return;
+    }
     let route;
     try {
         const parsed = parseTrack(await file.text(), file.name);
