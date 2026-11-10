@@ -16,12 +16,14 @@ function initMap() {
     const supportsRotation = typeof L.Map.prototype.setBearing === 'function';
     map = L.map('map', {
         zoomControl: false,
+        attributionControl: false,
         minZoom: 5,
         maxZoom: MAP_MAX_ZOOM,
         rotate: supportsRotation,
         touchRotate: supportsRotation,
         rotateControl: false
     }).setView(center, 15);
+    L.control.attribution({ prefix: false }).addTo(map);
     window.map = map;
 
     offlineTileLayer = createOfflineTileLayer();

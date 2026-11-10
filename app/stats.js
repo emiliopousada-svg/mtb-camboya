@@ -21,7 +21,7 @@ let statsRouteMap = null;
 let statsRouteMapLayers = [];
 let statsRoutePointMarker = null;
 
-const STATS_ROUTE_COLORS = ['#ff9800', '#29b6f6'];
+const STATS_ROUTE_COLORS = ['#ffad69', '#55dce7'];
 
 const STATS_PERIOD_LABELS = {
     today: 'hoy',
@@ -1050,12 +1050,12 @@ function setStatsSlide(index) {
 
 function statsInitCharts() {
     if (typeof Chart === 'undefined') return;
-    const axis = { ticks: { color: '#b0b0b0', font: { size: 10 } }, grid: { color: '#2a2a2a' } };
+    const axis = { ticks: { color: '#aab8ca', font: { size: 10 } }, grid: { color: 'rgba(143,166,199,0.14)' } };
     statsChart = new Chart($('statsChart').getContext('2d'), {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'km', data: [],
-            backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1, borderRadius: 4
+            backgroundColor: 'rgba(73,221,181,0.72)', borderColor: '#49ddb5', borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1067,7 +1067,7 @@ function statsInitCharts() {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'm', data: [],
-            backgroundColor: 'rgba(255,152,0,0.65)', borderColor: '#ff9800', borderWidth: 1, borderRadius: 4
+            backgroundColor: 'rgba(255,173,105,0.7)', borderColor: '#ffad69', borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1079,17 +1079,17 @@ function statsInitCharts() {
         type: 'line',
         data: { labels: [], datasets: [
             {
-                label: 'Media (km/h)', data: [], borderColor: '#29b6f6',
-                backgroundColor: 'rgba(41,182,246,0.15)', fill: true, tension: 0.25, pointRadius: 2
+                label: 'Media (km/h)', data: [], borderColor: '#55dce7',
+                backgroundColor: 'rgba(85,220,231,0.14)', fill: true, tension: 0.25, pointRadius: 2
             },
             {
-                label: 'Máxima (km/h)', data: [], borderColor: '#ef5350',
-                backgroundColor: 'rgba(239,83,80,0.1)', fill: false, tension: 0.2, pointRadius: 2
+                label: 'Máxima (km/h)', data: [], borderColor: '#ff8791',
+                backgroundColor: 'rgba(255,135,145,0.1)', fill: false, tension: 0.2, pointRadius: 2
             }
         ] },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: true, labels: { color: '#b0b0b0', boxWidth: 10, font: { size: 10 } } } },
+            plugins: { legend: { display: true, labels: { color: '#aab8ca', boxWidth: 10, font: { size: 10 } } } },
             scales: { x: axis, y: { ...axis, beginAtZero: true } }
         }
     });
@@ -1097,7 +1097,7 @@ function statsInitCharts() {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'Salidas', data: [],
-            backgroundColor: 'rgba(100,181,246,0.65)', borderColor: '#64b5f6', borderWidth: 1, borderRadius: 4
+            backgroundColor: 'rgba(85,220,231,0.68)', borderColor: '#55dce7', borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1109,8 +1109,8 @@ function statsInitCharts() {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'km/h', data: [],
-            backgroundColor: ['rgba(46,125,50,0.7)', 'rgba(255,152,0,0.7)'],
-            borderColor: ['#2e7d32', '#ff9800'], borderWidth: 1, borderRadius: 4
+            backgroundColor: ['rgba(73,221,181,0.72)', 'rgba(255,173,105,0.72)'],
+            borderColor: ['#49ddb5', '#ffad69'], borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1122,7 +1122,7 @@ function statsInitCharts() {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'Distancia (km)', data: [],
-            backgroundColor: 'rgba(100,181,246,0.7)', borderColor: '#64b5f6', borderWidth: 1, borderRadius: 4
+            backgroundColor: 'rgba(85,220,231,0.7)', borderColor: '#55dce7', borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1134,8 +1134,8 @@ function statsInitCharts() {
         type: 'bar',
         data: { labels: [], datasets: [{
             label: 'Minutos', data: [],
-            backgroundColor: ['rgba(46,125,50,0.7)', 'rgba(255,152,0,0.7)'],
-            borderColor: ['#2e7d32', '#ff9800'], borderWidth: 1, borderRadius: 4
+            backgroundColor: ['rgba(73,221,181,0.72)', 'rgba(255,173,105,0.72)'],
+            borderColor: ['#49ddb5', '#ffad69'], borderWidth: 1, borderRadius: 5
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1146,8 +1146,8 @@ function statsInitCharts() {
     statsVamChart = new Chart($('stats-vam-chart').getContext('2d'), {
         type: 'line',
         data: { labels: [], datasets: [{
-            label: 'VAM (m/h)', data: [], borderColor: '#ff9800',
-            backgroundColor: 'rgba(255,152,0,0.16)', fill: true, tension: 0.25, pointRadius: 2
+            label: 'VAM (m/h)', data: [], borderColor: '#ffad69',
+            backgroundColor: 'rgba(255,173,105,0.16)', fill: true, tension: 0.25, pointRadius: 2
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1162,8 +1162,8 @@ function statsInitCharts() {
             data: [],
             showLine: true,
             spanGaps: false,
-            borderColor: '#64b5f6',
-            backgroundColor: 'rgba(100,181,246,0.15)',
+            borderColor: '#55dce7',
+            backgroundColor: 'rgba(85,220,231,0.15)',
             pointRadius: 0,
             pointHitRadius: 10,
             borderWidth: 2,
@@ -1186,8 +1186,8 @@ function statsInitCharts() {
                 }
             },
             scales: {
-                x: { ...axis, type: 'linear', title: { display: true, text: 'Distancia (km)', color: '#b0b0b0' } },
-                y: { ...axis, title: { display: true, text: 'Altitud (m)', color: '#b0b0b0' } }
+                x: { ...axis, type: 'linear', title: { display: true, text: 'Distancia (km)', color: '#aab8ca' } },
+                y: { ...axis, title: { display: true, text: 'Altitud (m)', color: '#aab8ca' } }
             },
             onClick: (event, elements) => {
                 if (elements.length) statsProfilePointText(statsProfileChart.data.datasets[0].data[elements[0].index]);
@@ -1203,7 +1203,7 @@ function statsInitCharts() {
             parsing: false,
             interaction: { mode: 'nearest', intersect: true },
             plugins: {
-                legend: { display: true, labels: { color: '#b0b0b0', boxWidth: 10, font: { size: 10 } } },
+                legend: { display: true, labels: { color: '#aab8ca', boxWidth: 10, font: { size: 10 } } },
                 tooltip: {
                     callbacks: {
                         label: context => {
@@ -1216,8 +1216,8 @@ function statsInitCharts() {
                 }
             },
             scales: {
-                x: { ...axis, type: 'linear', title: { display: true, text: 'Distancia (km)', color: '#b0b0b0' } },
-                y: { ...axis, title: { display: true, text: 'Altitud (m)', color: '#b0b0b0' } }
+                x: { ...axis, type: 'linear', title: { display: true, text: 'Distancia (km)', color: '#aab8ca' } },
+                y: { ...axis, title: { display: true, text: 'Altitud (m)', color: '#aab8ca' } }
             },
             onClick: (event, elements) => {
                 if (!elements.length) return;
@@ -1231,7 +1231,7 @@ function statsInitCharts() {
     statsEvolutionChart = new Chart($('stats-evolution-chart').getContext('2d'), {
         type: 'line',
         data: { labels: [], datasets: [{
-            label: 'km', data: [], borderColor: '#29b6f6', backgroundColor: 'rgba(41,182,246,0.15)',
+            label: 'km', data: [], borderColor: '#55dce7', backgroundColor: 'rgba(85,220,231,0.15)',
             fill: true, tension: 0.25, pointRadius: 3
         }] },
         options: {

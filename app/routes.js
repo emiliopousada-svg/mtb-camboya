@@ -15,7 +15,9 @@ function setRoutesTab(tab) {
 document.querySelectorAll('[data-routes-tab]').forEach(b => b.addEventListener('click', () => setRoutesTab(b.dataset.routesTab)));
 
 function routeCreatorName(route) {
-    return route.createdBy || Cloud.email || 'Usuario local';
+    const creator = String(route.createdBy || Cloud.email || '').trim();
+    const atIndex = creator.indexOf('@');
+    return (atIndex > 0 ? creator.slice(0, atIndex) : creator) || 'Usuario local';
 }
 
 function renderSavedRoutes() {
