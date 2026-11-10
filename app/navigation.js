@@ -35,8 +35,6 @@ document.addEventListener('touchend', e => {
         if (statsSwipeStart && currentPage === 1) {
             if (diffX > 0 && activeStatsSlide < 5) setStatsSlide(activeStatsSlide + 1);
             else if (diffX < 0 && activeStatsSlide > 0) setStatsSlide(activeStatsSlide - 1);
-            else if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
-            else if (diffX < 0 && currentPage > 0) goToPage(currentPage - 1);
             return;
         }
         if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
