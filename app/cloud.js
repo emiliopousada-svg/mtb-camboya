@@ -3,19 +3,7 @@
 //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
 // ============================================================
 const Cloud = {
-    get server() {
-        const stored = localStorage.getItem('mtb_server');
-        return normalizeServer(stored || DEFAULT_CLOUD_SERVER);
-    },
-    setServer(nextServer) {
-        const normalized = normalizeServer(nextServer || DEFAULT_CLOUD_SERVER);
-        const current = this.server;
-        localStorage.setItem('mtb_server', normalized);
-        if (this.loggedIn() && current && current !== normalized) {
-            this.clearSession();
-        }
-        return normalized;
-    },
+    get server() { return DEFAULT_CLOUD_SERVER; },
     get token()  { return localStorage.getItem('mtb_token') || ''; },
     get uid()    { return localStorage.getItem('mtb_uid') || ''; },
     get email()  { return localStorage.getItem('mtb_email') || ''; },
@@ -77,10 +65,8 @@ function normalizeServer(v) {
 }
 
 function renderAccount() {
-    const serverInput = $('acc-server');
-    if (serverInput) {
-        serverInput.value = Cloud.server;
-    }
+    const serverLabel = $('acc-server');
+    if (serverLabel) serverLabel.textContent = Cloud.server;
     const on = Cloud.loggedIn();
     $('acc-form').style.display = on ? 'none' : 'block';
     $('acc-logged').style.display = on ? 'block' : 'none';
@@ -283,34 +269,19 @@ function initSettings() {
 
 function initAccount() {
     const savedServer = localStorage.getItem('mtb_server');
-    try {
-        localStorage.setItem('mtb_server', normalizeServer(savedServer || DEFAULT_CLOUD_SERVER));
-    } catch (error) {
-        console.warn('La dirección de servidor guardada no es válida:', error);
-        localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
-        Cloud.clearSession();
-        toast('La dirección de servidor guardada no era válida; se ha restaurado el servidor predeterminado.', 6000);
+    let serverChanged = false;
+    if (savedServer) {
+        try {
+            serverChanged = normalizeServer(savedServer) !== DEFAULT_CLOUD_SERVER;
+        } catch (error) {
+            console.warn('La dirección de servidor guardada no es válida:', error);
+            serverChanged = true;
+        }
     }
-
-    const serverInput = $('acc-server');
-    if (serverInput) {
-        serverInput.value = Cloud.server;
-        serverInput.addEventListener('change', () => {
-            let nextServer;
-            try { nextServer = Cloud.setServer(serverInput.value); }
-            catch (error) {
-                console.warn('Dirección de servidor no válida:', error);
-                toast(error.message, 6000);
-                serverInput.value = Cloud.server;
-                return;
-            }
-            serverInput.value = nextServer;
-            if (Cloud.loggedIn()) {
-                Cloud.clearSession();
-                toast('Servidor cambiado: vuelve a iniciar sesión.', 4000);
-            }
-            renderAccount();
-        });
+    localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
+    if (serverChanged) {
+        Cloud.clearSession();
+        toast('El servidor de sincronización se ha fijado en vamp69.ddns.net. Inicia sesión de nuevo.', 6000);
     }
 
     $('acc-login').addEventListener('click', () => accAuth(false));
