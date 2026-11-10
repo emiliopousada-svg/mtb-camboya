@@ -9,27 +9,39 @@ function setRoutesTab(tab) {
     $('routes-import-box').hidden = tab !== 'pending';
     $('routes-tab-hint').textContent = tab === 'done'
         ? 'Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.'
-        : 'Tracks importados y almacenados. Cuando los sigas y grabes tu salida, esta quedará en «Realizadas».';
+        : 'Tracks importados y guardados. Cuando los sigas y grabes tu salida, esta quedará en «Realizadas».';
     renderSavedRoutes();
 }
 document.querySelectorAll('[data-routes-tab]').forEach(b => b.addEventListener('click', () => setRoutesTab(b.dataset.routesTab)));
+
+function routeCreatorName(route) {
+    return route.createdBy || Cloud.email || 'Usuario local';
+}
 
 function renderSavedRoutes() {
     const c = $('saved-routes-list');
     c.textContent = '';
     const pendingTab = routesTab === 'pending';
     const tabRoutes = savedRoutes.filter(r => (r.kind === 'imported') === pendingTab);
+    const userFilter = $('route-user-filter');
+    const selectedUser = userFilter.value;
+    const users = [...new Set(tabRoutes.map(routeCreatorName))].sort((a, b) => a.localeCompare(b, 'es'));
+    userFilter.replaceChildren(new Option('Todos los usuarios', ''));
+    users.forEach(user => userFilter.add(new Option(user, user)));
+    userFilter.value = users.includes(selectedUser) ? selectedUser : '';
     if (tabRoutes.length === 0) {
         const e = document.createElement('div');
         e.style.cssText = 'text-align:center; padding:15px; color:var(--text-secondary); font-size:0.85rem;';
         e.textContent = pendingTab
-            ? 'No hay tracks almacenados. Importa un GPX, KML o GeoJSON para tenerlo listo.'
+            ? 'No hay tracks guardados. Importa un GPX, KML o GeoJSON para tenerlo listo.'
             : 'No hay rutas realizadas todavía. Graba una salida para verla aquí.';
         c.appendChild(e);
         return;
     }
     const filter = $('route-activity-filter').value;
+    const user = userFilter.value;
     const visibleRoutes = tabRoutes.filter(route => {
+        if (user && routeCreatorName(route) !== user) return false;
         if (filter === 'all') return true;
         const activityType = activityTypeForRoute(route);
         const groupKey = activityType || 'other';
@@ -38,7 +50,7 @@ function renderSavedRoutes() {
     if (!visibleRoutes.length) {
         const empty = document.createElement('div');
         empty.style.cssText = 'text-align:center; padding:15px; color:var(--text-secondary); font-size:0.85rem;';
-        empty.textContent = 'No hay rutas para esta actividad.';
+        empty.textContent = 'No hay rutas con estos filtros.';
         c.appendChild(empty);
         return;
     }
@@ -66,8 +78,15 @@ function renderSavedRoutes() {
 
         const info = document.createElement('div');
         info.className = 'route-info';
-        const h = document.createElement('h4');
+        const h = document.createElement('button');
+        h.type = 'button';
+        h.className = 'route-detail-trigger';
         h.textContent = r.name;
+        h.addEventListener('click', () => openSavedRouteDetail(r));
+        div.addEventListener('click', event => {
+            if (event.target.closest('button')) return;
+            openSavedRouteDetail(r);
+        });
         const p = document.createElement('p');
         const parts = [`📅 ${fmtDate(r.startedAt)}`, `📏 ${r.distanceKm.toFixed(2)} km`];
         if (r.movingTimeSec) parts.push(`⏱️ ${fmtDur(r.movingTimeSec)}`);
@@ -103,7 +122,32 @@ function renderSavedRoutes() {
         });
     });
 }
+
+function openSavedRouteDetail(route) {
+    const lines = communityRawSegments(route.points);
+    if (!lines.length) {
+        toast('Esta ruta no contiene un trazado que se pueda mostrar.');
+        return;
+    }
+    const creator = routeCreatorName(route);
+    const activity = ACTIVITY_TYPES[activityTypeForRoute(route)]?.label || 'No disponible';
+    const values = [
+        ['Distancia', `${(Number(route.distanceKm) || 0).toFixed(1)} km`],
+        ['Desnivel', `+${Math.round(Number(route.elevationGain) || 0)} m`],
+        ['Tiempo en movimiento', route.movingTimeSec > 0 ? fmtDur(route.movingTimeSec) : 'No disponible'],
+        ['Actividad', activity],
+        [route.kind === 'imported' ? 'Importada por' : 'Realizada por', creator],
+        ['Fecha', route.startedAt ? fmtDate(route.startedAt) : 'No disponible']
+    ];
+    openCommunityDetail({ title: route.name }, lines, {
+        backLabel: 'Volver a mis rutas',
+        onBack: closeCommunityDialog,
+        values
+    });
+}
+
 $('route-activity-filter').addEventListener('change', renderSavedRoutes);
+$('route-user-filter').addEventListener('change', renderSavedRoutes);
 
 $('btn-import-route').addEventListener('click', async () => {
     const input = $('route-file-input');

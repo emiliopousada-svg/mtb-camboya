@@ -2,7 +2,8 @@
 
 //  POSICIONES DEL GRUPO (PocketBase)
 // ============================================================
-let groupJoined = false, friendsTimer = null, lastLivePush = 0, livePushPending = false;
+let groupJoined = false, groupSyncAvailable = false, friendsTimer = null, restoreGroupPending = false;
+let friendsRefreshPending = false, lastLivePush = 0, livePushPending = false;
 let myLiveRecordId = null;
 const friendMarkers = new Map();
 const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
@@ -13,11 +14,11 @@ function groupName() { return Cloud.groupCode || ''; }
 
 function renderFriendsGroupStatus() {
     const status = $('friends-group-status');
-    const connected = groupJoined;
+    const connected = groupJoined && groupSyncAvailable;
     status.classList.toggle('connected', connected);
     status.textContent = connected
         ? `🟢 Conectado al grupo${groupInfo && groupInfo.name ? ' «' + groupInfo.name + '»' : ''} · ${liveFriendCount} ${liveFriendCount === 1 ? 'compañero' : 'compañeros'} en vivo`
-        : 'Sin conexión a un grupo';
+        : groupJoined ? '🟡 Grupo guardado · esperando conexión' : 'Sin conexión a un grupo';
 }
 
 function renderGroupChoices(activeId = '') {
@@ -56,7 +57,8 @@ function renderGroupState(connected) {
     renderFriendsGroupStatus();
     renderGroupChoices(groupInfo ? groupInfo.id : '');
     $('group-status').textContent = connected
-        ? (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Tu posición se compartirá cuando grabes.')
+        ? !groupSyncAvailable ? 'Grupo guardado en este dispositivo. Se sincronizará al recuperar conexión.'
+            : (isRecording && !isPaused ? 'Grupo activo: compartiendo tu posición.' : 'Tu posición se compartirá cuando grabes.')
         : groupChoices.some(group => group.id === localStorage.getItem('mtb_group_code') && !(group.nickname || '').trim())
             ? 'Antes de entrar, indica un apodo obligatorio para que el grupo pueda identificarte.'
             : 'Puedes volver a entrar en tus grupos autorizados. El administrador puede revocar el acceso.';
@@ -65,12 +67,18 @@ function renderGroupState(connected) {
 
 async function stopGroup() {
     groupJoined = false;
+    groupSyncAvailable = false;
     groupInfo = null;
     localStorage.removeItem('mtb_group_joined');
     if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
     await removeMyLiveLocation();
     renderGroupState(false);
     renderFriends();
+}
+
+function startFriendsTimer() {
+    if (friendsTimer) clearInterval(friendsTimer);
+    friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
 }
 
 async function loadMyGroup() {
@@ -84,6 +92,7 @@ async function loadMyGroup() {
     }
     groupJoined = Boolean(groupInfo && groupInfo.nickname && groupInfo.nickname.trim() &&
         localStorage.getItem('mtb_group_joined') === activeId);
+    groupSyncAvailable = true;
     if (activeId) localStorage.setItem('mtb_group_code', activeId);
     else localStorage.removeItem('mtb_group_code');
     if (!groupJoined) localStorage.removeItem('mtb_group_joined');
@@ -146,10 +155,10 @@ async function selectGroup(groupId) {
         Cloud.setSession(auth.token, auth.record);
         localStorage.setItem('mtb_group_joined', groupId);
         groupJoined = true;
+        groupSyncAvailable = true;
         await loadMyGroup();
-        if (friendsTimer) clearInterval(friendsTimer);
         await refreshFriends();
-        friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+        startFriendsTimer();
         if (isRecording && !isPaused) publishMyLocation(true);
         toast('Has vuelto a entrar en el grupo.');
     } catch (e) {
@@ -159,21 +168,39 @@ async function selectGroup(groupId) {
 }
 
 async function restoreGroup() {
-    if (!Cloud.loggedIn()) return;
+    if (!Cloud.loggedIn() || restoreGroupPending) return;
+    restoreGroupPending = true;
+    const savedGroupId = localStorage.getItem('mtb_group_joined');
+    const savedNickname = localStorage.getItem('mtb_group_name');
+    if (!groupJoined && savedGroupId && savedGroupId === groupName() && savedNickname && savedNickname.trim()) {
+        groupJoined = true;
+        groupSyncAvailable = false;
+        groupInfo = groupInfo || { id: savedGroupId, nickname: savedNickname };
+        renderGroupState(true);
+        renderFriends();
+        startFriendsTimer();
+    }
     try {
         const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
         Cloud.setSession(auth.token, auth.record);
         await loadMyGroup();
-        if (!groupJoined) { renderFriends(); return; }
+        if (!groupJoined) {
+            if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+            renderFriends();
+            return;
+        }
         await refreshFriends();
-        if (friendsTimer) clearInterval(friendsTimer);
-        friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+        startFriendsTimer();
         if (isRecording && !isPaused) publishMyLocation(true);
     } catch (e) {
+        groupSyncAvailable = false;
+        if (groupJoined) renderGroupState(true);
         console.warn('No se pudo restaurar el grupo:', e);
         $('group-status').textContent = e.status === 404
             ? 'Falta configurar la gestión global de grupos en PocketBase.'
             : 'Esperando conexión para cargar tu grupo…';
+    } finally {
+        restoreGroupPending = false;
     }
 }
 
@@ -238,8 +265,10 @@ function renderFriends(items = []) {
     });
 }
 
-async function refreshFriends(retryAuth = true) {
-    if (!groupJoined || !Cloud.loggedIn()) return;
+async function refreshFriends(retryAuth = true, ownsPending = false) {
+    if (!groupJoined || !Cloud.loggedIn() || (friendsRefreshPending && !ownsPending)) return;
+    if (!ownsPending) friendsRefreshPending = true;
+    const wasSyncAvailable = groupSyncAvailable;
     try {
         const expectedGroup = groupName();
         const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
@@ -256,16 +285,20 @@ async function refreshFriends(retryAuth = true) {
         }
         const f = encodeURIComponent('groupCode = "' + expectedGroup + '"');
         const res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
+        groupSyncAvailable = true;
         const own = res.items.find(x => x.owner === Cloud.uid);
         myLiveRecordId = own ? own.id : null;
         renderFriends(res.items);
+        if (!wasSyncAvailable && isRecording && !isPaused) publishMyLocation(true);
     } catch (e) {
+        groupSyncAvailable = false;
+        renderFriendsGroupStatus();
         console.warn('Posiciones del grupo:', e);
         if ((e.status === 401 || e.status === 403) && retryAuth) {
             try {
                 const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
                 Cloud.setSession(auth.token, auth.record);
-                await refreshFriends(false);
+                await refreshFriends(false, true);
             } catch (refreshError) {
                 console.warn('No se pudo renovar la sesión del grupo:', refreshError);
                 $('group-status').textContent = 'Conexión pendiente: no se pudo verificar el grupo.';
@@ -273,6 +306,8 @@ async function refreshFriends(retryAuth = true) {
         } else if (e.status !== undefined && e.status !== 404) {
             $('group-status').textContent = 'No se pudieron cargar posiciones. Revisa la conexión y PocketBase.';
         }
+    } finally {
+        if (!ownsPending) friendsRefreshPending = false;
     }
 }
 async function publishMyLocation(force = false) {
@@ -301,6 +336,8 @@ async function publishMyLocation(force = false) {
         refreshFriends();
     } catch (e) {
         console.warn('No se pudo compartir la posición:', e);
+        groupSyncAvailable = false;
+        renderFriendsGroupStatus();
         if (e.status === 404) myLiveRecordId = null;
         if (e.status !== undefined) $('group-status').textContent = `Error al compartir posición: ${e.message}`;
     } finally { livePushPending = false; }
@@ -344,11 +381,11 @@ async function connectGroup(action) {
         Cloud.setSession(fresh.token, fresh.record);
         groupInfo = result.group;
         groupJoined = true;
+        groupSyncAvailable = true;
         localStorage.setItem('mtb_group_joined', result.group.id);
         renderGroupState(true);
         await refreshFriends();
-        if (friendsTimer) clearInterval(friendsTimer);
-        friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+        startFriendsTimer();
         if (isRecording && !isPaused) publishMyLocation(true);
         toast(action === 'create' ? 'Grupo creado: ya eres el administrador.' : 'Te has unido al grupo.');
     } catch (e) {
@@ -405,3 +442,5 @@ $('btn-leave').addEventListener('click', async () => {
 // ============================================================
 
 // ============================================================
+
+window.addEventListener('online', restoreGroup);

@@ -12,6 +12,8 @@ La app puede compartir una copia pública y reducida de una ruta grabada, separa
 
 La regla de lectura deja ver públicamente solo registros con `published = true`; el autor también puede consultar sus propias rutas. Un envío nuevo debe tener el propietario autenticado y `published = true`, por lo que aparece en el catálogo inmediatamente. La app no permite cambiar el estado de publicación después de crear el registro.
 
+La regla `deleteRule` debe ser `owner = @request.auth.id`. Así, únicamente la cuenta que publicó la ruta puede borrarla, también si intenta hacerlo directamente mediante la API. En el catálogo, la app muestra la acción **Eliminar** solo al autor autenticado. El borrado de la publicación no elimina copias que otros usuarios ya guardaron en sus dispositivos.
+
 ## Publicación y moderación
 
 Las rutas se publican automáticamente cuando su autor confirma el envío. Para moderar una ruta:

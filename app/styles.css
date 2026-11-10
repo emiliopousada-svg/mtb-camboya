@@ -527,12 +527,19 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
     border: 1px solid rgba(255,255,255,0.05);
 }
 
-.route-info h4 {
-    font-size: 0.95rem;
+.route-detail-trigger {
+    display: block;
+    padding: 0;
+    border: 0;
     color: #fff;
-    margin-bottom: 3px;
+    background: transparent;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: left;
     overflow-wrap: anywhere;
+    cursor: pointer;
 }
+.route-detail-trigger:hover, .route-detail-trigger:focus-visible { color: #a5d6a7; text-decoration: underline; }
 
 .route-info p {
     font-size: 0.75rem;
@@ -865,6 +872,12 @@ nav {
 @media (max-width: 370px) {
     .seg-tabs { gap: 4px; }
     .seg-tab { font-size: .72rem; }
+    .seg-tabs.big-tabs .seg-tab {
+        min-height: 76px;
+        padding: 8px 4px;
+        font-size: .82rem;
+    }
+    .seg-tabs.big-tabs .seg-tab .tab-ico { font-size: 1.8rem; }
 }
 
 .leaflet-popup-content-wrapper { color: #121212; }

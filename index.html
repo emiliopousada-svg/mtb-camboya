@@ -222,7 +222,7 @@
                 <div class="seg-tabs big-tabs" role="group" aria-label="Tipo de rutas">
                     <button class="seg-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
                     <button class="seg-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
-                    <button class="seg-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks almacenados</button>
+                    <button class="seg-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks guardados</button>
                 </div>
                 <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
                 <div id="routes-import-box" hidden>
@@ -239,6 +239,10 @@
                     <option value="running">🏃 Correr</option>
                     <option value="walking">🚶 Paseo</option>
                     <option value="other">📍 Sin clasificar</option>
+                </select>
+                <label for="route-user-filter" class="hint">Mostrar usuario</label>
+                <select id="route-user-filter" aria-label="Filtrar rutas por usuario">
+                    <option value="">Todos los usuarios</option>
                 </select>
                 <div id="saved-routes-list"></div>
                 <button class="btn secondary" id="btn-unfollow" style="display:none;">Dejar de seguir la ruta cargada</button>

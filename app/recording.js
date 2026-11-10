@@ -439,7 +439,7 @@ function resumeRecording(automatic = false, position = null) {
     isPaused = false;
     autoPaused = false;
     segStart = Date.now();
-    resumeBreak = true; // el primer punto nuevo abre tramo y no suma el salto
+    resumeBreak = !automatic; // la pausa automática mantiene el track unido; la manual inicia otro tramo
     autoPauseAnchor = position;
     autoPauseLastPosition = position;
     autoPauseLastMovementAt = position ? Date.now() : null;
@@ -497,6 +497,7 @@ async function finishRecording() {
             kind: 'recorded',
             activityType: recordingActivityType,
             name: `${routeActivityPrefix(recordingActivityType)}${routeName}`,
+            createdBy: Cloud.email || 'Usuario local',
             startedAt,
             movingTimeSec: sec,
             distanceKm: +totalDistance.toFixed(3),

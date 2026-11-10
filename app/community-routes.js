@@ -14,6 +14,7 @@ const COMMUNITY_PROVINCES = [
 
 const COMMUNITY_TRIM_METERS = 150;
 const COMMUNITY_PAGE_SIZE = 100;
+const COMMUNITY_MAX_RESULTS = 15;
 let communityShareRoute = null;
 let communityCatalogRoutes = [];
 let communityVisibleLayers = new Map();
@@ -21,6 +22,7 @@ let communityLayerGroup = null;
 let communityPreviewMap = null;
 let communityPreviewBaseLayer = null;
 let communityPreviewRouteLayer = null;
+let communityDetailBackAction = openCommunityCatalog;
 
 function communitySetStatus(message, isError = false) {
     const status = $('community-status');
@@ -79,16 +81,18 @@ function openCommunityPublish(route) {
     $('community-share-province').focus();
 }
 
-function openCommunityDetail(record, lines) {
+function openCommunityDetail(record, lines, options = {}) {
     $('community-catalog').hidden = true;
     $('community-publish').hidden = true;
     $('community-detail').hidden = false;
     $('community-title').textContent = record.title || 'Ruta de la comunidad';
+    $('community-detail-back').textContent = options.backLabel || 'Volver a las rutas';
+    communityDetailBackAction = options.onBack || openCommunityCatalog;
     communitySetStatus('');
 
     const movingTimeSec = Number(record.movingTimeSec);
     const activity = ACTIVITY_TYPES[record.activityType]?.label || record.activityType || 'No disponible';
-    const values = [
+    const values = options.values || [
         ['Distancia', `${(Number(record.distanceKm) || 0).toFixed(1)} km`],
         ['Desnivel', `+${Math.round(Number(record.elevationGain) || 0)} m`],
         ['Tiempo en movimiento', movingTimeSec > 0 ? fmtDur(movingTimeSec) : 'No disponible'],
@@ -328,6 +332,33 @@ async function saveCommunityOffline(record, lines) {
     }
 }
 
+async function deleteCommunityRoute(record) {
+    if (!Cloud.loggedIn() || record.owner !== Cloud.uid) {
+        toast('Solo quien publicó esta ruta puede eliminarla.');
+        return;
+    }
+    const ok = await modal({
+        message: `¿Eliminar «${record.title || 'Ruta de la comunidad'}» de la comunidad? Las copias guardadas en dispositivos no se borrarán.`,
+        ok: 'Eliminar'
+    });
+    if (!ok) return;
+    try {
+        await cloudApi(`/api/collections/community_routes/records/${encodeURIComponent(record.id)}`, 'DELETE');
+        const layer = communityVisibleLayers.get(record.id);
+        if (layer && map) map.removeLayer(layer);
+        communityVisibleLayers.delete(record.id);
+        communityCatalogRoutes = communityCatalogRoutes.filter(route => route.id !== record.id);
+        renderCommunityRoutes(communityCatalogRoutes);
+        communitySetStatus('Ruta eliminada de la comunidad.');
+        toast('Ruta eliminada de la comunidad.');
+    } catch (error) {
+        console.warn('No se pudo eliminar la ruta comunitaria:', error);
+        communitySetStatus(error.status === 403
+            ? 'Solo quien publicó esta ruta puede eliminarla.'
+            : 'No se pudo eliminar la ruta: ' + (error.message || 'error de conexión'), true);
+    }
+}
+
 function communityPopup(record, lines) {
     const box = document.createElement('div');
     const title = document.createElement('strong');
@@ -418,6 +449,14 @@ function renderCommunityRoutes(records) {
         save.textContent = 'Guardar';
         save.addEventListener('click', () => saveCommunityOffline(record, lines));
         actions.append(show, follow, save);
+        if (Cloud.loggedIn() && record.owner === Cloud.uid) {
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn secondary';
+            remove.textContent = 'Eliminar';
+            remove.addEventListener('click', () => deleteCommunityRoute(record));
+            actions.append(remove);
+        }
         card.append(heading, facts, actions);
         list.append(card);
     });
@@ -447,21 +486,24 @@ async function loadCommunityRoutes() {
         let page = 1, totalPages = 1;
         do {
             const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
-                COMMUNITY_PAGE_SIZE + '&fields=id,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson&filter=' + encodeURIComponent(filter));
+                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson&filter=' + encodeURIComponent(filter));
             if (Array.isArray(result.items)) allRoutes.push(...result.items);
             totalPages = Number(result.totalPages) || 1;
             page++;
         } while (page <= totalPages);
 
-        communityCatalogRoutes = allRoutes.map(record => {
+        const nearbyRoutes = allRoutes.map(record => {
             const lines = communityRecordLines(record);
             return lines ? { ...record, proximityKm: communityDistanceToRoute(searchPosition, lines) / 1000 } : null;
         }).filter(record => record && record.proximityKm <= radiusKm)
             .sort((a, b) => a.proximityKm - b.proximityKm);
+        communityCatalogRoutes = nearbyRoutes.slice(0, COMMUNITY_MAX_RESULTS);
         renderCommunityRoutes(communityCatalogRoutes);
-        communitySetStatus(communityCatalogRoutes.length
-            ? communityCatalogRoutes.length + ' rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.'
-            : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esta actividad.');
+        communitySetStatus(nearbyRoutes.length > COMMUNITY_MAX_RESULTS
+            ? `Mostrando las ${COMMUNITY_MAX_RESULTS} rutas más cercanas de ${nearbyRoutes.length} dentro de ${radiusKm} km.`
+            : nearbyRoutes.length
+                ? `${nearbyRoutes.length} rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.`
+                : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esta actividad.');
     } catch (error) {
         console.warn('No se pudo cargar el catálogo comunitario:', error);
         communitySetStatus(error.status === 404
@@ -489,7 +531,7 @@ function initCommunityRoutes() {
         $('community-submit').disabled = !$('community-share-consent').checked || !$('community-share-province').value;
     });
     $('community-back').addEventListener('click', openCommunityCatalog);
-    $('community-detail-back').addEventListener('click', openCommunityCatalog);
+    $('community-detail-back').addEventListener('click', () => communityDetailBackAction());
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();
     });

@@ -20,6 +20,7 @@ const MAP_STYLE_NAMES = {
 };
 const MAP_STYLE_KEY = 'mtb_map_style';
 const DEFAULT_MAP_STYLE = 'topographic';
+const MAP_STYLE_TRANSITION_TIMEOUT_MS = 12000;
 function selectedMapStyle() {
     let value = null;
     try { value = localStorage.getItem(MAP_STYLE_KEY); } catch (e) {}
@@ -32,6 +33,7 @@ const MAP_MAX_ZOOM = 20;
 let offlineDbPromise = null;
 let stopOfflineDownload = false;
 let offlineDownloadRunning = false;
+let pendingMapStyleTransition = null;
 
 function openOfflineDb() {
     if (offlineDbPromise) return offlineDbPromise;
@@ -430,13 +432,55 @@ function createMapStyleLayers() {
 
 function applyMapStyle() {
     if (!map || !mapStyleLayers.ign) return;
-    // Con conexión se usa el mapa elegido; sin conexión siempre el IGN guardado.
     const chosen = selectedMapStyle();
     const style = navigator.onLine ? chosen : 'ign';
+    if (!activeMapStyle) {
+        mapStyleLayers.ign.addTo(map);
+        activeMapStyle = 'ign';
+    }
+    if (pendingMapStyleTransition) {
+        const pending = pendingMapStyleTransition;
+        clearTimeout(pending.timer);
+        pending.layer.off('load', pending.onLoad);
+        pending.layer.off('tileload', pending.onTileLoad);
+        pending.layer.off('tileerror', pending.onTileError);
+        if (map.hasLayer(pending.layer)) map.removeLayer(pending.layer);
+        pendingMapStyleTransition = null;
+    }
     if (activeMapStyle !== style) {
-        if (activeMapStyle && mapStyleLayers[activeMapStyle]) map.removeLayer(mapStyleLayers[activeMapStyle]);
-        mapStyleLayers[style].addTo(map);
-        activeMapStyle = style;
+        const layer = mapStyleLayers[style];
+        const transition = {
+            layer,
+            tileLoads: 0,
+            tileErrors: 0,
+            timer: null,
+            onTileLoad: () => { transition.tileLoads++; },
+            onTileError: () => { transition.tileErrors++; },
+            onLoad: null
+        };
+        const finishTransition = useNewLayer => {
+            if (pendingMapStyleTransition !== transition) return;
+            clearTimeout(transition.timer);
+            layer.off('load', transition.onLoad);
+            layer.off('tileload', transition.onTileLoad);
+            layer.off('tileerror', transition.onTileError);
+            if (useNewLayer) {
+                if (mapStyleLayers[activeMapStyle] && map.hasLayer(mapStyleLayers[activeMapStyle])) {
+                    map.removeLayer(mapStyleLayers[activeMapStyle]);
+                }
+                activeMapStyle = style;
+            } else if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            }
+            pendingMapStyleTransition = null;
+        };
+        transition.onLoad = () => finishTransition(transition.tileLoads > 0 && transition.tileErrors === 0);
+        pendingMapStyleTransition = transition;
+        layer.on('load', transition.onLoad);
+        layer.on('tileload', transition.onTileLoad);
+        layer.on('tileerror', transition.onTileError);
+        transition.timer = setTimeout(() => finishTransition(false), MAP_STYLE_TRANSITION_TIMEOUT_MS);
+        layer.addTo(map);
     }
     const status = $('map-style-status');
     if (!status) return;

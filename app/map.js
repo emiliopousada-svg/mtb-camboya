@@ -47,7 +47,11 @@ function initMap() {
     const refreshMapViewport = () => {
         if (!map || document.hidden) return;
         requestAnimationFrame(() => {
-            if (map && !document.hidden) map.invalidateSize({ pan: false, debounceMoveend: true });
+            if (!map || document.hidden) return;
+            map.invalidateSize({ pan: false, debounceMoveend: true });
+            if (following && currentPage === 0 && lastLat !== null && lastLon !== null) {
+                map.setView([lastLat, lastLon], map.getZoom(), { animate: false });
+            }
         });
     };
     window.addEventListener('resize', refreshMapViewport, { passive: true });
