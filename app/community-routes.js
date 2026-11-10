@@ -33,6 +33,7 @@ function communitySetStatus(message, isError = false) {
 function communityFillActivities(select) {
     select.replaceChildren(new Option('Todas las actividades', ''));
     Object.entries(ACTIVITY_TYPES).forEach(([type, activity]) => {
+        if (activity.legacy) return;
         select.add(new Option(`${activity.icon} ${activity.label}`, type));
     });
 }

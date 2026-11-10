@@ -19,7 +19,8 @@ const ACTIVITY_TYPES = {
     road: { label: 'Carretera', icon: '🚴' },
     hiking: { label: 'Senderismo', icon: '🥾' },
     running: { label: 'Correr', icon: '🏃' },
-    walking: { label: 'Paseo', icon: '🚶' }
+    horse: { label: 'Caballo', icon: '🐎' },
+    walking: { label: 'Paseo', icon: '🚶', legacy: true }
 };
 
 // ============================================================

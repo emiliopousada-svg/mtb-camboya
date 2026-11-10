@@ -12,7 +12,9 @@ let autoPauseResumeCandidate = null;
 let recordingActivityType = 'mtb', preferredActivityType = 'mtb';
 try {
     const storedActivity = localStorage.getItem('mtb_activity_type');
-    if (Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, storedActivity)) preferredActivityType = storedActivity;
+    if (Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, storedActivity) && !ACTIVITY_TYPES[storedActivity].legacy) {
+        preferredActivityType = storedActivity;
+    }
 } catch (e) {}
 let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
 let totalDistance = 0, elev = makeElevTracker();
@@ -53,7 +55,9 @@ function finishActivityPicker(choice) {
 function openActivityPicker(initialType = preferredActivityType, savePreference = true, purpose = 'record') {
     if (activityPickerOpen) return Promise.resolve(null);
     activityPickerOpen = true;
-    activityPickerChoice = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, initialType) ? initialType : 'mtb';
+    activityPickerChoice = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, initialType) && !ACTIVITY_TYPES[initialType].legacy
+        ? initialType
+        : 'mtb';
     activityPickerSavesPreference = savePreference;
     $('activity-picker-title').textContent = purpose === 'classification'
         ? 'Clasificar ruta por actividad'
