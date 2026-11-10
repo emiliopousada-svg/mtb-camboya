@@ -24,6 +24,13 @@ let communityPreviewBaseLayer = null;
 let communityPreviewRouteLayer = null;
 let communityDetailBackAction = openCommunityCatalog;
 let communityDetailFollowAction = null;
+let communityDetailRecord = null;
+let communityDetailLines = null;
+let communitySegmentSelecting = false;
+let communitySegmentStart = null;
+let communitySegmentGeometry = null;
+let communitySegmentMarkers = [];
+let communitySegmentDraftLayer = null;
 
 function communitySetStatus(message, isError = false) {
     const status = $('community-status');
@@ -45,6 +52,7 @@ function communityFillProvinces(select) {
 }
 
 function openCommunityCatalog() {
+    communityCancelSegmentCreation();
     $('community-publish').hidden = true;
     $('community-detail').hidden = true;
     $('community-catalog').hidden = false;
@@ -55,8 +63,11 @@ function openCommunityCatalog() {
 }
 
 function closeCommunityDialog() {
+    communityCancelSegmentCreation();
     $('community-dialog').hidden = true;
     communityShareRoute = null;
+    communityDetailRecord = null;
+    communityDetailLines = null;
 }
 
 function openCommunityPublish(route) {
@@ -70,6 +81,7 @@ function openCommunityPublish(route) {
         return;
     }
     communityShareRoute = route;
+    communityCancelSegmentCreation();
     $('community-catalog').hidden = true;
     $('community-detail').hidden = true;
     $('community-publish').hidden = false;
@@ -84,6 +96,9 @@ function openCommunityPublish(route) {
 }
 
 function openCommunityDetail(record, lines, options = {}) {
+    communityCancelSegmentCreation();
+    communityDetailRecord = record && record.id ? record : null;
+    communityDetailLines = lines;
     $('community-catalog').hidden = true;
     $('community-publish').hidden = true;
     $('community-detail').hidden = false;
@@ -115,6 +130,20 @@ function openCommunityDetail(record, lines, options = {}) {
         item.append(caption, detail);
         stats.append(item);
     });
+    const showCommunityTools = Boolean(communityDetailRecord);
+    $('community-route-ranking-section').hidden = !showCommunityTools;
+    $('community-segments-section').hidden = !showCommunityTools;
+    $('community-create-segment').hidden = !showCommunityTools || !Cloud.loggedIn() || !navigator.onLine;
+    $('community-route-leaderboard').replaceChildren();
+    $('community-route-attempt').replaceChildren();
+    $('community-segment-list').replaceChildren();
+    if (showCommunityTools) {
+        communityLoadRanking(communityDetailRecord, 'community_route_efforts', 'route',
+            $('community-route-leaderboard'));
+        communityRenderEffortWidget($('community-route-attempt'), communityDetailRecord,
+            lines, 'community_route_efforts', 'route', 'la ruta');
+        communityLoadSegments(communityDetailRecord);
+    }
 
     $('community-dialog').hidden = false;
     setTimeout(() => {
@@ -129,8 +158,10 @@ function openCommunityDetail(record, lines, options = {}) {
             }
             if (communityPreviewRouteLayer) communityPreviewMap.removeLayer(communityPreviewRouteLayer);
             communityPreviewRouteLayer = L.polyline(lines, {
-                color: '#e040fb', weight: 5, opacity: 0.9
+                color: '#ffad69', weight: 5, opacity: 0.9
             }).addTo(communityPreviewMap);
+            communityPreviewMap.off('click', communityPickSegmentPoint);
+            communityPreviewMap.on('click', communityPickSegmentPoint);
             communityPreviewMap.invalidateSize({ pan: false });
             const bounds = communityPreviewRouteLayer.getBounds();
             if (bounds.isValid()) communityPreviewMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
@@ -466,6 +497,466 @@ function renderCommunityRoutes(records) {
     });
 }
 
+function communityRecordCollectionUrl(collection, filter, fields = 'id,alias,elapsedSeconds', sort = 'elapsedSeconds') {
+    return `/api/collections/${collection}/records?perPage=50&sort=${sort}&fields=${fields}&filter=${encodeURIComponent(filter)}`;
+}
+
+function communityRenderRanking(records, container, totalItems = records.length) {
+    container.replaceChildren();
+    const valid = records.filter(record => record && typeof record.alias === 'string'
+        && record.alias.trim() && Number.isFinite(Number(record.elapsedSeconds))
+        && Number(record.elapsedSeconds) > 0 && Number(record.elapsedSeconds) <= 86400)
+        .sort((a, b) => Number(a.elapsedSeconds) - Number(b.elapsedSeconds))
+        .slice(0, 10);
+    if (!valid.length) {
+        const empty = document.createElement('p');
+        empty.className = 'community-empty';
+        empty.textContent = 'Todavía no hay marcas publicadas para este trazado.';
+        container.append(empty);
+        return;
+    }
+    valid.forEach((record, index) => {
+        const row = document.createElement('div');
+        row.className = 'community-ranking-item';
+        const place = document.createElement('span');
+        place.className = 'community-ranking-place';
+        place.textContent = `${index + 1}.`;
+        const name = document.createElement('span');
+        name.className = 'community-ranking-name';
+        name.textContent = record.alias.trim();
+        const time = document.createElement('strong');
+        time.className = 'community-ranking-time';
+        time.textContent = fmtDur(Number(record.elapsedSeconds));
+        row.append(place, name, time);
+        container.append(row);
+    });
+    if (totalItems > valid.length) {
+        const more = document.createElement('p');
+        more.className = 'hint';
+        more.textContent = `Mostrando las ${valid.length} mejores marcas de ${totalItems}.`;
+        container.append(more);
+    }
+}
+
+async function communityLoadRanking(record, collection, relationField, container) {
+    const isCurrentTarget = () => {
+        if (container === $('stats-community-leaderboard')) {
+            return $('stats-community-route').value === record.id;
+        }
+        if (container === $('community-route-leaderboard')) {
+            return communityDetailRecord && communityDetailRecord.id === record.id;
+        }
+        return container.isConnected;
+    };
+    if (!isCurrentTarget()) return;
+    container.replaceChildren();
+    if (!record || !record.id) return;
+    const loading = document.createElement('p');
+    loading.className = 'community-empty';
+    loading.textContent = 'Cargando clasificación…';
+    container.append(loading);
+    try {
+        const filter = `${relationField} = "${record.id}"`;
+        const result = await cloudApi(communityRecordCollectionUrl(collection, filter));
+        if (!isCurrentTarget()) return;
+        communityRenderRanking(Array.isArray(result.items) ? result.items : [], container,
+            Number(result.totalItems) || 0);
+    } catch (error) {
+        if (!isCurrentTarget()) return;
+        console.warn(`No se pudo cargar la clasificación de ${record.title || 'la ruta'}:`, error);
+        loading.textContent = error.status === 404
+            ? 'Faltan las colecciones community_performance.json en PocketBase.'
+            : `No se pudo cargar la clasificación: ${error.message || 'error de conexión'}`;
+        loading.classList.add('error');
+    }
+}
+
+async function communityGetPublicAlias() {
+    const previous = localStorage.getItem('mtb_community_alias') || '';
+    const suggested = previous || localStorage.getItem('mtb_group_name') || '';
+    const value = await modal({
+        message: 'Elige el apodo que aparecerá públicamente junto a tu mejor tiempo. No uses tu correo: el apodo solo se guarda en este dispositivo y podrás cambiarlo en el próximo envío.',
+        input: suggested,
+        ok: 'Continuar'
+    });
+    if (value === null) return null;
+    const alias = String(value).trim().slice(0, 32);
+    if (!alias) {
+        toast('Escribe un apodo para publicar la marca.');
+        return null;
+    }
+    localStorage.setItem('mtb_community_alias', alias);
+    return alias;
+}
+
+async function communityFindOwnEffort(collection, relationField, targetId) {
+    const filter = `owner = "${Cloud.uid}" && ${relationField} = "${targetId}"`;
+    const result = await cloudApi(communityRecordCollectionUrl(
+        collection, filter, 'id,owner,alias,elapsedSeconds'
+    ));
+    return Array.isArray(result.items) ? result.items[0] || null : null;
+}
+
+async function communityPublishEffort(record, relationField, collection, match, label, status, button) {
+    if (!Cloud.loggedIn()) {
+        status.textContent = 'Inicia sesión para publicar una marca.';
+        return;
+    }
+    if (!navigator.onLine) {
+        status.textContent = 'Conéctate a internet para publicar la marca.';
+        return;
+    }
+    button.disabled = true;
+    try {
+        const alias = await communityGetPublicAlias();
+        if (!alias) return;
+        const existing = await communityFindOwnEffort(collection, relationField, record.id);
+        if (existing && Number(existing.elapsedSeconds) <= match.elapsedSeconds) {
+            status.textContent = `Ya tienes una marca igual o mejor: ${fmtDur(Number(existing.elapsedSeconds))}.`;
+            return;
+        }
+        const confirmed = await modal({
+            message: `Publicar para ${label}: ${fmtDur(match.elapsedSeconds)} con el apodo «${alias}». El tiempo será visible en la comunidad; no se enviarán el track, el correo ni sensores.`,
+            ok: 'Publicar tiempo'
+        });
+        if (!confirmed) return;
+        const payload = {
+            owner: Cloud.uid,
+            [relationField]: record.id,
+            alias,
+            elapsedSeconds: match.elapsedSeconds
+        };
+        if (existing) {
+            await cloudApi(`/api/collections/${collection}/records/${encodeURIComponent(existing.id)}`, 'PATCH', {
+                alias,
+                elapsedSeconds: match.elapsedSeconds
+            });
+        } else {
+            await cloudApi(`/api/collections/${collection}/records`, 'POST', payload);
+        }
+        status.textContent = 'Mejor tiempo publicado en la comunidad.';
+        toast('Tiempo publicado en la clasificación.');
+        const containers = relationField === 'route'
+            ? [$('community-route-leaderboard'), $('stats-community-leaderboard')]
+            : [];
+        containers.filter(Boolean).forEach(container => communityLoadRanking(record, collection, relationField, container));
+        if (relationField === 'segment' && communityDetailRecord) {
+            communityLoadSegments(communityDetailRecord);
+        }
+    } catch (error) {
+        console.warn('No se pudo publicar el tiempo comunitario:', error);
+        status.textContent = error.status === 404
+            ? 'Faltan las colecciones community_performance.json en PocketBase.'
+            : `No se pudo publicar el tiempo: ${error.message || 'error de conexión'}`;
+        status.classList.add('error');
+    } finally {
+        button.disabled = !Cloud.loggedIn() || !navigator.onLine;
+    }
+}
+
+function communityRenderEffortWidget(container, record, lines, collection, relationField, label) {
+    container.replaceChildren();
+    const widget = document.createElement('div');
+    widget.className = 'community-effort-entry';
+    const heading = document.createElement('strong');
+    heading.textContent = 'Comprobar una actividad guardada';
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', 'Actividad para comparar con la ruta');
+    select.add(new Option('Selecciona una actividad', ''));
+    (Array.isArray(savedRoutes) ? savedRoutes : [])
+        .filter(route => route && route.kind !== 'imported' && Array.isArray(route.points) && route.points.length > 1)
+        .forEach(route => {
+            const date = route.startedAt ? ` · ${fmtDate(route.startedAt)}` : '';
+            select.add(new Option(`${route.name || 'Actividad'}${date}`, String(route.id)));
+        });
+    const status = document.createElement('p');
+    status.className = 'community-effort-status';
+    status.textContent = Cloud.loggedIn()
+        ? 'El tiempo se calcula comparando puntos GPS y sus marcas temporales con el trazado.'
+        : 'Inicia sesión para participar en la clasificación.';
+    const submit = document.createElement('button');
+    submit.type = 'button';
+    submit.className = 'btn';
+    submit.textContent = 'Publicar mejor tiempo';
+    submit.disabled = true;
+    let matched = null;
+    select.addEventListener('change', () => {
+        matched = null;
+        status.classList.remove('error');
+        const activity = savedRoutes.find(route => String(route.id) === select.value);
+        if (!activity) {
+            status.textContent = 'Selecciona una actividad GPS.';
+            submit.disabled = true;
+            return;
+        }
+        matched = MTBCommunityPerformance.matchActivity(activity, lines);
+        if (!matched) {
+            status.textContent = 'No se encontró un recorrido completo con tiempos GPS válidos que coincida con esta ruta.';
+            submit.disabled = true;
+            return;
+        }
+        status.textContent = `Coincidencia GPS completa: ${fmtDur(matched.elapsedSeconds)} (${matched.direction === 'reverse' ? 'sentido inverso' : 'sentido de la ruta'}).`;
+        submit.disabled = !Cloud.loggedIn() || !navigator.onLine;
+    });
+    submit.addEventListener('click', () => {
+        if (matched) communityPublishEffort(record, relationField, collection, matched, label, status, submit);
+    });
+    widget.append(heading, select, status, submit);
+    container.append(widget);
+}
+
+function communityUpdateStatsRouteSelect() {
+    const select = $('stats-community-route');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren(new Option(
+        communityCatalogRoutes.length ? 'Selecciona una ruta comunitaria' : 'Busca rutas comunitarias para empezar',
+        ''
+    ));
+    communityCatalogRoutes.forEach(record => {
+        const distance = (Number(record.distanceKm) || 0).toFixed(1);
+        select.add(new Option(`${record.title || 'Ruta comunitaria'} · ${distance} km`, record.id));
+    });
+    select.value = communityCatalogRoutes.some(record => record.id === previous) ? previous : '';
+    if (!select.value) {
+        $('stats-community-leaderboard').replaceChildren();
+        $('stats-community-attempt').replaceChildren();
+    } else {
+        communityRenderStatsRoute(communityCatalogRoutes.find(record => record.id === select.value));
+    }
+}
+
+function communityRenderStatsRoute(record) {
+    const leaderboard = $('stats-community-leaderboard');
+    const attempt = $('stats-community-attempt');
+    if (!record) {
+        leaderboard.replaceChildren();
+        attempt.replaceChildren();
+        return;
+    }
+    communityLoadRanking(record, 'community_route_efforts', 'route', leaderboard);
+    communityRenderEffortWidget(attempt, record, communityRecordLines(record),
+        'community_route_efforts', 'route', 'la ruta');
+}
+
+function communityNearestRoutePoint(latlng, lines) {
+    let nearest = null, distance = Infinity;
+    lines.forEach((line, lineIndex) => line.forEach((point, pointIndex) => {
+        const candidateDistance = communityDistance([latlng.lat, latlng.lng], point);
+        if (candidateDistance < distance) {
+            distance = candidateDistance;
+            nearest = { lineIndex, pointIndex, point, distance: candidateDistance };
+        }
+    }));
+    return nearest;
+}
+
+function communityClearSegmentDraftLayers() {
+    if (communityPreviewMap) {
+        communitySegmentMarkers.forEach(marker => communityPreviewMap.removeLayer(marker));
+        if (communitySegmentDraftLayer) communityPreviewMap.removeLayer(communitySegmentDraftLayer);
+    }
+    communitySegmentMarkers = [];
+    communitySegmentDraftLayer = null;
+}
+
+function communityCancelSegmentCreation() {
+    communitySegmentSelecting = false;
+    communitySegmentStart = null;
+    communitySegmentGeometry = null;
+    communityClearSegmentDraftLayers();
+    const editor = $('community-segment-editor');
+    if (editor) editor.hidden = true;
+    const create = $('community-create-segment');
+    if (create) create.hidden = !communityDetailRecord || !Cloud.loggedIn() || !navigator.onLine;
+    if (communityPreviewMap) communityPreviewMap.getContainer().style.cursor = '';
+}
+
+function communityBeginSegmentCreation() {
+    if (!Cloud.loggedIn()) {
+        toast('Inicia sesión para crear un segmento comunitario.');
+        return;
+    }
+    if (!navigator.onLine || !communityDetailRecord || !communityPreviewMap || !communityDetailLines) {
+        toast('Abre una ruta comunitaria con conexión para crear un segmento.');
+        return;
+    }
+    communityClearSegmentDraftLayers();
+    communitySegmentStart = null;
+    communitySegmentGeometry = null;
+    communitySegmentSelecting = true;
+    $('community-segment-name').value = '';
+    $('community-segment-submit').disabled = true;
+    $('community-segment-editor-status').textContent = 'Toca el inicio y después el final del tramo en el mapa.';
+    $('community-segment-editor-status').classList.remove('error');
+    $('community-segment-editor').hidden = false;
+    $('community-create-segment').hidden = true;
+    communityPreviewMap.getContainer().style.cursor = 'crosshair';
+}
+
+function communityPickSegmentPoint(event) {
+    if (!communitySegmentSelecting || !communityDetailLines) return;
+    const selected = communityNearestRoutePoint(event.latlng, communityDetailLines);
+    const status = $('community-segment-editor-status');
+    if (!selected || selected.distance > 60) {
+        status.textContent = 'Toca sobre el trazado o a menos de 60 m de él.';
+        status.classList.add('error');
+        return;
+    }
+    status.classList.remove('error');
+    const marker = L.circleMarker(selected.point, {
+        radius: 7, color: '#0b1324', weight: 2, fillColor: '#49ddb5', fillOpacity: 1
+    }).addTo(communityPreviewMap);
+    communitySegmentMarkers.push(marker);
+    if (!communitySegmentStart) {
+        communitySegmentStart = selected;
+        status.textContent = 'Inicio seleccionado. Toca ahora el final del segmento.';
+        return;
+    }
+    if (selected.lineIndex !== communitySegmentStart.lineIndex) {
+        communityPreviewMap.removeLayer(marker);
+        communitySegmentMarkers.pop();
+        status.textContent = 'El inicio y el final deben estar en el mismo tramo continuo de la ruta.';
+        status.classList.add('error');
+        return;
+    }
+    const from = communitySegmentStart.pointIndex;
+    const to = selected.pointIndex;
+    const line = communityDetailLines[selected.lineIndex];
+    const geometry = from <= to ? line.slice(from, to + 1) : line.slice(to, from + 1).reverse();
+    let lengthM = 0;
+    for (let i = 1; i < geometry.length; i++) {
+        lengthM += MTBCommunityPerformance.distanceMeters(geometry[i - 1], geometry[i]);
+    }
+    if (!Number.isFinite(lengthM) || lengthM < 100) {
+        communityPreviewMap.removeLayer(marker);
+        communitySegmentMarkers.pop();
+        status.textContent = 'El segmento debe medir al menos 100 m. Selecciona un final más alejado.';
+        status.classList.add('error');
+        return;
+    }
+    communitySegmentGeometry = geometry;
+    communitySegmentDraftLayer = L.polyline(geometry, {
+        color: '#49ddb5', weight: 8, opacity: 0.9, dashArray: '8 6'
+    }).addTo(communityPreviewMap);
+    communitySegmentSelecting = false;
+    communityPreviewMap.getContainer().style.cursor = '';
+    status.textContent = `Tramo seleccionado: ${(lengthM / 1000).toFixed(2)} km.`;
+    $('community-segment-submit').disabled = false;
+}
+
+async function communitySubmitSegment() {
+    if (!Cloud.loggedIn() || !communityDetailRecord || !communitySegmentGeometry) return;
+    const title = $('community-segment-name').value.trim().slice(0, 60);
+    const status = $('community-segment-editor-status');
+    if (title.length < 3) {
+        status.textContent = 'Escribe un nombre de al menos 3 caracteres.';
+        status.classList.add('error');
+        return;
+    }
+    const lengthM = communitySegmentGeometry.slice(1).reduce((sum, point, index) =>
+        sum + MTBCommunityPerformance.distanceMeters(communitySegmentGeometry[index], point), 0);
+    const button = $('community-segment-submit');
+    button.disabled = true;
+    status.textContent = 'Publicando el segmento…';
+    try {
+        await cloudApi('/api/collections/community_segments/records', 'POST', {
+            owner: Cloud.uid,
+            route: communityDetailRecord.id,
+            title,
+            trackJson: JSON.stringify([communitySegmentGeometry]),
+            distanceKm: +(lengthM / 1000).toFixed(3)
+        });
+        status.textContent = 'Segmento publicado y añadido a esta ruta.';
+        communityCancelSegmentCreation();
+        toast('Segmento añadido a la ruta comunitaria.');
+        communityLoadSegments(communityDetailRecord);
+    } catch (error) {
+        console.warn('No se pudo publicar el segmento comunitario:', error);
+        status.textContent = error.status === 404
+            ? 'Faltan las colecciones community_performance.json en PocketBase.'
+            : `No se pudo publicar el segmento: ${error.message || 'error de conexión'}`;
+        status.classList.add('error');
+        button.disabled = false;
+    }
+}
+
+async function communityDeleteSegment(segment) {
+    if (!Cloud.loggedIn() || segment.owner !== Cloud.uid) return;
+    const confirmed = await modal({
+        message: `¿Eliminar «${segment.title}» y su clasificación? Solo se eliminará este segmento de la comunidad.`,
+        ok: 'Eliminar'
+    });
+    if (!confirmed) return;
+    try {
+        await cloudApi(`/api/collections/community_segments/records/${encodeURIComponent(segment.id)}`, 'DELETE');
+        communityLoadSegments(communityDetailRecord);
+    } catch (error) {
+        console.warn('No se pudo eliminar el segmento comunitario:', error);
+        communitySetStatus(`No se pudo eliminar el segmento: ${error.message || 'error de conexión'}`, true);
+    }
+}
+
+async function communityLoadSegments(record) {
+    if (!communityDetailRecord || communityDetailRecord.id !== record.id) return;
+    const list = $('community-segment-list');
+    list.replaceChildren();
+    const loading = document.createElement('p');
+    loading.className = 'community-empty';
+    loading.textContent = 'Cargando segmentos…';
+    list.append(loading);
+    try {
+        const filter = `route = "${record.id}"`;
+        const result = await cloudApi(communityRecordCollectionUrl(
+            'community_segments', filter, 'id,owner,route,title,trackJson,distanceKm', 'created'
+        ));
+        if (!communityDetailRecord || communityDetailRecord.id !== record.id) return;
+        const segments = Array.isArray(result.items) ? result.items : [];
+        list.replaceChildren();
+        if (!segments.length) {
+            const empty = document.createElement('p');
+            empty.className = 'community-empty';
+            empty.textContent = 'Aún no hay segmentos. Puedes crear uno seleccionando el inicio y el final en el mapa.';
+            list.append(empty);
+            return;
+        }
+        segments.forEach(segment => {
+            const card = document.createElement('article');
+            card.className = 'community-segment-item';
+            const heading = document.createElement('strong');
+            heading.textContent = segment.title || 'Segmento';
+            const facts = document.createElement('p');
+            facts.textContent = `${(Number(segment.distanceKm) || 0).toFixed(2)} km · creado por ${segment.owner === Cloud.uid ? 'ti' : 'un miembro de la comunidad'}`;
+            const ranking = document.createElement('div');
+            ranking.className = 'community-ranking-list';
+            const widget = document.createElement('div');
+            const geometry = communityRecordLines(segment);
+            card.append(heading, facts, ranking, widget);
+            list.append(card);
+            if (geometry) {
+                communityLoadRanking(segment, 'community_segment_efforts', 'segment', ranking);
+                communityRenderEffortWidget(widget, segment, geometry,
+                    'community_segment_efforts', 'segment', `el segmento «${segment.title || 'Segmento'}»`);
+            }
+            if (Cloud.loggedIn() && segment.owner === Cloud.uid) {
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn-small danger';
+                remove.textContent = 'Eliminar mi segmento';
+                remove.addEventListener('click', () => communityDeleteSegment(segment));
+                card.append(remove);
+            }
+        });
+    } catch (error) {
+        if (!communityDetailRecord || communityDetailRecord.id !== record.id) return;
+        console.warn('No se pudieron cargar los segmentos comunitarios:', error);
+        loading.textContent = error.status === 404
+            ? 'Faltan las colecciones community_performance.json en PocketBase.'
+            : `No se pudieron cargar los segmentos: ${error.message || 'error de conexión'}`;
+        loading.classList.add('error');
+    }
+}
+
 async function loadCommunityRoutes() {
     if (!navigator.onLine) {
         communitySetStatus('El catálogo necesita conexión. Las rutas guardadas sí están disponibles sin conexión.', true);
@@ -503,6 +994,7 @@ async function loadCommunityRoutes() {
             .sort((a, b) => a.proximityKm - b.proximityKm);
         communityCatalogRoutes = nearbyRoutes.slice(0, COMMUNITY_MAX_RESULTS);
         renderCommunityRoutes(communityCatalogRoutes);
+        communityUpdateStatsRouteSelect();
         communitySetStatus(nearbyRoutes.length > COMMUNITY_MAX_RESULTS
             ? `Mostrando las ${COMMUNITY_MAX_RESULTS} rutas más cercanas de ${nearbyRoutes.length} dentro de ${radiusKm} km.`
             : nearbyRoutes.length
@@ -538,6 +1030,14 @@ function initCommunityRoutes() {
     $('community-detail-back').addEventListener('click', () => communityDetailBackAction());
     $('community-detail-follow').addEventListener('click', () => {
         if (communityDetailFollowAction) communityDetailFollowAction();
+    });
+    $('community-create-segment').addEventListener('click', communityBeginSegmentCreation);
+    $('community-segment-cancel').addEventListener('click', communityCancelSegmentCreation);
+    $('community-segment-submit').addEventListener('click', communitySubmitSegment);
+    $('stats-community-browse').addEventListener('click', openCommunityCatalog);
+    $('stats-community-route').addEventListener('change', () => {
+        const record = communityCatalogRoutes.find(item => item.id === $('stats-community-route').value);
+        communityRenderStatsRoute(record || null);
     });
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();

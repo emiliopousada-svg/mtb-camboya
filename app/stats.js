@@ -977,7 +977,7 @@ function statsRenderRecords() {
 
     const improvement = $('stats-route-improvement');
     const segmentRecords = $('stats-segment-records');
-    segmentRecords.textContent = 'No hay segmentos guardados para calcular marcas.';
+    segmentRecords.textContent = 'Consulta los segmentos personales y sus clasificaciones dentro de Rutas, en el detalle de cada ruta comunitaria.';
     if (!repeated) {
         improvement.textContent = 'Mejora en rutas repetidas: hacen falta al menos dos salidas con el mismo nombre y una distancia similar (±10%).';
         return;

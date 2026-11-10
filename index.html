@@ -259,6 +259,17 @@
                                 <p class="hint">Elige una segunda actividad para comparar las métricas disponibles.</p>
                             </div>
                         </div>
+                        <div class="card" id="stats-community-ranking">
+                            <h3>Clasificación de rutas comunitarias</h3>
+                            <p class="hint">Consulta las mejores marcas públicas y revisa tus tiempos calculados con el GPS de tus actividades. Solo se envían el apodo y el tiempo si confirmas.</p>
+                            <button id="stats-community-browse" class="btn secondary" type="button">Buscar rutas comunitarias</button>
+                            <label for="stats-community-route">Ruta</label>
+                            <select id="stats-community-route">
+                                <option value="">Busca rutas comunitarias para empezar</option>
+                            </select>
+                            <div id="stats-community-leaderboard" class="community-ranking-list" aria-live="polite"></div>
+                            <div id="stats-community-attempt"></div>
+                        </div>
                     </section>
 
                     <section class="stats-slide" aria-label="Evolución histórica">
@@ -310,8 +321,8 @@
                             <p class="hint">Los tiempos solo se comparan cuando el nombre coincide, la distancia difiere como máximo un 10% y el tiempo de movimiento está registrado (no estimado).</p>
                         </div>
                         <div class="card">
-                            <h3>Segmentos personales</h3>
-                            <p id="stats-segment-records" class="stats-unavailable">No hay segmentos guardados para calcular marcas.</p>
+                            <h3>Segmentos comunitarios</h3>
+                            <p id="stats-segment-records" class="stats-unavailable">Consulta los segmentos personales y sus clasificaciones dentro de Rutas, en el detalle de cada ruta comunitaria.</p>
                         </div>
                     </section>
 
@@ -609,6 +620,31 @@
             <section id="community-detail" hidden>
                 <div id="community-detail-map" class="community-detail-map" role="region" aria-label="Mapa con el trazado de la ruta"></div>
                 <div id="community-detail-stats" class="community-detail-stats"></div>
+                <section id="community-route-ranking-section" class="community-detail-section" aria-labelledby="community-route-ranking-title">
+                    <h3 id="community-route-ranking-title">Clasificación de la ruta</h3>
+                    <p class="community-privacy">Se comparte solo el apodo y el mejor tiempo. No se publica el track de tu actividad, tu correo ni los datos de sensores.</p>
+                    <div id="community-route-leaderboard" class="community-ranking-list" aria-live="polite"></div>
+                    <div id="community-route-attempt"></div>
+                </section>
+                <section id="community-segments-section" class="community-detail-section" aria-labelledby="community-segments-title">
+                    <div class="community-segments-heading">
+                        <div>
+                            <h3 id="community-segments-title">Segmentos de la comunidad</h3>
+                            <p class="community-privacy">Los segmentos quedan asociados a este trazado público. Se pueden crear seleccionando dos puntos del mapa.</p>
+                        </div>
+                        <button id="community-create-segment" class="btn-small" type="button">＋ Crear segmento</button>
+                    </div>
+                    <div id="community-segment-editor" class="community-segment-editor" hidden>
+                        <label for="community-segment-name">Nombre del segmento</label>
+                        <input id="community-segment-name" type="text" maxlength="60" placeholder="Ej. Subida del mirador">
+                        <p id="community-segment-editor-status" class="community-status" role="status" aria-live="polite">Toca el inicio y después el final del tramo en el mapa.</p>
+                        <div class="community-dialog-actions">
+                            <button id="community-segment-cancel" class="btn secondary" type="button">Cancelar</button>
+                            <button id="community-segment-submit" class="btn" type="button" disabled>Publicar segmento</button>
+                        </div>
+                    </div>
+                    <div id="community-segment-list" class="community-segment-list"></div>
+                </section>
                 <div class="community-detail-actions">
                     <button id="community-detail-back" class="btn secondary" type="button">Volver a las rutas</button>
                     <button id="community-detail-follow" class="btn" type="button" hidden>Seguir ruta</button>
@@ -675,6 +711,7 @@
     <script src="app/routes.js"></script>
     <script src="app/route-files.js"></script>
     <script src="app/statistics-engine.js"></script>
+    <script src="app/community-performance.js"></script>
     <script src="app/stats.js"></script>
     <script src="app/sensors.js"></script>
     <script src="app/pois.js"></script>

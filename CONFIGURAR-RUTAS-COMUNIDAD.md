@@ -37,3 +37,16 @@ El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, 
 ## Limitación de la primera fase
 
 La provincia se elige manualmente al publicar; el sistema aún no la deduce automáticamente del recorrido. La búsqueda usa la ubicación GPS actual, un radio y el tipo de actividad. La base es una colección compartida con índice por provincia, no una base física separada para cada provincia.
+
+## Segmentos personales y clasificaciones por tiempo
+
+La app puede preparar tres colecciones adicionales para guardar segmentos públicos dibujados sobre una ruta comunitaria y la mejor marca de cada usuario para la ruta o un segmento:
+
+1. Haz una copia de seguridad de PocketBase.
+2. En **Settings → Import collections**, importa `community_performance.json` y activa **Merge with the existing collections**.
+3. Antes de confirmar, comprueba que solo se añaden `community_segments`, `community_route_efforts` y `community_segment_efforts`; cancela si se proponen cambios a colecciones existentes.
+4. Comprueba en **Collections** que las reglas permiten ver marcas solo de rutas publicadas y que cada usuario solo puede modificar o borrar sus propios registros.
+
+La app usa el apodo que el usuario confirma para cada envío; no envía el correo ni adjunta la actividad GPS. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
+
+Los cambios del cliente no instalan estas colecciones por sí solos. Hasta importar el esquema en el servidor, el catálogo actual de rutas sigue funcionando, pero las nuevas funciones compartidas no podrán guardar ni leer segmentos y clasificaciones.
