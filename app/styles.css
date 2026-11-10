@@ -821,6 +821,25 @@ nav {
 }
 #toast.show { opacity: 1; transform: translateY(0); }
 
+.screen-dim-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 6000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100%;
+    border: 0;
+    background: rgba(0, 0, 0, .84);
+    color: rgba(255, 255, 255, .72);
+    font-size: .9rem;
+    touch-action: manipulation;
+}
+.screen-dim-overlay[hidden] { display: none; }
+.screen-dim-overlay.screen-dim-native { background: rgba(0, 0, 0, .12); }
+.screen-dim-overlay.screen-dim-fallback { background: rgba(0, 0, 0, .84); }
+
 #modal {
     display: none;
     position: fixed;

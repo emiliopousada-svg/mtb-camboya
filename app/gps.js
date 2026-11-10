@@ -2,9 +2,12 @@
 
 //  GPS
 // ============================================================
-const GPS_OPTIONS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 };
+const GPS_LOW_POWER_OPTIONS = { enableHighAccuracy: false, maximumAge: 10000, timeout: 20000 };
+const GPS_ACTIVE_OPTIONS = { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 };
+const GPS_FOLLOW_OPTIONS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 };
 const GPS_RECENTER_ACCURACY_M = 100;
 let gpsWatchId = null, gpsRetryTimer = null, gpsRetryDelay = 2000;
+let gpsHighAccuracyMode = null;
 let gpsPermissionDenied = false, gpsPermissionNoticeShown = false;
 let gpsOneShotPending = false, gpsResumeCheckPending = false;
 let gpsRecenterPending = true;
@@ -40,7 +43,7 @@ function handleGpsError(error) {
 }
 
 function requestCurrentGpsFix() {
-    if (!navigator.geolocation || gpsOneShotPending) return;
+    if (!navigator.geolocation || gpsOneShotPending || bgActive) return;
     gpsOneShotPending = true;
     navigator.geolocation.getCurrentPosition(pos => {
         gpsOneShotPending = false;
@@ -54,17 +57,35 @@ function requestCurrentGpsFix() {
 
 function startGps(force = false) {
     if (!navigator.geolocation) { toast('Este dispositivo no tiene geolocalización'); return; }
+    if (bgActive) {
+        clearGpsWatch();
+        return;
+    }
     if (gpsPermissionDenied && !force) return;
+    const highAccuracy = !!followedRoute || (isRecording && (!isPaused || autoPaused));
+    if (!force && gpsWatchId !== null && gpsHighAccuracyMode === highAccuracy) return;
     if (force) gpsPermissionDenied = false;
     clearTimeout(gpsRetryTimer);
     gpsRetryTimer = null;
     clearGpsWatch();
+    gpsHighAccuracyMode = highAccuracy;
+    const options = isRecording && (!isPaused || autoPaused)
+        ? GPS_ACTIVE_OPTIONS
+        : followedRoute ? GPS_FOLLOW_OPTIONS : GPS_LOW_POWER_OPTIONS;
     gpsWatchId = navigator.geolocation.watchPosition(pos => {
         gpsRetryDelay = 2000;
         gpsPermissionDenied = false;
         if (!bgActive) onPos(pos);
-    }, handleGpsError, GPS_OPTIONS);
+    }, handleGpsError, options);
     if (force || !firstFix || gpsRecenterPending) requestCurrentGpsFix();
+}
+
+function refreshGpsMode() {
+    if (document.visibilityState === 'hidden') {
+        if (bgActive || !isRecording) clearGpsWatch();
+        return;
+    }
+    startGps();
 }
 
 async function resumeGpsAfterForeground() {
@@ -92,7 +113,10 @@ async function resumeGpsAfterForeground() {
 }
 
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') gpsRecenterPending = true;
+    if (document.visibilityState === 'hidden') {
+        gpsRecenterPending = true;
+        if (bgActive || !isRecording) clearGpsWatch();
+    }
     else resumeGpsAfterForeground();
 });
 window.addEventListener('focus', resumeGpsAfterForeground);

@@ -30,6 +30,10 @@ function renderRecordingSegments(routeSegments) {
 }
 
 async function acquireWake() {
+    if (typeof screenEnsureAwake === 'function') {
+        await screenEnsureAwake();
+        return;
+    }
     try {
         if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
@@ -38,11 +42,12 @@ async function acquireWake() {
     } catch (e) {}
 }
 function releaseWake() {
+    if (typeof screenEnsureAwake === 'function') return;
     if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 
 // ---- GPS en segundo plano (solo dentro del APK) ----
-let bgActive = false, bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
+let bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
 
 function bgPlugin() {
     const cap = window.Capacitor;
@@ -89,7 +94,7 @@ async function pollMapBattery() {
     } catch (e) { console.warn('Batería no disponible:', e); }
 }
 pollMapBattery();
-setInterval(pollMapBattery, 60000);
+setInterval(pollMapBattery, 300000);
 
 function updateBatteryStatus() {
     const label = $('ride-battery');
@@ -216,7 +221,7 @@ async function startBgWatcher() {
             backgroundMessage: 'Grabando tu ruta…',
             requestPermissions: true,
             stale: false,
-            distanceFilter: 2
+            distanceFilter: MIN_STEP_M
         }, (loc, err) => {
             if (my !== bgToken) return;
             if (err) {
@@ -238,6 +243,7 @@ async function startBgWatcher() {
             return false;
         }
         bgWatcherId = id;
+        clearGpsWatch();
         return true;
     } catch (e) {
         console.warn('No se pudo iniciar el GPS en segundo plano:', e);
@@ -253,6 +259,7 @@ function stopBgWatcher() {
     bgActive = false;
     bgWatcherId = null;
     if (bg && id != null) bg.removeWatcher({ id }).catch(() => {});
+    if (document.visibilityState === 'visible') startGps();
 }
 
 // Empieza a recibir posiciones: en segundo plano si se puede; si no, pantalla encendida
@@ -355,7 +362,7 @@ function startAutoPauseMonitor() {
             && Date.now() - autoPauseLastMovementAt >= AUTO_PAUSE_AFTER_MS) {
             pauseRecording(true);
         }
-    }, 500);
+    }, 1000);
 }
 
 function stopAutoPauseMonitor() {
@@ -394,6 +401,7 @@ function startRecording(activityType) {
     recordingActivityType = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, activityType) ? activityType : 'mtb';
     isRecording = true;
     isPaused = false;
+    refreshGpsMode();
     startedAt = new Date().toISOString();
     segStart = Date.now();
     $('m-dist').textContent = '0.00';
@@ -417,6 +425,7 @@ function pauseRecording(automatic = false) {
     segStart = null;
     isPaused = true;
     autoPaused = automatic;
+    refreshGpsMode();
     stopAutoPauseMonitor();
     pauseTimers();
     stopRideAdvisories();
@@ -438,6 +447,7 @@ function resumeRecording(automatic = false, position = null) {
     unlockOffRouteSound();
     isPaused = false;
     autoPaused = false;
+    refreshGpsMode();
     segStart = Date.now();
     resumeBreak = !automatic; // la pausa automática mantiene el track unido; la manual inicia otro tramo
     autoPauseAnchor = position;
@@ -517,6 +527,7 @@ async function finishRecording() {
     }
     isRecording = false;
     isPaused = false;
+    refreshGpsMode();
     resetAutoPauseState();
     stopTimers();
     stopRideAdvisories();

@@ -5,7 +5,7 @@
 let map = null, userMarker = null, routePolyline = null, routePolylines = [], routePolylinePointCount = 0, savedRouteLayer = null, offlineTileLayer = null;
 const MAX_ROUTE_RENDER_POINTS = 250;
 let activeMapStyle = null, mapStyleLayers = {};
-let isRecording = false, isPaused = false;
+let isRecording = false, isPaused = false, bgActive = false;
 let autoPaused = false, autoPauseInterval = null;
 let autoPauseAnchor = null, autoPauseLastPosition = null, autoPauseLastMovementAt = null;
 let autoPauseResumeCandidate = null;

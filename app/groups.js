@@ -118,7 +118,12 @@ async function loadAdminMembers() {
                 revoke.className = 'btn-small danger friend-locate';
                 revoke.textContent = 'Revocar';
                 revoke.addEventListener('click', async () => {
-                    if (!confirm('Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?')) return;
+                    const ok = await modal({
+                        message: 'Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?',
+                        ok: 'Revocar',
+                        cancel: 'Cancelar'
+                    });
+                    if (!ok) return;
                     try {
                         await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
                         await loadAdminMembers();
@@ -404,7 +409,13 @@ $('btn-copy-invite').addEventListener('click', async () => {
     } catch (e) { toast('Código de invitación: ' + groupInfo.inviteCode, 6000); }
 });
 $('btn-rotate-invite').addEventListener('click', async () => {
-    if (!groupInfo || !groupInfo.isAdmin || !confirm('El código anterior dejará de servir para nuevas invitaciones. ¿Renovar?')) return;
+    if (!groupInfo || !groupInfo.isAdmin) return;
+    const ok = await modal({
+        message: 'El código anterior dejará de servir para nuevas invitaciones. ¿Renovar?',
+        ok: 'Renovar',
+        cancel: 'Cancelar'
+    });
+    if (!ok) return;
     try {
         const result = await cloudApi('/api/mtb/groups/rotate-invite', 'POST');
         groupInfo = result.group;
@@ -413,7 +424,13 @@ $('btn-rotate-invite').addEventListener('click', async () => {
     } catch (e) { toast('No se pudo renovar el código: ' + e.message, 6000); }
 });
 $('btn-delete-group').addEventListener('click', async () => {
-    if (!groupInfo || !groupInfo.isAdmin || !confirm('Se retirará el acceso a todos los miembros y se borrarán sus posiciones en vivo. ¿Eliminar el grupo?')) return;
+    if (!groupInfo || !groupInfo.isAdmin) return;
+    const ok = await modal({
+        message: 'Se retirará el acceso a todos los miembros y se borrarán sus posiciones en vivo. ¿Eliminar el grupo?',
+        ok: 'Eliminar',
+        cancel: 'Cancelar'
+    });
+    if (!ok) return;
     try {
         await cloudApi('/api/mtb/groups/delete', 'POST');
         await stopGroup();

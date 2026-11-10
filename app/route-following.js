@@ -158,7 +158,7 @@ function followRoute(r) {
             map.setView([lastLat, lastLon], Math.max(16, Math.min(map.getMaxZoom(), map.getZoom())));
         }
         if (r.points.length >= 2 && lastLat !== null && lastLon !== null) {
-            const routeHeading = routeHeadingFromFollowedRoute(lastLat, lastLon);
+            const routeHeading = routeHeadingFromFollowedRoute(followedRoute.progressIndex);
             if (routeHeading != null) {
                 lastHeading = routeHeading;
                 applyMapHeading(routeHeading);
@@ -169,6 +169,7 @@ function followRoute(r) {
     }
     $('btn-unfollow').style.display = 'block';
     goToPage(0);
+    refreshGpsMode();
     toast(`Siguiendo «${r.name}». Te aviso si te desvías.`, 4500);
 }
 
@@ -181,6 +182,7 @@ function unfollowRoute() {
     $('map-route-profile').classList.remove('show');
     $('btn-unfollow').style.display = 'none';
     if (!isRecording) $('m-elevation').textContent = '0';
+    refreshGpsMode();
 }
 $('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
 
