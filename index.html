@@ -119,56 +119,238 @@
         </div>
 
         <!-- PÁGINA 2: ESTADÍSTICAS -->
-        <div class="page content-panel">
-            <div class="card">
-                <div class="card-header">
-                    <h2>📊 Estadísticas</h2>
-                    <div class="pill-selector">
-                        <button class="pill-btn active" onclick="setStatsPeriod('semanal', this)">Semanal</button>
-                        <button class="pill-btn" onclick="setStatsPeriod('mensual', this)">Mensual</button>
-                        <button class="pill-btn" onclick="setStatsPeriod('anual', this)">Anual</button>
-                    </div>
+        <div class="page stats-page" id="page-stats">
+            <header class="stats-header">
+                <h2>📊 Estadísticas</h2>
+                <div class="stats-periods" role="group" aria-label="Periodo de estadísticas">
+                    <button class="stats-period-btn" data-stats-period="today" aria-pressed="false">Hoy</button>
+                    <button class="stats-period-btn active" data-stats-period="weekly" aria-pressed="true">Semana</button>
+                    <button class="stats-period-btn" data-stats-period="monthly" aria-pressed="false">Mes</button>
+                    <button class="stats-period-btn" data-stats-period="yearly" aria-pressed="false">Año</button>
+                    <button class="stats-period-btn" data-stats-period="all" aria-pressed="false">Todo</button>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:var(--primary);" id="st-dist">0.0 km</div>
-                        <div class="l" id="st-dist-lbl">Distancia esta semana</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="v" style="color:var(--accent);" id="st-time">0h 0m</div>
-                        <div class="l" id="st-time-lbl">Tiempo esta semana</div>
-                    </div>
+                <nav class="stats-tabs" aria-label="Secciones de estadísticas">
+                    <button class="stats-tab active" type="button" data-stats-slide="0" aria-current="page">Resumen</button>
+                    <button class="stats-tab" type="button" data-stats-slide="1">Rendimiento MTB</button>
+                    <button class="stats-tab" type="button" data-stats-slide="2">Rutas</button>
+                    <button class="stats-tab" type="button" data-stats-slide="3">Evolución</button>
+                    <button class="stats-tab" type="button" data-stats-slide="4">Récords</button>
+                    <button class="stats-tab" type="button" data-stats-slide="5">Sensores</button>
+                </nav>
+            </header>
+            <div class="stats-carousel" id="stats-carousel">
+                <div class="stats-track" id="stats-track">
+                    <section class="stats-slide" aria-label="Resumen de actividad">
+                        <div class="card">
+                            <h3>Resumen</h3>
+                            <div class="stats-grid stats-summary-grid">
+                                <div class="stat-box"><div class="v" id="st-distance">--</div><div class="l">Distancia total</div></div>
+                                <div class="stat-box"><div class="v" id="st-moving-time">--</div><div class="l">Tiempo en movimiento</div></div>
+                                <div class="stat-box"><div class="v" id="st-total-time">--</div><div class="l">Tiempo total</div></div>
+                                <div class="stat-box"><div class="v" id="st-ascent">--</div><div class="l">Desnivel positivo</div></div>
+                                <div class="stat-box"><div class="v" id="st-descent">--</div><div class="l">Desnivel negativo</div></div>
+                                <div class="stat-box"><div class="v" id="st-average-speed">--</div><div class="l">Velocidad media</div></div>
+                                <div class="stat-box"><div class="v" id="st-max-speed">--</div><div class="l">Velocidad máxima GPS</div></div>
+                                <div class="stat-box"><div class="v" id="st-stopped-time">--</div><div class="l">Tiempo parado (estimado)</div></div>
+                                <div class="stat-box"><div class="v" id="st-ride-count">--</div><div class="l">Número de salidas</div></div>
+                                <div class="stat-box"><div class="v" id="st-average-distance">--</div><div class="l">Distancia media/salida</div></div>
+                                <div class="stat-box"><div class="v" id="st-average-ascent">--</div><div class="l">Desnivel medio/salida</div></div>
+                                <div class="stat-box"><div class="v" id="st-average-duration">--</div><div class="l">Duración media</div></div>
+                            </div>
+                            <p class="hint">El tiempo parado se estima con las marcas de tiempo del track. Los tracks importados no cuentan como salidas.</p>
+                        </div>
+                        <div class="stats-overview-charts">
+                            <div class="card">
+                                <h3>Distancia recorrida</h3>
+                                <div class="stats-chart"><canvas id="statsChart" aria-label="Kilómetros recorridos por periodo"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3>Desnivel acumulado</h3>
+                                <div class="stats-chart"><canvas id="stats-ascent-chart" aria-label="Desnivel positivo por periodo"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3>Evolución de velocidad</h3>
+                                <div class="stats-chart"><canvas id="stats-speed-chart" aria-label="Velocidad media y máxima por periodo"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3 id="stats-activity-title">Actividad semanal</h3>
+                                <div class="stats-chart"><canvas id="stats-activity-chart" aria-label="Número de salidas por periodo"></canvas></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-slide" aria-label="Rendimiento MTB">
+                        <div class="card">
+                            <h3>Perfil de elevación</h3>
+                            <label for="stats-profile-route">Ruta grabada</label>
+                            <select id="stats-profile-route"></select>
+                            <div class="stats-profile-chart"><canvas id="stats-profile-chart" aria-label="Perfil de elevación interactivo"></canvas></div>
+                            <div id="stats-profile-point" class="stats-profile-point">Selecciona un punto del perfil para consultar sus datos.</div>
+                        </div>
+                        <div class="card">
+                            <h3>Subidas, bajadas y altitud</h3>
+                            <div class="stats-grid">
+                                <div class="stat-box"><div class="v" id="st-climb-speed">--</div><div class="l">Velocidad en subida</div></div>
+                                <div class="stat-box"><div class="v" id="st-downhill-speed">--</div><div class="l">Velocidad en bajada</div></div>
+                                <div class="stat-box"><div class="v" id="st-vam">--</div><div class="l">VAM media</div></div>
+                                <div class="stat-box"><div class="v" id="st-average-grade">--</div><div class="l">Pendiente media</div></div>
+                                <div class="stat-box"><div class="v" id="st-max-grade">--</div><div class="l">Pendiente máxima</div></div>
+                                <div class="stat-box"><div class="v" id="st-climb-time">--</div><div class="l">Tiempo subiendo</div></div>
+                                <div class="stat-box"><div class="v" id="st-downhill-time">--</div><div class="l">Tiempo bajando</div></div>
+                                <div class="stat-box"><div class="v" id="st-downhill-total">--</div><div class="l">Descenso vertical</div></div>
+                                <div class="stat-box"><div class="v" id="st-ascent-total">--</div><div class="l">Ascenso vertical</div></div>
+                                <div class="stat-box"><div class="v" id="st-max-altitude">--</div><div class="l">Altitud máxima</div></div>
+                                <div class="stat-box"><div class="v" id="st-min-altitude">--</div><div class="l">Altitud mínima</div></div>
+                            </div>
+                            <div class="stats-unavailable">
+                                <strong>Kilómetros técnicos:</strong> No disponible; la app no clasifica el terreno técnico.<br>
+                                <strong>Dificultad:</strong> No disponible; no hay datos objetivos del terreno.
+                            </div>
+                            <p class="hint">Subidas y bajadas se clasifican con pendiente sostenida superior a ±3% en tramos de al menos 25 m.</p>
+                        </div>
+                        <div class="stats-mtb-charts">
+                            <div class="card">
+                                <h3>Comparativa de subida y bajada</h3>
+                                <div class="stats-chart"><canvas id="stats-mtb-speed-chart" aria-label="Comparativa de velocidad en subida y bajada"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3>Distribución de pendientes</h3>
+                                <div class="stats-chart"><canvas id="stats-grade-chart" aria-label="Distancia por rango de pendiente"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3>Tiempo de ascenso y descenso</h3>
+                                <div class="stats-chart"><canvas id="stats-climb-time-chart" aria-label="Tiempo registrado subiendo y bajando"></canvas></div>
+                            </div>
+                            <div class="card">
+                                <h3>Evolución del VAM</h3>
+                                <div class="stats-chart"><canvas id="stats-vam-chart" aria-label="VAM por periodo"></canvas></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-slide" aria-label="Análisis y comparación de rutas">
+                        <div class="card">
+                            <h3>Análisis de rutas</h3>
+                            <div class="stats-route-selectors">
+                                <div>
+                                    <label for="stats-route-select">Actividad</label>
+                                    <select id="stats-route-select"></select>
+                                </div>
+                                <div>
+                                    <label for="stats-route-compare-select">Comparar con</label>
+                                    <select id="stats-route-compare-select">
+                                        <option value="">Sin comparación</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p id="stats-route-map-status" class="hint" role="status" aria-live="polite"></p>
+                            <div id="stats-route-map" class="stats-route-map" role="region" aria-label="Mapa del recorrido GPS"></div>
+                            <div id="stats-route-details" class="stats-grid stats-route-details"></div>
+                            <p id="stats-route-point" class="stats-profile-point" aria-live="polite">Selecciona un punto del perfil para localizarlo en el mapa.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Perfil de elevación sincronizado</h3>
+                            <p class="hint">Selecciona un punto del perfil para mostrar su posición y datos. Si comparas salidas, puedes seleccionar cualquiera de los dos perfiles.</p>
+                            <div class="stats-profile-chart"><canvas id="stats-route-profile-chart" aria-label="Perfil de elevación de las actividades seleccionadas"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3>Comparación de salidas</h3>
+                            <div id="stats-route-comparison" class="stats-route-comparison">
+                                <p class="hint">Elige una segunda actividad para comparar las métricas disponibles.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="stats-slide" aria-label="Evolución histórica">
+                        <div class="card">
+                            <h3>Carga semanal y mensual</h3>
+                            <p class="hint">Las actividades se agrupan por la fecha de inicio. El VAM y los desniveles se muestran solo si el track permite calcularlos.</p>
+                            <div id="stats-evolution-summary" class="stats-evolution-summary"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Comparativa de periodos</h3>
+                            <div id="stats-comparisons" class="stats-comparisons"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Evolución por periodos</h3>
+                            <div class="stats-evolution-controls">
+                                <div>
+                                    <label for="stats-evolution-period">Agrupar por</label>
+                                    <select id="stats-evolution-period">
+                                        <option value="weekly">Semanas</option>
+                                        <option value="monthly" selected>Meses</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="stats-evolution-metric">Métrica</label>
+                                    <select id="stats-evolution-metric">
+                                        <option value="distance">Kilómetros recorridos</option>
+                                        <option value="speed">Velocidad media</option>
+                                        <option value="ascent">Desnivel positivo</option>
+                                        <option value="descent">Desnivel negativo</option>
+                                        <option value="activityCount">Número de salidas</option>
+                                        <option value="duration">Duración media</option>
+                                        <option value="vam">VAM</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="stats-chart"><canvas id="stats-evolution-chart" aria-label="Evolución semanal o mensual de métricas"></canvas></div>
+                        </div>
+                    </section>
+
+                    <section class="stats-slide" aria-label="Récords personales y logros">
+                        <div class="card">
+                            <h3>Récords y medallas</h3>
+                            <p class="hint">Cada logro se basa en los datos disponibles de tus actividades; no se asignan marcas estimadas.</p>
+                            <div id="stats-records" class="stats-records"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Rutas repetidas</h3>
+                            <div id="stats-route-improvement" class="stats-unavailable"></div>
+                            <p class="hint">Los tiempos solo se comparan cuando el nombre coincide, la distancia difiere como máximo un 10% y el tiempo de movimiento está registrado (no estimado).</p>
+                        </div>
+                        <div class="card">
+                            <h3>Segmentos personales</h3>
+                            <p id="stats-segment-records" class="stats-unavailable">No hay segmentos guardados para calcular marcas.</p>
+                        </div>
+                    </section>
+
+                    <section class="stats-slide" aria-label="Sensores y métricas avanzadas">
+                        <div class="card">
+                            <h3>Rendimiento físico</h3>
+                            <div class="stats-grid">
+                                <div class="stat-box"><div class="v" id="st-hr-average">--</div><div class="l">Frecuencia cardíaca media</div></div>
+                                <div class="stat-box"><div class="v" id="st-hr-max">--</div><div class="l">Frecuencia cardíaca máxima</div></div>
+                                <div class="stat-box"><div class="v" id="st-cadence-average">--</div><div class="l">Cadencia media</div></div>
+                                <div class="stat-box"><div class="v" id="st-cadence-max">--</div><div class="l">Cadencia máxima</div></div>
+                                <div class="stat-box"><div class="v" id="st-power-average">--</div><div class="l">Potencia media</div></div>
+                                <div class="stat-box"><div class="v" id="st-power-max">--</div><div class="l">Potencia máxima</div></div>
+                                <div class="stat-box"><div class="v" id="st-calories">--</div><div class="l">Calorías estimadas</div></div>
+                            </div>
+                            <div class="stats-config">
+                                <label for="stats-weight">Peso para estimar calorías (kg)</label>
+                                <input id="stats-weight" type="number" min="25" max="250" step="0.1" inputmode="decimal" placeholder="Sin configurar">
+                                <label for="stats-hr-max-config">Frecuencia cardíaca máxima (lpm)</label>
+                                <input id="stats-hr-max-config" type="number" min="100" max="240" step="1" inputmode="numeric" placeholder="Sin configurar">
+                                <label for="stats-power-ftp">FTP para zonas Coggan (W)</label>
+                                <input id="stats-power-ftp" type="number" min="50" max="800" step="1" inputmode="numeric" placeholder="Sin configurar">
+                            </div>
+                        </div>
+                        <div class="card">
+                            <h3>Zonas de frecuencia cardíaca</h3>
+                            <p class="hint">Se calculan solo con datos del sensor y una FC máxima configurada.</p>
+                            <div id="stats-hr-zones" class="stats-zones"></div>
+                            <p id="stats-effort-time" class="hint">Tiempo en zonas de esfuerzo: --</p>
+                        </div>
+                        <div class="card">
+                            <h3>Zonas de potencia Coggan</h3>
+                            <p class="hint">Z1 recuperación, Z2 resistencia, Z3 tempo, Z4 umbral, Z5 VO₂ máx., Z6 anaeróbica y Z7 neuromuscular. Se requiere potencia registrada y FTP configurado.</p>
+                            <div id="stats-power-zones" class="stats-zones"></div>
+                            <p id="stats-power-zone-time" class="hint">Tiempo en zonas de potencia: --</p>
+                        </div>
+                    </section>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:#64b5f6;" id="st-desnivel">+0 m</div>
-                        <div class="l">Desnivel positivo</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="v" style="color:#4dd0e1;" id="st-vel">0.0 km/h</div>
-                        <div class="l">Velocidad media</div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="stat-box">
-                        <div class="v" style="color:#e57373;" id="st-rutas">0 salidas</div>
-                        <div class="l">Salidas realizadas</div>
-                    </div>
-                </div>
-                <p class="hint">Los tracks importados sirven de guía y no suman sus datos originales. Si inicias la grabación mientras sigues uno, las estadísticas cuentan solo tu recorrido grabado.</p>
             </div>
-
-
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>📈 Progresión (km)</h2>
-                </div>
-                <div style="height: 190px; position:relative; margin-top:6px;">
-                    <canvas id="statsChart"></canvas>
-                </div>
-            </div>
-
         </div>
 
         <!-- PÁGINA 3: AMIGOS EN LIVE -->
@@ -427,7 +609,10 @@
             <section id="community-detail" hidden>
                 <div id="community-detail-map" class="community-detail-map" role="region" aria-label="Mapa con el trazado de la ruta"></div>
                 <div id="community-detail-stats" class="community-detail-stats"></div>
-                <button id="community-detail-back" class="btn secondary" type="button">Volver a las rutas</button>
+                <div class="community-detail-actions">
+                    <button id="community-detail-back" class="btn secondary" type="button">Volver a las rutas</button>
+                    <button id="community-detail-follow" class="btn" type="button" hidden>Seguir ruta</button>
+                </div>
             </section>
             <section id="community-publish" hidden>
                 <h3 id="community-share-title"></h3>
@@ -489,6 +674,7 @@
     <script src="app/route-following.js"></script>
     <script src="app/routes.js"></script>
     <script src="app/route-files.js"></script>
+    <script src="app/statistics-engine.js"></script>
     <script src="app/stats.js"></script>
     <script src="app/sensors.js"></script>
     <script src="app/pois.js"></script>

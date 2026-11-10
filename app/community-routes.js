@@ -23,6 +23,7 @@ let communityPreviewMap = null;
 let communityPreviewBaseLayer = null;
 let communityPreviewRouteLayer = null;
 let communityDetailBackAction = openCommunityCatalog;
+let communityDetailFollowAction = null;
 
 function communitySetStatus(message, isError = false) {
     const status = $('community-status');
@@ -89,6 +90,8 @@ function openCommunityDetail(record, lines, options = {}) {
     $('community-title').textContent = record.title || 'Ruta de la comunidad';
     $('community-detail-back').textContent = options.backLabel || 'Volver a las rutas';
     communityDetailBackAction = options.onBack || openCommunityCatalog;
+    communityDetailFollowAction = options.onFollow || null;
+    $('community-detail-follow').hidden = !communityDetailFollowAction;
     communitySetStatus('');
 
     const movingTimeSec = Number(record.movingTimeSec);
@@ -533,6 +536,9 @@ function initCommunityRoutes() {
     });
     $('community-back').addEventListener('click', openCommunityCatalog);
     $('community-detail-back').addEventListener('click', () => communityDetailBackAction());
+    $('community-detail-follow').addEventListener('click', () => {
+        if (communityDetailFollowAction) communityDetailFollowAction();
+    });
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();
     });

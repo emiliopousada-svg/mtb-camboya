@@ -407,26 +407,50 @@ function createCachedOnlineTileLayer(style, urlTemplate, options) {
     });
 }
 
-function createMapStyleLayers() {
+function createMapStyleLayer(style) {
     const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    const styles = {
+        topographic: {
+            url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+            options: {
+                maxNativeZoom: 17, subdomains: ['a', 'b', 'c'],
+                attribution: `${osmAttribution}, SRTM | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`
+            }
+        },
+        cyclosm: {
+            url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+            options: {
+                maxNativeZoom: 19, subdomains: ['a', 'b', 'c'],
+                attribution: `${osmAttribution} | style: <a href="https://www.cyclosm.org">CyclOSM</a>`
+            }
+        },
+        osm: {
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: {
+                maxNativeZoom: 19, subdomains: ['a'],
+                attribution: osmAttribution
+            }
+        },
+        satellite: {
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            options: {
+                maxNativeZoom: 19, subdomains: ['a'],
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+            }
+        }
+    };
+    const definition = styles[style];
+    if (!definition) throw new RangeError(`Estilo de mapa desconocido: ${style}`);
+    return createCachedOnlineTileLayer(style, definition.url, definition.options);
+}
+
+function createMapStyleLayers() {
     return {
         ign: offlineTileLayer,
-        topographic: createCachedOnlineTileLayer('topographic', 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 17, subdomains: ['a', 'b', 'c'],
-            attribution: `${osmAttribution}, SRTM | style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`
-        }),
-        cyclosm: createCachedOnlineTileLayer('cyclosm', 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19, subdomains: ['a', 'b', 'c'],
-            attribution: `${osmAttribution} | style: <a href="https://www.cyclosm.org">CyclOSM</a>`
-        }),
-        osm: createCachedOnlineTileLayer('osm', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxNativeZoom: 19, subdomains: ['a'],
-            attribution: osmAttribution
-        }),
-        satellite: createCachedOnlineTileLayer('satellite', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxNativeZoom: 19, subdomains: ['a'],
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
-        })
+        topographic: createMapStyleLayer('topographic'),
+        cyclosm: createMapStyleLayer('cyclosm'),
+        osm: createMapStyleLayer('osm'),
+        satellite: createMapStyleLayer('satellite')
     };
 }
 

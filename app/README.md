@@ -13,9 +13,14 @@ The scripts are classic scripts loaded synchronously from `index.html`. Their or
 5. `map.js` — map setup, zoom/centre/orientation controls
 6. `gps.js` and `recording.js` — location tracking and ride recording
 7. `route-following.js`, `routes.js` and `route-files.js` — route guidance, saved rides and GPX/KML/GeoJSON import/export
-8. `stats.js` and `sensors.js` — ride statistics and Bluetooth sensors
-9. `pois.js` and `groups.js` — shared map places and live group locations
-10. `ui.js` and `cloud.js` — app startup, account and route synchronization
+8. `statistics-engine.js` and `stats.js` — pure activity calculations and statistics UI
+9. `sensors.js`, `pois.js` and `groups.js` — Bluetooth sensors, shared map places and live group locations
+10. `ui.js`, `cloud.js` and `community-routes.js` — app startup, account and route synchronization
+
+The statistics engine reads saved GPS points without modifying them. Its focused regression tests run with `npm run test:statistics`.
+The route-analysis view uses the engine's filtered GPS segments for Leaflet and keeps its map layers separate from the main map. Its elevation profile can be compared across two recorded activities and moves a marker to the selected GPS point; it uses the selected map style online and the existing IGN tile cache offline.
+Evolution views group activities by their local start date, with weekly or monthly history and period comparisons. VAM includes only climbing elevation with valid timed GPS intervals. Personal records use available activity data only; time records exclude estimated moving times, longest sustained climb uses the engine's filtered GPS/elevation analysis, and segment records remain unavailable until the app has defined segments.
+The sensor view reports only recorded heart rate, cadence, and power samples. Coggan power-zone time uses a user-configured FTP and valid adjacent GPS sensor readings; the FTP is stored locally, and power-zone times remain unavailable until it is configured.
 
 `scripts/prepare-web.js` copies this directory into the Capacitor web bundle. The service worker precaches these files for PWA startup without a network connection.
 

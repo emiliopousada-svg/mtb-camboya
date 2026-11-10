@@ -62,3 +62,7 @@ for (const [from, to] of swaps) {
 }
 fs.writeFileSync(file, html);
 console.log('www listo');
+fs.copyFileSync(
+  path.join(__dirname, '..', 'sw.js'),
+  path.join(__dirname, '..', 'www', 'sw.js')
+);

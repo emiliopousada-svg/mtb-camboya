@@ -142,6 +142,10 @@ function openSavedRouteDetail(route) {
     openCommunityDetail({ title: route.name }, lines, {
         backLabel: 'Volver a mis rutas',
         onBack: closeCommunityDialog,
+        onFollow: () => {
+            closeCommunityDialog();
+            followRoute(route);
+        },
         values
     });
 }

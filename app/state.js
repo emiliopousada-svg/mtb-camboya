@@ -33,7 +33,7 @@ let savedRoutes = [];
 let followedRoute = null, offRouteState = false;
 let routeProfileCoords = [], routeProfilePointCount = 0;
 let offRouteAudioContext = null;
-let statsPeriod = 'semanal';
+let statsPeriod = 'weekly';
 let statsChart = null;
 
 const btnStart = $('btn-start'), btnStop = $('btn-stop');

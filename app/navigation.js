@@ -15,11 +15,14 @@ function goToPage(index) {
 }
 
 // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)
-let touchStartX = 0, touchStartY = 0, swipeBlocked = false;
+let touchStartX = 0, touchStartY = 0, swipeBlocked = false, statsSwipeStart = false;
 
 document.addEventListener('touchstart', e => {
     const t = e.target;
-    swipeBlocked = !!(t.closest && t.closest('#map, canvas, input, select, #modal, #activity-picker'));
+    statsSwipeStart = !!(t.closest && t.closest('#stats-carousel'));
+    swipeBlocked = statsSwipeStart
+        ? !!(t.closest && t.closest('button, input, select, canvas, .stats-route-map, .leaflet-container'))
+        : !!(t.closest && t.closest('#map, .leaflet-container, canvas, input, select, #modal, #activity-picker'));
     touchStartX = e.changedTouches[0].screenX;
     touchStartY = e.changedTouches[0].screenY;
 }, { passive: true });
@@ -29,6 +32,13 @@ document.addEventListener('touchend', e => {
     const diffX = touchStartX - e.changedTouches[0].screenX;
     const diffY = touchStartY - e.changedTouches[0].screenY;
     if (Math.abs(diffX) > 70 && Math.abs(diffY) < 60) {
+        if (statsSwipeStart && currentPage === 1) {
+            if (diffX > 0 && activeStatsSlide < 5) setStatsSlide(activeStatsSlide + 1);
+            else if (diffX < 0 && activeStatsSlide > 0) setStatsSlide(activeStatsSlide - 1);
+            else if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
+            else if (diffX < 0 && currentPage > 0) goToPage(currentPage - 1);
+            return;
+        }
         if (diffX > 0 && currentPage < 4) goToPage(currentPage + 1);
         else if (diffX < 0 && currentPage > 0) goToPage(currentPage - 1);
     }
