@@ -8,14 +8,32 @@ if (!versionMatcher.matches()) {
 def versionMajor = versionMatcher[0][1].toLong()
 def versionMinor = versionMatcher[0][2].toLong()
 def versionPatch = versionMatcher[0][3].toLong()
+def buildNumber = project.hasProperty('androidBuildNumber')
+    ? project.property('androidBuildNumber').toString()
+    : '0'
 if (versionMinor > 999 || versionPatch > 999) {
     throw new GradleException("Version components must be less than 1000: ${appVersion}")
 }
-def appVersionCodeLong = versionMajor * 1000000L + versionMinor * 1000L + versionPatch
+if (!(buildNumber ==~ /^\d+$/)) {
+    throw new GradleException("Invalid Android build number: ${buildNumber}")
+}
+def appVersionCodeLong = versionMajor * 1000000L + versionMinor * 1000L + versionPatch + buildNumber.toLong()
 if (appVersionCodeLong < 1 || appVersionCodeLong > 2100000000L) {
     throw new GradleException("Version code is outside Android's supported range: ${appVersion}")
 }
 def appVersionCode = appVersionCodeLong.intValue()
+
+def signingEnv = [
+    storeFile: System.getenv('MTB_SIGNING_STORE_FILE'),
+    storePassword: System.getenv('MTB_SIGNING_STORE_PASSWORD'),
+    keyAlias: System.getenv('MTB_SIGNING_KEY_ALIAS'),
+    keyPassword: System.getenv('MTB_SIGNING_KEY_PASSWORD')
+]
+def configuredSigningValues = signingEnv.values().count { it }
+if (configuredSigningValues != 0 && configuredSigningValues != signingEnv.size()) {
+    throw new GradleException("Incomplete MTB signing configuration; provide all MTB_SIGNING_* environment variables")
+}
+def useCiSigning = configuredSigningValues == signingEnv.size()
 
 android {
     namespace = "com.emiliopousada.mtbcamboya"
@@ -33,7 +51,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    if (useCiSigning) {
+        signingConfigs {
+            ci {
+                storeFile file(signingEnv.storeFile)
+                storePassword signingEnv.storePassword
+                keyAlias signingEnv.keyAlias
+                keyPassword signingEnv.keyPassword
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (useCiSigning) {
+                signingConfig signingConfigs.ci
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

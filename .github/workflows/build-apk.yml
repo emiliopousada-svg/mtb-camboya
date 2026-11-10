@@ -38,30 +38,65 @@ jobs:
         run: npx cap sync android
 
       - name: Firma fija (necesaria para poder actualizar la app)
+        id: signing-key
         env:
           KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/mtb-camboya-debug.keystore
+          EXPECTED_CERT_SHA256: 2b429c7f9244e5d45e11678939a420501ea8844d1da98e775281aa8fa6b6fd5f
         run: |
+          set -euo pipefail
           if [ -z "$KEYSTORE_B64" ]; then
             echo "::error::Falta el secret DEBUG_KEYSTORE_B64 (Settings > Secrets and variables > Actions)"
             exit 1
           fi
-          mkdir -p ~/.android
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > ~/.android/debug.keystore
-          ACTUAL_CERT_SHA256=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey \
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$SIGNING_KEYSTORE_PATH"
+          ACTUAL_CERT_SHA256=$(keytool -list -v -keystore "$SIGNING_KEYSTORE_PATH" -storepass android -alias androiddebugkey \
             | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')
-          EXPECTED_CERT_SHA256=2b429c7f9244e5d45e11678939a420501ea8844d1da98e775281aa8fa6b6fd5f
           if [ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::DEBUG_KEYSTORE_B64 no coincide con la firma APK esperada. Restaura el keystore original de la build #88."
+            echo "::error::DEBUG_KEYSTORE_B64 no coincide con la keystore oficial configurada para las nuevas builds."
             echo "::error::Huella SHA-256 encontrada: ${ACTUAL_CERT_SHA256:-no disponible}"
             exit 1
           fi
           echo "Certificado de firma verificado: $ACTUAL_CERT_SHA256"
+          echo "certificate_sha256=$ACTUAL_CERT_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Compilar APK
         working-directory: android
+        env:
+          MTB_SIGNING_STORE_FILE: ${{ runner.temp }}/mtb-camboya-debug.keystore
+          MTB_SIGNING_STORE_PASSWORD: android
+          MTB_SIGNING_KEY_ALIAS: androiddebugkey
+          MTB_SIGNING_KEY_PASSWORD: android
+          ANDROID_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew -PandroidBuildNumber="$ANDROID_BUILD_NUMBER" assembleDebug
+
+      - name: Verificar firma del APK generado
+        env:
+          EXPECTED_CERT_SHA256: ${{ steps.signing-key.outputs.certificate_sha256 }}
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          ANDROID_SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$ANDROID_SDK" ]; then
+            echo "::error::No se encontró la ruta del Android SDK para verificar la firma del APK."
+            exit 1
+          fi
+          APKSIGNER=$(find "$ANDROID_SDK/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          if [ -z "$APKSIGNER" ] || [ ! -f "$APK" ]; then
+            echo "::error::No se encontró apksigner o el APK generado."
+            exit 1
+          fi
+          APK_CERT_SHA256=$("$APKSIGNER" verify --print-certs "$APK" \
+            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' \
+            | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          if [ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::La firma del APK generado no coincide con la keystore configurada."
+            echo "::error::Huella SHA-256 del APK: ${APK_CERT_SHA256:-no disponible}"
+            exit 1
+          fi
+          echo "Firma del APK verificada: $APK_CERT_SHA256"
 
       - name: Subir APK
         uses: actions/upload-artifact@v4

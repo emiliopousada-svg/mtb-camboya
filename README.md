@@ -144,7 +144,7 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ## Compilación automática
 
-El repositorio incluye un flujo de GitHub Actions en `.github/workflows/build-apk.yml` para automatizar la compilación del APK. El flujo utiliza Node.js 22 y Java 21. La configuración puede requerir el secreto de GitHub `DEBUG_KEYSTORE_B64` para la firma de depuración, según los pasos definidos en el workflow.
+El repositorio incluye un flujo de GitHub Actions en `.github/workflows/build-apk.yml` para automatizar la compilación del APK. El flujo utiliza Node.js 22 y Java 21, firma explícitamente con `DEBUG_KEYSTORE_B64`, comprueba el certificado del APK final y aumenta `versionCode` en cada ejecución. La firma oficial para las nuevas builds es `2b429c7f9244e5d45e11678939a420501ea8844d1da98e775281aa8fa6b6fd5f`. Las instalaciones anteriores (#88, #108 y #109) deben desinstalarse una vez antes de instalar una APK con esta firma; exporta o sincroniza las rutas locales antes de hacerlo.
 
 Consulta la pestaña **Actions** del repositorio para ver las ejecuciones y sus resultados.
 
@@ -167,7 +167,7 @@ La disponibilidad sin conexión puede variar según el mapa, el espacio disponib
 
 ## Estado del proyecto
 
-Versión indicada en el proyecto: **1.2.0**.
+Versión indicada en el proyecto: **1.2.1**.
 
 Este README describe las funciones y los comandos identificados en el código del repositorio. Algunas funciones pueden depender de la configuración del servidor, los permisos del dispositivo, los sensores compatibles o la disponibilidad de servicios externos.
 
