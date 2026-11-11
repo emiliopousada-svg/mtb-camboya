@@ -599,7 +599,22 @@ function initSettings() {
     vibration.addEventListener('change', () => localStorage.setItem('mtb_route_vibration', vibration.checked ? '1' : '0'));
     mapRotation.addEventListener('change', () => setMapRotationMode(mapRotation.checked));
     initSensorConnections();
-    $('app-version').textContent = 'v1.2.0';
+    const versionLabel = $('app-version');
+    const [major, minor, patch] = APP_VERSION.split('.').map(Number);
+    versionLabel.textContent = `v${APP_VERSION} (${major * 1000000 + minor * 1000 + patch})`;
+    const capacitor = window.Capacitor;
+    if (capacitor && capacitor.isNativePlatform && capacitor.isNativePlatform()
+        && window.MTBNativeApp && typeof window.MTBNativeApp.getAppInfo === 'function') {
+        window.MTBNativeApp.getAppInfo().then(info => {
+            if (!info || !info.version || !/^\d+$/.test(info.build)) {
+                console.warn('La información de versión instalada no es válida:', info);
+                return;
+            }
+            versionLabel.textContent = `v${info.version} (${info.build})`;
+        }).catch(error => {
+            console.warn('No se pudo leer el código de versión instalado:', error);
+        });
+    }
 }
 
 function initAccount() {

@@ -58,8 +58,23 @@ require('esbuild').buildSync({
   outfile: path.join(www, 'lib/fit.js')
 });
 
+require('esbuild').buildSync({
+  entryPoints: [path.join(root, 'src', 'native-app.mjs')],
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  globalName: 'MTBNativeApp',
+  target: 'es2019',
+  outfile: path.join(www, 'lib/native-app.js')
+});
+
 const file = path.join(www, 'index.html');
 let html = fs.readFileSync(file, 'utf8');
+const versionLabel = /(<strong id="app-version">)v\d+\.\d+\.\d+(<\/strong>)/;
+if (!versionLabel.test(html)) {
+  throw new Error('No se pudo encontrar la etiqueta de versión en index.html');
+}
+html = html.replace(versionLabel, `$1v${appVersion}$2`);
 const swaps = [
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'lib/leaflet/leaflet.css'],
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'lib/leaflet/leaflet.js'],

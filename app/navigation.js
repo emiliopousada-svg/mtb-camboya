@@ -3,10 +3,11 @@
 //  NAVEGACIÓN ENTRE PÁGINAS
 // ============================================================
 let currentPage = 0;
+const pageHistory = [currentPage];
 const swiper = $('swiper');
 const navBtns = document.querySelectorAll('.nav-btn');
 
-function goToPage(index) {
+function renderPage(index) {
     currentPage = index;
     swiper.style.transform = `translateX(-${index * 100}vw)`;
     navBtns.forEach((btn, idx) => btn.classList.toggle('active', idx === index));
@@ -15,6 +16,25 @@ function goToPage(index) {
         if (typeof renderAccount === 'function') renderAccount();
         openOfflineMaps();
     }
+}
+
+function goToPage(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= navBtns.length) {
+        console.warn('Se ignoró una navegación a una pantalla no válida:', index);
+        return;
+    }
+    if (index !== currentPage) {
+        pageHistory.push(currentPage);
+        if (pageHistory.length > 20) pageHistory.shift();
+    }
+    renderPage(index);
+}
+
+function goBackPage() {
+    if (pageHistory.length <= 1) return false;
+    pageHistory.pop();
+    renderPage(pageHistory[pageHistory.length - 1]);
+    return true;
 }
 
 // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)

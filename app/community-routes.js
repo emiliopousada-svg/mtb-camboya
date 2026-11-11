@@ -79,6 +79,22 @@ function closeCommunityDialog() {
     communityPreviewPoiLayer = null;
 }
 
+function handleCommunityBackButton() {
+    if ($('community-dialog').hidden) return false;
+    if (!$('community-detail').hidden) {
+        if (communitySegmentSelecting || !$('community-segment-editor').hidden) {
+            communityCancelSegmentCreation();
+        } else {
+            communityDetailBackAction();
+        }
+        return true;
+    }
+
+    closeCommunityDialog();
+    if (currentPage === 3) setRoutesTab('community');
+    return true;
+}
+
 function openCommunityPublish(route) {
     if (!Cloud.loggedIn()) {
         toast('Entra en tu cuenta para proponer una ruta a la comunidad.', 5000);

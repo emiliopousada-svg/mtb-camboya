@@ -17,6 +17,7 @@ The scripts are classic scripts loaded synchronously from `index.html`. Their or
 9. `statistics-engine.js` and `stats.js` — pure activity calculations and statistics UI
 10. `sensors.js`, `pois.js` and `groups.js` — Bluetooth sensors, shared map places and live group locations
 11. `ui.js`, `cloud.js` and `community-routes.js` — app startup, account and route synchronization
+12. `lib/native-app.js` and `back-button.js` — Capacitor Android back-button integration; it closes active dialogs and nested route views before returning through visited app pages.
 
 The statistics engine reads saved GPS points without modifying them. Its focused regression tests run with `npm run test:statistics`.
 The route-analysis view uses the engine's filtered GPS segments for Leaflet and keeps its map layers separate from the main map. Its elevation profile can be compared across two recorded activities and moves a marker to the selected GPS point; it uses the selected map style online and the existing IGN tile cache offline.
