@@ -117,6 +117,7 @@ function setMapRotationMode(enabled) {
     if (setting) setting.checked = enabled;
     updateOrientBtn();
     if (!map || typeof map.setHeading !== 'function') return;
+    map.stop();
     if (!enabled) map.setHeading(0, { ease: 0.2, deadzone: 1 });
     else if (lastHeading !== null) applyMapHeading(lastHeading);
 }

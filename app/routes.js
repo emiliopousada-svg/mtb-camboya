@@ -143,6 +143,7 @@ function openSavedRouteDetail(route) {
     ];
     openCommunityDetail({ title: route.name }, lines, {
         backLabel: 'Volver a mis rutas',
+        pois: Array.isArray(route.pois) ? route.pois : [],
         onBack: closeCommunityDialog,
         onFollow: () => {
             closeCommunityDialog();

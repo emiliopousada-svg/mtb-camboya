@@ -31,11 +31,13 @@ Aplicación para registrar, seguir y analizar actividades al aire libre, con esp
 - Funciones para crear o unirse a grupos y compartir ubicaciones en directo.
 - Invitaciones, apodos y controles de administración del grupo.
 - Publicación y descubrimiento de rutas de la comunidad, con filtros por actividad, provincia y distancia.
+- Captura de fotos geolocalizadas durante una ruta; al publicar en Comunidad, se pueden compartir como POI visibles al seguirla.
 - Para proteger la privacidad, la aplicación recorta aproximadamente 150 metros de cada extremo de las rutas comunitarias publicadas. Esto reduce la exposición de los puntos de inicio y final, pero no garantiza el anonimato.
 
 ### Almacenamiento y sincronización
 - Almacenamiento local mediante IndexedDB.
 - Sincronización de cuenta y datos en la nube mediante una API basada en PocketBase.
+- Peso y edad sincronizados con la cuenta para estimar calorías y frecuencia cardíaca máxima; consulta [CONFIGURAR-PERFIL.md](CONFIGURAR-PERFIL.md) para añadir los campos de PocketBase.
 - Aplicación web progresiva (PWA), con recursos preparados para uso sin conexión.
 
 ## Tecnologías

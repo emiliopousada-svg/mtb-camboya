@@ -11,16 +11,19 @@ The scripts are classic scripts loaded synchronously from `index.html`. Their or
 3. `navigation.js` and `state.js` — page navigation and shared app state
 4. `offline-maps.js` — offline map tile storage and downloads
 5. `map.js` — map setup, zoom/centre/orientation controls
-6. `gps.js` and `recording.js` — location tracking and ride recording
-7. `route-following.js`, `routes.js` and `route-files.js` — route guidance, saved rides and GPX/KML/GeoJSON import/export
-8. `statistics-engine.js` and `stats.js` — pure activity calculations and statistics UI
-9. `sensors.js`, `pois.js` and `groups.js` — Bluetooth sensors, shared map places and live group locations
-10. `ui.js`, `cloud.js` and `community-routes.js` — app startup, account and route synchronization
+6. `route-photos.js` — route-photo processing, POI markers and private route-photo serialization
+7. `gps.js` and `recording.js` — location tracking and ride recording
+8. `route-following.js`, `routes.js` and `route-files.js` — route guidance, saved rides and GPX/KML/GeoJSON import/export
+9. `statistics-engine.js` and `stats.js` — pure activity calculations and statistics UI
+10. `sensors.js`, `pois.js` and `groups.js` — Bluetooth sensors, shared map places and live group locations
+11. `ui.js`, `cloud.js` and `community-routes.js` — app startup, account and route synchronization
 
 The statistics engine reads saved GPS points without modifying them. Its focused regression tests run with `npm run test:statistics`.
 The route-analysis view uses the engine's filtered GPS segments for Leaflet and keeps its map layers separate from the main map. Its elevation profile can be compared across two recorded activities and moves a marker to the selected GPS point; it uses the selected map style online and the existing IGN tile cache offline.
 Evolution views group activities by their local start date, with weekly or monthly history and period comparisons. VAM includes only climbing elevation with valid timed GPS intervals. Personal records use available activity data only; time records exclude estimated moving times, longest sustained climb uses the engine's filtered GPS/elevation analysis, and segment records remain unavailable until the app has defined segments.
-The sensor view reports only recorded heart rate, cadence, and power samples. Coggan power-zone time uses a user-configured FTP and valid adjacent GPS sensor readings; the FTP is stored locally, and power-zone times remain unavailable until it is configured.
+The sensor view reports only recorded heart rate, cadence, and power samples. Heart-rate zones use the maximum estimated as `220 - age`; weight and age are stored in the signed-in PocketBase profile and can be edited from Account settings or the statistics view. Coggan power-zone time uses a user-configured FTP and valid adjacent GPS sensor readings; the FTP is stored locally, and power-zone times remain unavailable until it is configured.
+
+Route photos are JPEG-reencoded and capped at 600 KB each. They are stored as photo POIs in the local route and private track backup; they are uploaded to the public community route only after the user explicitly confirms publication.
 
 ## Screen and GPS power use
 

@@ -3,6 +3,9 @@
 //  CONTROL DE GRABACIÓN
 // ============================================================
 let wakeLock = null;
+let recordingPois = [];
+let routePhotoCapturePosition = null;
+let routePhotoProcessing = null;
 
 function clearRoutePolylines() {
     routePolylines.forEach(polyline => { if (map) map.removeLayer(polyline); });
@@ -312,6 +315,7 @@ function setBtnState(s) {
     lblStart.textContent = { idle: 'COMENZAR RUTA', recording: 'PAUSAR', paused: 'REANUDAR', 'auto-paused': 'PAUSA AUTOMÁTICA' }[s];
     icoStart.textContent = s === 'recording' ? '⏸️' : '▶️';
     btnStop.style.display = s === 'idle' ? 'none' : 'flex';
+    $('btn-route-photo').hidden = s === 'idle';
 }
 
 function autoPauseMovementThreshold(accuracy) {
@@ -390,7 +394,60 @@ function resetRecordingState() {
     movingMs = 0;
     segStart = null;
     startedAt = null;
+    recordingPois = [];
+    showRoutePoisOnMap(followedRoute ? followedRoute.pois : []);
 }
+
+function addRoutePhoto() {
+    if (!isRecording) { toast('Empieza una ruta antes de añadir una foto.'); return; }
+    if (recordingPois.length >= ROUTE_POI_MAX_PHOTOS) {
+        toast(`Cada ruta puede tener hasta ${ROUTE_POI_MAX_PHOTOS} fotos.`);
+        return;
+    }
+    if (lastLat === null || lastLon === null || !Number.isFinite(lastAccuracy) || lastAccuracy > MAX_ACC_M) {
+        toast('Espera a tener una posición GPS precisa antes de añadir la foto.');
+        return;
+    }
+    routePhotoCapturePosition = { lat: lastLat, lng: lastLon };
+    const input = $('route-photo-input');
+    input.value = '';
+    input.click();
+}
+
+$('btn-route-photo').addEventListener('click', addRoutePhoto);
+$('route-photo-input').addEventListener('change', async event => {
+    const file = event.target.files && event.target.files[0];
+    const position = routePhotoCapturePosition;
+    routePhotoCapturePosition = null;
+    if (!file || !position) return;
+    if (!isRecording) { toast('La ruta ya no está grabándose; no se añadió la foto.'); return; }
+    const processing = prepareRoutePoiPhoto(file);
+    routePhotoProcessing = processing;
+    try {
+        const photo = await processing;
+        if (!isRecording) { toast('La ruta ya no está grabándose; no se añadió la foto.'); return; }
+        if (recordingPois.length >= ROUTE_POI_MAX_PHOTOS) {
+            toast(`Cada ruta puede tener hasta ${ROUTE_POI_MAX_PHOTOS} fotos.`);
+            return;
+        }
+        recordingPois.push({
+            lat: position.lat,
+            lng: position.lng,
+            caption: 'Foto de ruta',
+            photo,
+            createdAt: new Date().toISOString()
+        });
+        showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
+        saveDraft();
+        toast('Foto añadida como punto de interés de la ruta.');
+    } catch (error) {
+        console.warn('No se pudo añadir la foto a la ruta:', error);
+        toast(`No se pudo añadir la foto: ${error.message || 'error al procesarla'}`);
+    } finally {
+        if (routePhotoProcessing === processing) routePhotoProcessing = null;
+        event.target.value = '';
+    }
+});
 
 function startRecording(activityType) {
     unlockOffRouteSound();
@@ -486,6 +543,7 @@ async function finishRecording() {
             toast('La ruta no se ha guardado; puedes finalizarla cuando quieras.');
             return;
         }
+        if (routePhotoProcessing) await routePhotoProcessing;
     }
     if (segStart) { movingMs += Date.now() - segStart; segStart = null; }
     const sec = Math.round(movingMs / 1000);
@@ -514,6 +572,7 @@ async function finishRecording() {
             elevationGain: Math.round(elev.gain),
             hrAvg: hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null,
             followedImportedRoute: followedRoute && followedRoute.kind === 'imported' ? followedRoute.name : null,
+            pois: recordingPois.slice(),
             points
         };
         if (!await saveRoute(route)) {
@@ -574,6 +633,7 @@ function saveDraft() {
         movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
         totalDistance,
         points,
+        pois: recordingPois,
         savedAt: Date.now()
     }).catch(() => {});
 }
@@ -590,6 +650,8 @@ function buildSegments(pts) {
 function restoreDraft(d) {
     resetRecordingState();
     points = d.points;
+    recordingPois = Array.isArray(d.pois) ? d.pois.filter(routePoiCoordinatesValid) : [];
+    showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
     startedAt = d.startedAt || new Date().toISOString();
     recordingActivityType = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, d.activityType)
         ? d.activityType

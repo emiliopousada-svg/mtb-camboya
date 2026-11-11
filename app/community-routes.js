@@ -22,6 +22,7 @@ let communityLayerGroup = null;
 let communityPreviewMap = null;
 let communityPreviewBaseLayer = null;
 let communityPreviewRouteLayer = null;
+let communityPreviewPoiLayer = null;
 let communityDetailBackAction = openCommunityCatalog;
 let communityDetailFollowAction = null;
 let communityDetailRecord = null;
@@ -68,6 +69,8 @@ function closeCommunityDialog() {
     communityShareRoute = null;
     communityDetailRecord = null;
     communityDetailLines = null;
+    if (communityPreviewPoiLayer) communityPreviewPoiLayer.dispose();
+    communityPreviewPoiLayer = null;
 }
 
 function openCommunityPublish(route) {
@@ -99,6 +102,7 @@ function openCommunityDetail(record, lines, options = {}) {
     communityCancelSegmentCreation();
     communityDetailRecord = record && record.id ? record : null;
     communityDetailLines = lines;
+    const pois = Array.isArray(options.pois) ? options.pois : communityPoisFromRecord(record);
     $('community-catalog').hidden = true;
     $('community-publish').hidden = true;
     $('community-detail').hidden = false;
@@ -111,13 +115,14 @@ function openCommunityDetail(record, lines, options = {}) {
 
     const movingTimeSec = Number(record.movingTimeSec);
     const activity = ACTIVITY_TYPES[record.activityType]?.label || record.activityType || 'No disponible';
-    const values = options.values || [
+    const values = [...(options.values || [
         ['Distancia', `${(Number(record.distanceKm) || 0).toFixed(1)} km`],
         ['Desnivel', `+${Math.round(Number(record.elevationGain) || 0)} m`],
         ['Tiempo en movimiento', movingTimeSec > 0 ? fmtDur(movingTimeSec) : 'No disponible'],
         ['Actividad', activity],
         ['Provincia', record.province || 'No disponible']
-    ];
+    ])];
+    if (pois.length) values.push(['Fotos y POI', String(pois.length)]);
     const stats = $('community-detail-stats');
     stats.replaceChildren();
     values.forEach(([label, value]) => {
@@ -157,13 +162,19 @@ function openCommunityDetail(record, lines, options = {}) {
                 communityPreviewBaseLayer.addTo(communityPreviewMap);
             }
             if (communityPreviewRouteLayer) communityPreviewMap.removeLayer(communityPreviewRouteLayer);
+            if (communityPreviewPoiLayer) communityPreviewPoiLayer.dispose();
             communityPreviewRouteLayer = L.polyline(lines, {
                 color: '#ffad69', weight: 5, opacity: 0.9
             }).addTo(communityPreviewMap);
+            communityPreviewPoiLayer = createRoutePoiLayer(communityPreviewMap, pois);
+            communityPreviewPoiLayer.addTo();
             communityPreviewMap.off('click', communityPickSegmentPoint);
             communityPreviewMap.on('click', communityPickSegmentPoint);
             communityPreviewMap.invalidateSize({ pan: false });
             const bounds = communityPreviewRouteLayer.getBounds();
+            pois.forEach(poi => {
+                if (routePoiCoordinatesValid(poi)) bounds.extend([poi.lat, poi.lng]);
+            });
             if (bounds.isValid()) communityPreviewMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
         } catch (error) {
             console.warn('No se pudo mostrar el mapa de detalle comunitario:', error);
@@ -189,6 +200,32 @@ function communityRecordLines(record) {
     } catch (error) {
         return null;
     }
+}
+
+function communityPoisFromRecord(record) {
+    let pois;
+    try {
+        pois = typeof record?.poisJson === 'string' ? JSON.parse(record.poisJson) : record?.poisJson;
+    } catch (error) {
+        console.warn('No se pudieron leer los POI publicados de la ruta:', error);
+        return [];
+    }
+    if (!Array.isArray(pois)) return [];
+    const files = Array.isArray(record.poiPhotos) ? record.poiPhotos : (record.poiPhotos ? [record.poiPhotos] : []);
+    return pois.flatMap(poi => {
+        const lat = Number(poi && poi.lat), lng = Number(poi && poi.lng);
+        const photoIndex = Number(poi && poi.photoIndex);
+        if (!routePoiCoordinatesValid({ lat, lng }) || !Number.isInteger(photoIndex)
+            || photoIndex < 0 || photoIndex >= files.length) return [];
+        const file = files[photoIndex];
+        if (typeof file !== 'string' || !file) return [];
+        return [{
+            lat,
+            lng,
+            caption: String(poi.caption || 'Foto de ruta').slice(0, 100),
+            photoUrl: `${Cloud.server}/api/files/community_routes/${encodeURIComponent(record.id)}/${encodeURIComponent(file)}`
+        }];
+    });
 }
 
 function communityDistanceToRoute(position, lines) {
@@ -293,23 +330,29 @@ async function submitCommunityRoute() {
     }
     const button = $('community-submit');
     button.disabled = true;
-    communitySetStatus('Preparando una copia reducida y privada en sus extremos…');
+    communitySetStatus('Preparando el trazado y las fotos para publicarlos…');
     try {
         const route = communityShareRoute;
-        const trackJson = JSON.stringify(communityPublicTrack(route));
-        const record = await cloudApi('/api/collections/community_routes/records', 'POST', {
-            owner: Cloud.uid,
-            title: String(route.name || 'Ruta MTB').trim().slice(0, 100),
-            province,
-            activityType: activityTypeForRoute(route) || 'mtb',
-            distanceKm: Number(route.distanceKm) || 0,
-            elevationGain: Number(route.elevationGain) || 0,
-            movingTimeSec: Number(route.movingTimeSec) || 0,
-            trackJson,
-            published: true
-        });
+        const formData = new FormData();
+        const poiData = communityPublicPoiData(route, formData);
+        formData.append('owner', Cloud.uid);
+        formData.append('title', String(route.name || 'Ruta MTB').trim().slice(0, 100));
+        formData.append('province', province);
+        formData.append('activityType', activityTypeForRoute(route) || 'mtb');
+        formData.append('distanceKm', String(Number(route.distanceKm) || 0));
+        formData.append('elevationGain', String(Number(route.elevationGain) || 0));
+        formData.append('movingTimeSec', String(Number(route.movingTimeSec) || 0));
+        formData.append('trackJson', JSON.stringify(communityPublicTrack(route)));
+        formData.append('poisJson', poiData.json);
+        formData.append('published', 'true');
+        if (poiData.skipped) {
+            communitySetStatus(`${poiData.count} foto(s) incluidas; ${poiData.skipped} POI se omiten por falta de foto válida o por estar cerca de un extremo.`);
+        } else {
+            communitySetStatus(`${poiData.count} foto(s) se publicarán junto con la ruta.`);
+        }
+        const record = await cloudApi('/api/collections/community_routes/records', 'POST', formData);
         communitySetStatus('Ruta publicada. Ya aparece en el mapa comunitario.');
-        toast('Ruta publicada en la comunidad.');
+        toast(`Ruta publicada${poiData.count ? ` con ${poiData.count} foto(s)` : ''} en la comunidad.`);
         button.textContent = 'Publicada';
         setTimeout(closeCommunityDialog, 1400);
         return record;
@@ -317,7 +360,9 @@ async function submitCommunityRoute() {
         console.warn('No se pudo proponer la ruta a la comunidad:', error);
         communitySetStatus(error.status === 404
             ? 'Falta instalar la colección community_routes en el servidor. Consulta CONFIGURAR-RUTAS-COMUNIDAD.md.'
-            : 'No se pudo enviar la ruta: ' + (error.message || 'error de conexión'), true);
+            : error.status === 400
+                ? 'No se pudo enviar la ruta. Comprueba que community_routes incluye los campos poisJson y poiPhotos; consulta CONFIGURAR-RUTAS-COMUNIDAD.md.'
+                : 'No se pudo enviar la ruta: ' + (error.message || 'error de conexión'), true);
         button.disabled = false;
     }
 }
@@ -336,6 +381,7 @@ function communityLocalRoute(record, lines) {
         name: record.title,
         kind: 'community',
         points: communityPointsForApp(lines),
+        pois: communityPoisFromRecord(record),
         distanceKm: Number(record.distanceKm) || 0,
         elevationGain: Number(record.elevationGain) || 0,
         activityType: record.activityType || 'mtb'
@@ -356,15 +402,57 @@ async function saveCommunityOffline(record, lines) {
     route.startedAt = new Date().toISOString();
     route.movingTimeSec = 0;
     route.dirty = true;
+    let unavailablePhotos = 0;
+    for (const poi of route.pois) {
+        try {
+            const response = await fetch(poi.photoUrl);
+            if (!response.ok) throw new Error(`El servidor respondió ${response.status}`);
+            poi.photo = await response.blob();
+            delete poi.photoUrl;
+        } catch (error) {
+            unavailablePhotos++;
+            console.warn('No se pudo guardar una foto de la ruta para uso sin conexión:', error);
+        }
+    }
     try {
         await DB.put(route);
         savedRoutes.unshift(route);
         renderSavedRoutes();
-        toast('Ruta guardada para seguirla sin conexión.');
+        toast(unavailablePhotos
+            ? `Ruta guardada sin conexión. ${unavailablePhotos} foto(s) necesitarán internet para mostrarse.`
+            : 'Ruta guardada para seguirla sin conexión.');
     } catch (error) {
         console.warn('No se pudo guardar la ruta comunitaria:', error);
         toast('No se pudo guardar la ruta en este dispositivo.');
     }
+}
+
+function communityPublicPoiData(route, formData) {
+    const sourcePois = Array.isArray(route.pois) ? route.pois : [];
+    const segments = communityRawSegments(route.points);
+    const endpoints = segments.length
+        ? [segments[0][0], segments[segments.length - 1][segments[segments.length - 1].length - 1]]
+        : [];
+    const pois = [];
+    let skipped = 0;
+    sourcePois.forEach(poi => {
+        if (!routePoiCoordinatesValid(poi) || !(poi.photo instanceof Blob)
+            || poi.photo.size > ROUTE_POI_MAX_FILE_BYTES || poi.photo.type !== 'image/jpeg'
+            || endpoints.some(endpoint => communityDistance([poi.lat, poi.lng], endpoint) < COMMUNITY_TRIM_METERS)) {
+            skipped++;
+            return;
+        }
+        const photoIndex = pois.length;
+        if (photoIndex >= ROUTE_POI_MAX_PHOTOS) { skipped++; return; }
+        formData.append('poiPhotos', poi.photo, `poi-${photoIndex + 1}.jpg`);
+        pois.push({
+            lat: poi.lat,
+            lng: poi.lng,
+            caption: String(poi.caption || 'Foto de ruta').slice(0, 100),
+            photoIndex
+        });
+    });
+    return { json: JSON.stringify(pois), count: pois.length, skipped };
 }
 
 async function deleteCommunityRoute(record) {
@@ -459,10 +547,12 @@ function renderCommunityRoutes(records) {
         heading.textContent = record.title || 'Ruta de la comunidad';
         heading.addEventListener('click', () => openCommunityDetail(record, lines));
         const facts = document.createElement('p');
+        const poiCount = communityPoisFromRecord(record).length;
         facts.textContent = (record.proximityKm != null ? `A ${record.proximityKm.toFixed(1)} km · ` : '') +
             (record.province || '') + ' · ' +
             ((Number(record.distanceKm) || 0).toFixed(1)) + ' km · +' +
-            (Number(record.elevationGain) || 0) + ' m';
+            (Number(record.elevationGain) || 0) + ' m' +
+            (poiCount ? ` · 📷 ${poiCount} POI` : '');
         const actions = document.createElement('div');
         actions.className = 'community-route-actions';
         const show = document.createElement('button');
@@ -981,7 +1071,7 @@ async function loadCommunityRoutes() {
         let page = 1, totalPages = 1;
         do {
             const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
-                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson&filter=' + encodeURIComponent(filter));
+                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson,poisJson,poiPhotos&filter=' + encodeURIComponent(filter));
             if (Array.isArray(result.items)) allRoutes.push(...result.items);
             totalPages = Number(result.totalPages) || 1;
             page++;

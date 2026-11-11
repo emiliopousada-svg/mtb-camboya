@@ -142,7 +142,16 @@ function updateMapRouteProfilePosition(match) {
 
 function followRoute(r) {
     unlockOffRouteSound();
-    followedRoute = { id: r.id, name: r.name, kind: r.kind, pts: r.points.map(p => [p[0], p[1]]), gainCum: gainCumulative(r.points), progressIndex: 0 };
+    followedRoute = {
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        pts: r.points.map(p => [p[0], p[1]]),
+        pois: Array.isArray(r.pois) ? r.pois : [],
+        gainCum: gainCumulative(r.points),
+        progressIndex: 0
+    };
+    showRoutePoisOnMap([...(isRecording ? recordingPois : []), ...followedRoute.pois]);
     renderMapRouteProfile(r);
     if (lastLat !== null && lastLon !== null) {
         const match = findFollowedRouteMatch(lastLat, lastLon);
@@ -175,6 +184,7 @@ function followRoute(r) {
 
 function unfollowRoute() {
     followedRoute = null;
+    showRoutePoisOnMap(isRecording ? recordingPois : []);
     routeProfileCoords = [];
     routeProfilePointCount = 0;
     offRouteState = false;

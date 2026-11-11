@@ -363,6 +363,9 @@ html, body {
 .map-zoom-btn:disabled { opacity: .45; cursor: default; }
 .map-zoom-btn.orient { font-size: 1.05rem; }
 .map-zoom-btn.orient.route { background: rgba(2, 119, 189, .95); }
+.map-zoom-btn.route-photo-button { font-size: 1.15rem; background: rgba(25, 115, 93, .95); }
+.route-photo-popup { min-width: 150px; }
+.route-photo-popup img { display: block; width: 100%; max-height: 210px; margin-top: 7px; border-radius: 6px; object-fit: cover; }
 #map-battery {
     display: flex;
     flex-direction: column;

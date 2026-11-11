@@ -14,6 +14,10 @@ const Cloud = {
         localStorage.setItem('mtb_uid', rec.id);
         localStorage.setItem('mtb_email', rec.email || '');
         localStorage.setItem('mtb_group_code', rec.groupCode || '');
+        if (typeof renderAccountProfile === 'function') renderAccountProfile(rec);
+        if (typeof statsApplyAccountProfile === 'function') {
+            statsApplyAccountProfile(rec.weightKg, rec.age);
+        }
     },
     clearSession() {
         ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
@@ -77,22 +81,121 @@ function renderAccount() {
         : 'Sin sesión: tus rutas se guardan solo en este móvil.';
 }
 
+function accountProfileNumber(value, min, max) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= min && number <= max ? number : null;
+}
+
+function renderAccountProfile(record, force = false) {
+    const weightInput = $('acc-profile-weight');
+    const ageInput = $('acc-profile-age');
+    if (!weightInput || !ageInput || (!force && weightInput.dataset.profileLoaded === '1')) return;
+    const weight = accountProfileNumber(record.weightKg, 25, 250);
+    const age = accountProfileNumber(record.age, 10, 100);
+    weightInput.value = weight ?? '';
+    ageInput.value = age ?? '';
+    weightInput.dataset.profileLoaded = '1';
+}
+
+async function saveAccountProfile() {
+    if (!Cloud.loggedIn()) { toast('Inicia sesión para guardar tu perfil.'); return; }
+    const weight = accountProfileNumber($('acc-profile-weight').value, 25, 250);
+    const age = accountProfileNumber($('acc-profile-age').value, 10, 100);
+    if (weight === null || age === null) {
+        toast('Introduce un peso entre 25 y 250 kg y una edad entre 10 y 100 años.');
+        return;
+    }
+    try {
+        const record = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', {
+            weightKg: weight,
+            age
+        });
+        Cloud.setSession(Cloud.token, record);
+        renderAccountProfile(record, true);
+        toast('✅ Perfil guardado en tu cuenta.');
+    } catch (error) {
+        console.warn('No se pudo guardar el perfil de la cuenta:', error);
+        toast('No se pudo guardar el perfil: ' + error.message, 6000);
+    }
+}
+
+function syncStatsProfileToAccount() {
+    if (!Cloud.loggedIn()) return;
+    const weight = accountProfileNumber($('stats-weight').value, 25, 250);
+    const age = accountProfileNumber($('stats-age').value, 10, 100);
+    if (weight === null || age === null) return;
+    $('acc-profile-weight').value = String(weight);
+    $('acc-profile-age').value = String(age);
+    saveAccountProfile();
+}
+
 async function accAuth(register) {
     const server = Cloud.server;
     const email = $('acc-email').value.trim();
     const pass = $('acc-pass').value;
+    const enteredWeight = $('acc-weight').value === '' ? null : accountProfileNumber($('acc-weight').value, 25, 250);
+    const enteredAge = $('acc-age').value === '' ? null : accountProfileNumber($('acc-age').value, 10, 100);
     if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
     if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
+    if ((register || $('acc-weight').value !== '') && enteredWeight === null) {
+        toast('Introduce un peso entre 25 y 250 kg.');
+        return;
+    }
+    if ((register || $('acc-age').value !== '') && enteredAge === null) {
+        toast('Introduce una edad entre 10 y 100 años.');
+        return;
+    }
+    if (register && (enteredWeight === null || enteredAge === null)) {
+        toast('Introduce tu peso y edad para crear la cuenta.');
+        return;
+    }
     localStorage.setItem('mtb_server', server);
     Cloud.clearSession();
     try {
-        if (register) await cloudApi('/api/collections/users/records', 'POST', { email, password: pass, passwordConfirm: pass });
+        if (register) {
+            await cloudApi('/api/collections/users/records', 'POST', {
+                email,
+                password: pass,
+                passwordConfirm: pass,
+                weightKg: enteredWeight,
+                age: enteredAge
+            });
+        }
         const r = await cloudApi('/api/collections/users/auth-with-password', 'POST', { identity: email, password: pass });
         Cloud.setSession(r.token, r.record);
         $('acc-pass').value = '';
+        $('acc-weight').value = '';
+        $('acc-age').value = '';
+        renderAccountProfile(r.record, true);
+        let weight = accountProfileNumber(r.record.weightKg, 25, 250) ?? enteredWeight;
+        let age = accountProfileNumber(r.record.age, 10, 100) ?? enteredAge;
+        if (weight !== null) $('acc-profile-weight').value = String(weight);
+        if (age !== null) $('acc-profile-age').value = String(age);
+        let profileComplete = weight !== null && age !== null;
+        if (profileComplete && (
+            accountProfileNumber(r.record.weightKg, 25, 250) === null ||
+            accountProfileNumber(r.record.age, 10, 100) === null
+        )) {
+            try {
+                const record = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', {
+                    weightKg: weight,
+                    age
+                });
+                Cloud.setSession(Cloud.token, record);
+                renderAccountProfile(record, true);
+            } catch (error) {
+                console.warn('No se pudo guardar el perfil durante el inicio de sesión:', error);
+                profileComplete = false;
+            }
+        }
+        if (profileComplete && typeof statsApplyAccountProfile === 'function') {
+            statsApplyAccountProfile(weight, age);
+        }
         renderAccount();
         await restoreGroup();
-        toast(register ? '✅ Cuenta creada' : '✅ Sesión iniciada');
+        toast(profileComplete
+            ? (register ? '✅ Cuenta creada' : '✅ Sesión iniciada')
+            : 'Sesión iniciada. Completa peso y edad en el perfil de Cuenta y sincronización.', 6000);
         syncRoutes(true);
         syncSharedPois();
     } catch (e) {
@@ -113,7 +216,7 @@ async function queueRemoteDelete(remoteId) {
     } catch (e) {}
 }
 
-function routeForm(r) {
+async function routeForm(r) {
     const route = r && typeof r === 'object' ? r : {};
     const fd = new FormData();
     fd.append('owner', Cloud.uid);
@@ -125,7 +228,10 @@ function routeForm(r) {
     fd.append('distanceKm', String(route.distanceKm || 0));
     fd.append('elevationGain', String(route.elevationGain || 0));
     fd.append('hrAvg', String(route.hrAvg ?? 0));
-    fd.append('track', new Blob([JSON.stringify(Array.isArray(route.points) ? route.points : [])], { type: 'application/json' }), 'track.json');
+    const points = Array.isArray(route.points) ? route.points : [];
+    const pois = await routePoisForSync(route.pois);
+    const track = pois.length ? { version: 2, points, pois } : points;
+    fd.append('track', new Blob([JSON.stringify(track)], { type: 'application/json' }), 'track.json');
     return fd;
 }
 
@@ -184,7 +290,7 @@ async function syncRoutes(manual = false) {
             try {
                 let rec;
                 if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { name: r.name });
-                else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
+                else rec = await cloudApi('/api/collections/routes/records', 'POST', await routeForm(r));
                 r.remoteId = rec.id;
                 r.dirty = false;
                 await putLocal(r);
@@ -204,7 +310,8 @@ async function syncRoutes(manual = false) {
                 try {
                     const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
                     if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
-                    const points = await res.json();
+                    const track = await res.json();
+                    const points = Array.isArray(track) ? track : track && track.points;
                     if (!Array.isArray(points) || points.length < 2 ||
                         !points.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) {
                         throw new Error('El track recibido no tiene un formato válido');
@@ -218,7 +325,8 @@ async function syncRoutes(manual = false) {
                             ? rec.activityType
                             : activityTypeFromName(rec.name),
                         movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
-                        elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
+                        elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null,
+                        points, pois: routePoisFromSync(track && track.pois)
                     };
                     await putLocal(r);
                     savedRoutes.push(r);
@@ -286,6 +394,7 @@ function initAccount() {
 
     $('acc-login').addEventListener('click', () => accAuth(false));
     $('acc-register').addEventListener('click', () => accAuth(true));
+    $('acc-profile-save').addEventListener('click', saveAccountProfile);
     $('acc-sync').addEventListener('click', () => syncRoutes(true));
     $('acc-logout').addEventListener('click', async () => {
         await stopGroup();

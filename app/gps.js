@@ -208,7 +208,9 @@ function onPos(pos) {
         }
         updateCenterBtn();
         if (following && (typeof currentPage === 'undefined' || currentPage === 0)) {
-            map.panTo(ll, { animate: true, duration: 0.35 });
+            const mapIsRotating = mapRotationEnabled ||
+                (typeof map.getBearing === 'function' && Math.abs(map.getBearing()) > 0.1);
+            map.panTo(ll, { animate: !mapIsRotating, duration: 0.35 });
         }
     }
 

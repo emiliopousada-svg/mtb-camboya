@@ -71,11 +71,13 @@
             </div>
 
             <div id="map"></div>
+            <input id="route-photo-input" type="file" accept="image/*" capture="environment" hidden>
             <div id="gps-center-indicator" hidden aria-hidden="true"></div>
             <div class="map-zoom-controls" role="group" aria-label="Controles del mapa">
                 <button class="map-zoom-btn" id="btn-map-zoom-in" type="button" aria-label="Acercar el mapa" title="Acercar">+</button>
                 <button class="map-zoom-btn" id="btn-map-zoom-out" type="button" aria-label="Alejar el mapa" title="Alejar">−</button>
                 <button class="map-zoom-btn orient" id="btn-map-north" type="button" aria-label="Orientación del mapa" title="Norte arriba / dirección de la ruta"></button>
+                <button class="map-zoom-btn route-photo-button" id="btn-route-photo" type="button" aria-label="Añadir foto a la ruta" title="Añadir foto y POI a la ruta" hidden>📷</button>
                 <div id="map-battery" role="status" aria-label="Batería del dispositivo" hidden>
                     <span id="map-battery-icon" aria-hidden="true"><i></i></span>
                     <span id="map-battery-text">--%</span>
@@ -341,15 +343,17 @@
                             <div class="stats-config">
                                 <label for="stats-weight">Peso para estimar calorías (kg)</label>
                                 <input id="stats-weight" type="number" min="25" max="250" step="0.1" inputmode="decimal" placeholder="Sin configurar">
-                                <label for="stats-hr-max-config">Frecuencia cardíaca máxima (lpm)</label>
-                                <input id="stats-hr-max-config" type="number" min="100" max="240" step="1" inputmode="numeric" placeholder="Sin configurar">
+                                <label for="stats-age">Edad para estimar FC máxima</label>
+                                <input id="stats-age" type="number" min="10" max="100" step="1" inputmode="numeric" placeholder="Sin configurar">
+                                <label for="stats-hr-max-config">FC máxima para zonas (lpm)</label>
+                                <input id="stats-hr-max-config" type="number" placeholder="Sin configurar" readonly>
                                 <label for="stats-power-ftp">FTP para zonas Coggan (W)</label>
                                 <input id="stats-power-ftp" type="number" min="50" max="800" step="1" inputmode="numeric" placeholder="Sin configurar">
                             </div>
                         </div>
                         <div class="card">
                             <h3>Zonas de frecuencia cardíaca</h3>
-                            <p class="hint">Se calculan solo con datos del sensor y una FC máxima configurada.</p>
+                            <p class="hint">La FC máxima se estima como 220 − edad. Las zonas usan solo datos del sensor.</p>
                             <div id="stats-hr-zones" class="stats-zones"></div>
                             <p id="stats-effort-time" class="hint">Tiempo en zonas de esfuerzo: --</p>
                         </div>
@@ -453,10 +457,20 @@
                 <div id="acc-form">
                     <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
+                    <label for="acc-weight">Peso (kg)</label>
+                    <input type="number" id="acc-weight" min="25" max="250" step="0.1" inputmode="decimal" placeholder="Se guarda en tu cuenta">
+                    <label for="acc-age">Edad (años)</label>
+                    <input type="number" id="acc-age" min="10" max="100" step="1" inputmode="numeric" placeholder="Para estimar la FC máxima">
+                    <p class="hint">Se guardan en tu cuenta. Si ya completaste tu perfil, no hace falta volver a introducirlos.</p>
                     <button class="btn" id="acc-login">Entrar</button>
                     <button class="btn secondary" id="acc-register">Crear cuenta</button>
                 </div>
                 <div id="acc-logged" style="display:none;">
+                    <label for="acc-profile-weight">Peso (kg)</label>
+                    <input type="number" id="acc-profile-weight" min="25" max="250" step="0.1" inputmode="decimal">
+                    <label for="acc-profile-age">Edad (años)</label>
+                    <input type="number" id="acc-profile-age" min="10" max="100" step="1" inputmode="numeric">
+                    <button class="btn secondary" id="acc-profile-save">Guardar perfil</button>
                     <button class="btn" id="acc-sync">Sincronizar ahora</button>
                     <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
                 </div>
@@ -654,12 +668,12 @@
             </section>
             <section id="community-publish" hidden>
                 <h3 id="community-share-title"></h3>
-                <p class="community-privacy">Se publicará una copia simplificada del trazado, con unos 150 m ocultos en cada extremo. No se enviarán fechas, horas, pulso ni velocidad. Aun así, el recorrido puede revelar lugares reconocibles. Al confirmar, aparecerá públicamente en el mapa comunitario.</p>
+                <p class="community-privacy">Se publicará una copia simplificada del trazado, con unos 150 m ocultos en cada extremo. No se enviarán fechas, horas, pulso ni velocidad. Las fotos y sus ubicaciones se mostrarán públicamente; se eliminan sus metadatos de imagen y se omiten los POI próximos a los extremos, pero una foto aún puede revelar lugares reconocibles. Al confirmar, aparecerá públicamente en el mapa comunitario.</p>
                 <label for="community-share-province">Provincia</label>
                 <select id="community-share-province"></select>
                 <label class="community-consent">
                     <input id="community-share-consent" type="checkbox">
-                    <span>Quiero enviar esta copia para que pueda publicarse en el mapa comunitario.</span>
+                    <span>Quiero publicar el trazado y las fotos/ubicaciones de sus POI en el mapa comunitario.</span>
                 </label>
                 <div class="community-dialog-actions">
                     <button id="community-back" class="btn secondary" type="button">Volver</button>
@@ -707,6 +721,7 @@
     <script src="app/state.js"></script>
     <script src="app/offline-maps.js"></script>
     <script src="app/map.js"></script>
+    <script src="app/route-photos.js"></script>
     <script src="app/gps.js"></script>
     <script src="app/recording.js"></script>
     <script src="app/route-following.js"></script>

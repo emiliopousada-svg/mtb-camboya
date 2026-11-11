@@ -7,8 +7,8 @@ La app puede compartir una copia pública y reducida de una ruta grabada, separa
 1. Haz una copia de seguridad de PocketBase.
 2. En PocketBase Admin abre **Settings → Import collections** y selecciona `community_routes.json`.
 3. Activa **Merge with the existing collections**.
-4. En **Detected changes**, confirma que se va a añadir únicamente `community_routes`. Cancela si aparecen cambios para `users`, `routes`, grupos u otras colecciones existentes.
-5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema.
+4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, confirma solo que se añaden los campos opcionales `poisJson` y `poiPhotos`; cancela si se propone reemplazar o borrar `community_routes`, `users`, `routes`, grupos u otras colecciones.
+5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema y los campos de POI.
 
 La regla de lectura deja ver públicamente solo registros con `published = true`; el autor también puede consultar sus propias rutas. Un envío nuevo debe tener el propietario autenticado y `published = true`, por lo que aparece en el catálogo inmediatamente. La app no permite cambiar el estado de publicación después de crear el registro.
 
@@ -28,11 +28,11 @@ Las rutas enviadas antes de activar la publicación automática seguirán con `p
 
 ## Privacidad y datos
 
-La app solo envía una copia para el catálogo después de que el usuario pulse **Publicar** y acepte la confirmación. Esa copia se publica inmediatamente, omite horas, fechas, pulso, velocidad y otros datos de sensores, recorta aproximadamente 150 metros de ambos extremos y simplifica el trazado. El track privado local y la sincronización personal no se modifican.
+La app solo envía una copia para el catálogo después de que el usuario pulse **Publicar** y acepte la confirmación. Esa copia se publica inmediatamente, omite horas, fechas, pulso, velocidad y otros datos de sensores, recorta aproximadamente 150 metros de ambos extremos y simplifica el trazado. Las fotos se comprimen en el dispositivo a un máximo de 600 KB en JPEG, eliminando metadatos incrustados; cada ruta admite hasta 5 fotos. Se excluyen del envío las fotos situadas a menos de 150 metros de los extremos del trazado original. Aun así, las fotos y las coordenadas de sus POI son públicas y pueden identificar lugares; el usuario debe revisarlas antes de confirmar. El track privado local y la sincronización personal no se publican.
 
 El recorte reduce la exposición de los puntos de salida y llegada, pero no garantiza anonimato: una ruta puede revelar lugares reconocibles. El usuario debe revisar y confirmar antes de enviarla.
 
-El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. El detalle de cada ruta muestra un recorte del mapa con su trazado y las métricas disponibles. Fotos y comentarios quedan fuera de esta primera fase.
+El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. El detalle de cada ruta muestra un recorte del mapa con su trazado y las métricas disponibles; al seguirla, los POI con foto aparecen como marcadores en el mapa.
 
 ## Limitación de la primera fase
 

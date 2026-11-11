@@ -86,6 +86,24 @@
         "max": 500000
       },
       {
+        "id": "commpois0000001",
+        "name": "poisJson",
+        "type": "text",
+        "required": false,
+        "min": 2,
+        "max": 500000
+      },
+      {
+        "id": "commpoiphotos01",
+        "name": "poiPhotos",
+        "type": "file",
+        "required": false,
+        "maxSelect": 5,
+        "maxSize": 614400,
+        "mimeTypes": ["image/jpeg"],
+        "protected": false
+      },
+      {
         "id": "commpub00000001",
         "name": "published",
         "type": "bool",

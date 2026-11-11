@@ -14,6 +14,7 @@ let statsVamChart = null;
 let statsRouteProfileChart = null;
 let activeStatsSlide = 0;
 let statsWeightKg = null;
+let statsAge = null;
 let statsHeartRateMax = null;
 let statsPowerFtp = null;
 let statsAnalysisCache = new WeakMap();
@@ -133,7 +134,9 @@ function statsLoadPreferences() {
     try {
         statsWeightKg = Number(localStorage.getItem('mtb_stats_weight'));
         if (!Number.isFinite(statsWeightKg) || statsWeightKg < 25 || statsWeightKg > 250) statsWeightKg = null;
-        statsHeartRateMax = Number(localStorage.getItem('mtb_stats_hr_max'));
+        statsAge = Number(localStorage.getItem('mtb_stats_age'));
+        if (!Number.isFinite(statsAge) || statsAge < 10 || statsAge > 100) statsAge = null;
+        statsHeartRateMax = statsAge === null ? Number(localStorage.getItem('mtb_stats_hr_max')) : 220 - statsAge;
         if (!Number.isFinite(statsHeartRateMax) || statsHeartRateMax < 100 || statsHeartRateMax > 240) statsHeartRateMax = null;
         statsPowerFtp = Number(localStorage.getItem('mtb_stats_ftp'));
         if (!Number.isFinite(statsPowerFtp) || statsPowerFtp < 50 || statsPowerFtp > 800) statsPowerFtp = null;
@@ -144,17 +147,23 @@ function statsLoadPreferences() {
         statsPowerFtp = null;
     }
     $('stats-weight').value = statsWeightKg ?? '';
+    $('stats-age').value = statsAge ?? '';
     $('stats-hr-max-config').value = statsHeartRateMax ?? '';
     $('stats-power-ftp').value = statsPowerFtp ?? '';
 }
 
-function statsSavePreferences() {
+function statsSavePreferences(ageChanged = false) {
     statsWeightKg = statsConfiguredNumber('stats-weight', 25, 250);
-    statsHeartRateMax = statsConfiguredNumber('stats-hr-max-config', 100, 240);
+    statsAge = statsConfiguredNumber('stats-age', 10, 100);
+    if (statsAge !== null) statsHeartRateMax = 220 - statsAge;
+    else if (ageChanged) statsHeartRateMax = null;
     statsPowerFtp = statsConfiguredNumber('stats-power-ftp', 50, 800);
+    $('stats-hr-max-config').value = statsHeartRateMax ?? '';
     try {
         if (statsWeightKg === null) localStorage.removeItem('mtb_stats_weight');
         else localStorage.setItem('mtb_stats_weight', String(statsWeightKg));
+        if (statsAge === null) localStorage.removeItem('mtb_stats_age');
+        else localStorage.setItem('mtb_stats_age', String(statsAge));
         if (statsHeartRateMax === null) localStorage.removeItem('mtb_stats_hr_max');
         else localStorage.setItem('mtb_stats_hr_max', String(statsHeartRateMax));
         if (statsPowerFtp === null) localStorage.removeItem('mtb_stats_ftp');
@@ -165,6 +174,18 @@ function statsSavePreferences() {
     }
     statsAnalysisCache = new WeakMap();
     refreshStats();
+}
+
+function statsApplyAccountProfile(weightKg, age) {
+    const weight = Number(weightKg);
+    const years = Number(age);
+    const validWeight = Number.isFinite(weight) && weight >= 25 && weight <= 250;
+    const validAge = Number.isFinite(years) && years >= 10 && years <= 100;
+    if ((!validWeight || $('stats-weight').value === String(weight)) &&
+        (!validAge || $('stats-age').value === String(years))) return;
+    if (validWeight) $('stats-weight').value = String(weight);
+    if (validAge) $('stats-age').value = String(years);
+    statsSavePreferences(validAge);
 }
 
 function statsRenderPerformance(summary, analyses) {
@@ -1249,8 +1270,14 @@ function initCharts() {
         button.addEventListener('click', () => setStatsPeriod(button.dataset.statsPeriod)));
     document.querySelectorAll('[data-stats-slide]').forEach(button =>
         button.addEventListener('click', () => setStatsSlide(button.dataset.statsSlide)));
-    $('stats-weight').addEventListener('change', statsSavePreferences);
-    $('stats-hr-max-config').addEventListener('change', statsSavePreferences);
+    $('stats-weight').addEventListener('change', () => {
+        statsSavePreferences();
+        if (typeof syncStatsProfileToAccount === 'function') syncStatsProfileToAccount();
+    });
+    $('stats-age').addEventListener('change', () => {
+        statsSavePreferences(true);
+        if (typeof syncStatsProfileToAccount === 'function') syncStatsProfileToAccount();
+    });
     $('stats-power-ftp').addEventListener('change', statsSavePreferences);
     $('stats-profile-route').addEventListener('change', () => {
         const route = savedRoutes.find(item => String(item.id) === $('stats-profile-route').value);
