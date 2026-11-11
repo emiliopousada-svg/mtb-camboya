@@ -3,7 +3,19 @@
 //  CUENTA Y SINCRONIZACIÓN (servidor PocketBase propio)
 // ============================================================
 const Cloud = {
-    get server() { return DEFAULT_CLOUD_SERVER; },
+    get server() {
+        const stored = localStorage.getItem('mtb_server');
+        return normalizeServer(stored || DEFAULT_CLOUD_SERVER);
+    },
+    setServer(nextServer) {
+        const normalized = normalizeServer(nextServer || DEFAULT_CLOUD_SERVER);
+        const current = this.server;
+        localStorage.setItem('mtb_server', normalized);
+        if (this.loggedIn() && current && current !== normalized) {
+            this.clearSession();
+        }
+        return normalized;
+    },
     get token()  { return localStorage.getItem('mtb_token') || ''; },
     get uid()    { return localStorage.getItem('mtb_uid') || ''; },
     get email()  { return localStorage.getItem('mtb_email') || ''; },
@@ -14,41 +26,17 @@ const Cloud = {
         localStorage.setItem('mtb_uid', rec.id);
         localStorage.setItem('mtb_email', rec.email || '');
         localStorage.setItem('mtb_group_code', rec.groupCode || '');
-        if (typeof renderAccountProfile === 'function') renderAccountProfile(rec);
-        if (typeof statsApplyAccountProfile === 'function') {
-            statsApplyAccountProfile(rec.weightKg, rec.age);
-        }
-        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
     },
     clearSession() {
         ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
-        accountProfileRecord = null;
-        accountProfileEditing = false;
-        accountAvatarFile = null;
-        accountAvatarProcessing = false;
-        if (accountAvatarObjectUrl) URL.revokeObjectURL(accountAvatarObjectUrl);
-        accountAvatarObjectUrl = null;
-        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
     }
 };
 
-const ACCOUNT_AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024;
-const ACCOUNT_AVATAR_MAX_OUTPUT_BYTES = 256 * 1024;
-let accountProfileRecord = null;
-let accountProfileEditing = false;
-let accountAvatarFile = null;
-let accountAvatarObjectUrl = null;
-let accountAvatarProcessing = false;
-
-function getAccountAvatarUrl(record = accountProfileRecord) {
-    if (accountAvatarFile && accountAvatarObjectUrl) return accountAvatarObjectUrl;
-    if (!record || typeof record.avatar !== 'string' || !record.avatar) return '';
-    const recordId = encodeURIComponent(record.id || Cloud.uid);
-    return `${Cloud.server}/api/files/users/${recordId}/${encodeURIComponent(record.avatar)}?thumb=256x256`;
-}
+const CLOUD_TIMEOUT_MS = 10000;
 
 // body: objeto (JSON), FormData (archivos) o null
-async function cloudApi(path, method = 'GET', body = null) {
+async function cloudApi(path, method = 'GET', body = null, options = {}) {
+    const timeoutMs = typeof options === 'number' ? options : (options?.timeoutMs || CLOUD_TIMEOUT_MS);
     const headers = {};
     if (Cloud.token) headers.Authorization = Cloud.token;
     let payload;
@@ -58,20 +46,42 @@ async function cloudApi(path, method = 'GET', body = null) {
     if (url.protocol !== 'https:' || url.username || url.password) {
         throw new Error('El servidor debe usar una dirección HTTPS válida.');
     }
-    const res = await fetch(url.href, { method, headers, body: payload });
-    if (!res.ok) {
-        let msg = '';
-        try {
-            const j = await res.json();
-            msg = j.message || '';
-            const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
-            if (f) msg += ` (${f})`;
-        } catch (e) {}
-        const err = new Error(msg || ('Error ' + res.status));
-        err.status = res.status; // sin status = no se pudo conectar
-        throw err;
+
+    const controller = new AbortController();
+    if (options?.signal) {
+        if (options.signal.aborted) controller.abort(options.signal.reason);
+        else options.signal.addEventListener('abort', () => controller.abort(options.signal.reason), { once: true });
     }
-    return res.status === 204 ? null : res.json();
+    const timer = setTimeout(() => {
+        const timeoutErr = new Error('Tiempo de espera agotado al conectar con el servidor');
+        timeoutErr.name = 'TimeoutError';
+        controller.abort(timeoutErr);
+    }, timeoutMs);
+
+    try {
+        const res = await fetch(url.href, { method, headers, body: payload, signal: controller.signal });
+        if (!res.ok) {
+            let msg = '';
+            try {
+                const j = await res.json();
+                msg = j.message || '';
+                const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
+                if (f) msg += ` (${f})`;
+            } catch (e) {}
+            const err = new Error(msg || ('Error ' + res.status));
+            err.status = res.status; // sin status = no se pudo conectar
+            throw err;
+        }
+        return res.status === 204 ? null : await res.json();
+    } catch (e) {
+        if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+            const timeoutErr = new Error('Tiempo de espera agotado al conectar con el servidor');
+            throw timeoutErr;
+        }
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function normalizeServer(v) {
@@ -92,8 +102,10 @@ function normalizeServer(v) {
 }
 
 function renderAccount() {
-    const serverLabel = $('acc-server');
-    if (serverLabel) serverLabel.textContent = Cloud.server;
+    const serverInput = $('acc-server');
+    if (serverInput) {
+        serverInput.value = Cloud.server;
+    }
     const on = Cloud.loggedIn();
     $('acc-form').style.display = on ? 'none' : 'block';
     $('acc-logged').style.display = on ? 'block' : 'none';
@@ -104,302 +116,22 @@ function renderAccount() {
         : 'Sin sesión: tus rutas se guardan solo en este móvil.';
 }
 
-function accountProfileNumber(value, min, max) {
-    const number = Number(value);
-    return Number.isFinite(number) && number >= min && number <= max ? number : null;
-}
-
-function setAccountAvatar(record) {
-    const image = $('acc-avatar-image');
-    const placeholder = $('acc-avatar-placeholder');
-    if (!image || !placeholder) return;
-    if (accountAvatarObjectUrl) {
-        URL.revokeObjectURL(accountAvatarObjectUrl);
-        accountAvatarObjectUrl = null;
-    }
-
-    let imageUrl = '';
-    if (accountAvatarFile) {
-        accountAvatarObjectUrl = URL.createObjectURL(accountAvatarFile);
-    }
-    imageUrl = getAccountAvatarUrl(record);
-
-    image.hidden = !imageUrl;
-    placeholder.hidden = Boolean(imageUrl);
-    if (!imageUrl) {
-        image.removeAttribute('src');
-        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
-        return;
-    }
-    image.onerror = () => {
-        image.hidden = true;
-        placeholder.hidden = false;
-    };
-    image.src = imageUrl;
-    if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
-}
-
-function renderAccountProfile(record, force = false) {
-    const weightInput = $('acc-profile-weight');
-    const ageInput = $('acc-profile-age');
-    const editor = $('acc-profile-editor');
-    if (!weightInput || !ageInput || !editor) return;
-    if (record) accountProfileRecord = record;
-    const profile = accountProfileRecord || {};
-    const weight = accountProfileNumber(profile.weightKg, 25, 250);
-    const age = accountProfileNumber(profile.age, 10, 100);
-    if (force || editor.dataset.profileLoaded !== '1') {
-        weightInput.value = weight ?? '';
-        ageInput.value = age ?? '';
-    }
-    weightInput.dataset.profileLoaded = '1';
-    const complete = weight !== null && age !== null;
-    if (!complete) accountProfileEditing = true;
-    $('acc-logged').querySelector('.account-profile').classList.toggle('is-editing', accountProfileEditing);
-    $('acc-profile-summary').textContent = complete ? `${weight} kg · ${age} años` : '';
-    $('acc-profile-summary').hidden = !complete;
-    editor.hidden = complete && !accountProfileEditing;
-    $('acc-profile-edit').hidden = !complete || accountProfileEditing;
-    $('acc-profile-cancel').hidden = !complete || !accountProfileEditing;
-    setAccountAvatar(profile);
-}
-
-function canvasToJpeg(canvas, quality) {
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => blob
-            ? resolve(blob)
-            : reject(new Error('No se pudo comprimir la imagen.')), 'image/jpeg', quality);
-    });
-}
-
-async function decodeAvatarImage(file) {
-    if (typeof createImageBitmap === 'function') {
-        return createImageBitmap(file);
-    }
-    const url = URL.createObjectURL(file);
-    try {
-        const image = new Image();
-        image.src = url;
-        await new Promise((resolve, reject) => {
-            image.onload = resolve;
-            image.onerror = () => reject(new Error('No se pudo abrir la imagen seleccionada.'));
-        });
-        return {
-            width: image.naturalWidth,
-            height: image.naturalHeight,
-            image,
-            close: () => URL.revokeObjectURL(url)
-        };
-    } catch (error) {
-        URL.revokeObjectURL(url);
-        throw error;
-    }
-}
-
-async function compressAccountAvatar(file) {
-    if (!(file instanceof Blob) || !file.type.startsWith('image/')) {
-        throw new Error('Elige un archivo de imagen válido.');
-    }
-    if (file.size > ACCOUNT_AVATAR_MAX_INPUT_BYTES) {
-        throw new Error('La imagen original no puede superar los 10 MB.');
-    }
-    const source = await decodeAvatarImage(file);
-    try {
-        if (!source.width || !source.height) throw new Error('La imagen no tiene dimensiones válidas.');
-        const canvas = document.createElement('canvas');
-        const sizes = [512, 448, 384, 320, 256];
-        const qualities = [0.86, 0.78, 0.68, 0.58];
-        for (const size of sizes) {
-            const ratio = Math.min(1, size / Math.max(source.width, source.height));
-            canvas.width = Math.max(1, Math.round(source.width * ratio));
-            canvas.height = Math.max(1, Math.round(source.height * ratio));
-            const context = canvas.getContext('2d');
-            if (!context) throw new Error('No se pudo preparar la imagen en este dispositivo.');
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            if (typeof source.draw === 'function') source.draw(canvas);
-            else context.drawImage(source, 0, 0, canvas.width, canvas.height);
-            for (const quality of qualities) {
-                const blob = await canvasToJpeg(canvas, quality);
-                if (blob.size <= ACCOUNT_AVATAR_MAX_OUTPUT_BYTES) {
-                    return new File([blob], 'avatar.jpg', { type: 'image/jpeg', lastModified: Date.now() });
-                }
-            }
-        }
-    } finally {
-        if (typeof source.close === 'function') source.close();
-    }
-    throw new Error('No se pudo reducir la imagen a 256 KB; prueba con otra foto.');
-}
-
-async function saveAccountProfile() {
-    if (!Cloud.loggedIn()) { toast('Inicia sesión para guardar tu perfil.'); return; }
-    if (accountAvatarProcessing) {
-        toast('Espera a que termine de prepararse la imagen.');
-        return;
-    }
-    const weight = accountProfileNumber($('acc-profile-weight').value, 25, 250);
-    const age = accountProfileNumber($('acc-profile-age').value, 10, 100);
-    if (weight === null || age === null) {
-        toast('Introduce un peso entre 25 y 250 kg y una edad entre 10 y 100 años.');
-        return;
-    }
-    const saveButton = $('acc-profile-save');
-    saveButton.disabled = true;
-    let profileSaved = false;
-    try {
-        const record = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', {
-            weightKg: weight,
-            age
-        });
-        profileSaved = true;
-        accountProfileRecord = record;
-        if (accountAvatarFile) {
-            const form = new FormData();
-            form.append('avatar', accountAvatarFile, 'avatar.jpg');
-            const avatarRecord = await cloudApi(
-                `/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`,
-                'PATCH',
-                form
-            );
-            accountProfileRecord = avatarRecord;
-            accountAvatarFile = null;
-            if (accountAvatarObjectUrl) URL.revokeObjectURL(accountAvatarObjectUrl);
-            accountAvatarObjectUrl = null;
-        }
-        accountProfileEditing = false;
-        renderAccountProfile(accountProfileRecord, true);
-        toast('✅ Perfil guardado en tu cuenta.');
-        try {
-            if (typeof statsApplyAccountProfile === 'function') {
-                statsApplyAccountProfile(weight, age);
-            }
-        } catch (error) {
-            console.warn('No se pudieron actualizar las estadísticas con el perfil guardado:', error);
-            toast('Perfil guardado, pero no se pudieron actualizar las estadísticas.', 6000);
-        }
-    } catch (error) {
-        console.warn('No se pudo guardar el perfil de la cuenta:', error);
-        if (profileSaved && accountProfileRecord && accountProfileNumber(accountProfileRecord.weightKg, 25, 250) === weight
-            && accountProfileNumber(accountProfileRecord.age, 10, 100) === age && accountAvatarFile) {
-            renderAccountProfile(accountProfileRecord, true);
-            toast(`Peso y edad guardados; no se pudo guardar el avatar: ${error.message}`, 7000);
-        } else {
-            toast('No se pudo guardar el perfil: ' + error.message, 6000);
-        }
-    } finally {
-        saveButton.disabled = false;
-    }
-}
-
-async function syncStatsProfileToAccount() {
-    if (!Cloud.loggedIn()) return;
-    const weight = accountProfileNumber($('stats-weight').value, 25, 250);
-    const age = accountProfileNumber($('stats-age').value, 10, 100);
-    if (weight === null || age === null) return;
-    $('acc-profile-weight').value = String(weight);
-    $('acc-profile-age').value = String(age);
-    accountProfileEditing = true;
-    renderAccountProfile(accountProfileRecord);
-    await saveAccountProfile();
-}
-
-function cancelAccountProfileEdit() {
-    accountAvatarFile = null;
-    accountProfileEditing = false;
-    $('acc-avatar-file').value = '';
-    renderAccountProfile(accountProfileRecord, true);
-}
-
-async function handleAccountAvatarSelection() {
-    const input = $('acc-avatar-file');
-    const file = input.files[0];
-    if (!file) return;
-    const saveButton = $('acc-profile-save');
-    saveButton.disabled = true;
-    accountAvatarProcessing = true;
-    let prepared = false;
-    try {
-        accountAvatarFile = await compressAccountAvatar(file);
-        setAccountAvatar(accountProfileRecord);
-        prepared = true;
-        toast(`Imagen preparada (${Math.ceil(accountAvatarFile.size / 1024)} KB). Guarda el perfil para subirla.`);
-    } catch (error) {
-        console.warn('No se pudo preparar el avatar:', error);
-        toast(`No se pudo usar la imagen: ${error.message}`, 6000);
-    } finally {
-        accountAvatarProcessing = false;
-        saveButton.disabled = false;
-        if (!prepared) input.value = '';
-    }
-}
-
 async function accAuth(register) {
     const server = Cloud.server;
     const email = $('acc-email').value.trim();
     const pass = $('acc-pass').value;
-    const enteredWeight = $('acc-weight').value === '' ? null : accountProfileNumber($('acc-weight').value, 25, 250);
-    const enteredAge = $('acc-age').value === '' ? null : accountProfileNumber($('acc-age').value, 10, 100);
     if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
     if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
-    if ((register || $('acc-weight').value !== '') && enteredWeight === null) {
-        toast('Introduce un peso entre 25 y 250 kg.');
-        return;
-    }
-    if ((register || $('acc-age').value !== '') && enteredAge === null) {
-        toast('Introduce una edad entre 10 y 100 años.');
-        return;
-    }
-    if (register && (enteredWeight === null || enteredAge === null)) {
-        toast('Introduce tu peso y edad para crear la cuenta.');
-        return;
-    }
     localStorage.setItem('mtb_server', server);
     Cloud.clearSession();
     try {
-        if (register) {
-            await cloudApi('/api/collections/users/records', 'POST', {
-                email,
-                password: pass,
-                passwordConfirm: pass,
-                weightKg: enteredWeight,
-                age: enteredAge
-            });
-        }
+        if (register) await cloudApi('/api/collections/users/records', 'POST', { email, password: pass, passwordConfirm: pass });
         const r = await cloudApi('/api/collections/users/auth-with-password', 'POST', { identity: email, password: pass });
         Cloud.setSession(r.token, r.record);
         $('acc-pass').value = '';
-        $('acc-weight').value = '';
-        $('acc-age').value = '';
-        renderAccountProfile(r.record, true);
-        let weight = accountProfileNumber(r.record.weightKg, 25, 250) ?? enteredWeight;
-        let age = accountProfileNumber(r.record.age, 10, 100) ?? enteredAge;
-        if (weight !== null) $('acc-profile-weight').value = String(weight);
-        if (age !== null) $('acc-profile-age').value = String(age);
-        let profileComplete = weight !== null && age !== null;
-        if (profileComplete && (
-            accountProfileNumber(r.record.weightKg, 25, 250) === null ||
-            accountProfileNumber(r.record.age, 10, 100) === null
-        )) {
-            try {
-                const record = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', {
-                    weightKg: weight,
-                    age
-                });
-                Cloud.setSession(Cloud.token, record);
-                renderAccountProfile(record, true);
-            } catch (error) {
-                console.warn('No se pudo guardar el perfil durante el inicio de sesión:', error);
-                profileComplete = false;
-            }
-        }
-        if (profileComplete && typeof statsApplyAccountProfile === 'function') {
-            statsApplyAccountProfile(weight, age);
-        }
         renderAccount();
         await restoreGroup();
-        toast(profileComplete
-            ? (register ? '✅ Cuenta creada' : '✅ Sesión iniciada')
-            : 'Sesión iniciada. Completa peso y edad en el perfil de Cuenta y sincronización.', 6000);
+        toast(register ? '✅ Cuenta creada' : '✅ Sesión iniciada');
         syncRoutes(true);
         syncSharedPois();
     } catch (e) {
@@ -420,7 +152,7 @@ async function queueRemoteDelete(remoteId) {
     } catch (e) {}
 }
 
-async function routeForm(r) {
+function routeForm(r) {
     const route = r && typeof r === 'object' ? r : {};
     const fd = new FormData();
     fd.append('owner', Cloud.uid);
@@ -432,31 +164,13 @@ async function routeForm(r) {
     fd.append('distanceKm', String(route.distanceKm || 0));
     fd.append('elevationGain', String(route.elevationGain || 0));
     fd.append('hrAvg', String(route.hrAvg ?? 0));
-    const points = Array.isArray(route.points) ? route.points : [];
-    const pois = await routePoisForSync(route.pois);
-    const description = String(route.description || '').trim().slice(0, 500);
-    const folder = String(route.folder || '').trim().slice(0, 60);
-    const track = pois.length || description || folder
-        ? { version: 3, points, pois, description, folder }
-        : points;
-    fd.append('track', new Blob([JSON.stringify(track)], { type: 'application/json' }), 'track.json');
+    fd.append('track', new Blob([JSON.stringify(Array.isArray(route.points) ? route.points : [])], { type: 'application/json' }), 'track.json');
     return fd;
 }
 
 let syncing = false;
-let manualSyncRequested = false;
 async function syncRoutes(manual = false) {
-    if (!Cloud.loggedIn()) {
-        if (manual) toast('Inicia sesión para sincronizar tus rutas.');
-        return;
-    }
-    if (syncing) {
-        if (manual) {
-            manualSyncRequested = true;
-            toast('La sincronización en curso terminará y después se volverá a intentar.', 5000);
-        }
-        return;
-    }
+    if (!Cloud.loggedIn() || syncing) return;
     if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
@@ -508,8 +222,8 @@ async function syncRoutes(manual = false) {
             if (r.remoteId && !r.dirty) continue;
             try {
                 let rec;
-                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', await routeForm(r));
-                else rec = await cloudApi('/api/collections/routes/records', 'POST', await routeForm(r));
+                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { name: r.name });
+                else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
                 r.remoteId = rec.id;
                 r.dirty = false;
                 await putLocal(r);
@@ -527,10 +241,16 @@ async function syncRoutes(manual = false) {
             const ft = (await cloudApi('/api/files/token', 'POST')).token;
             for (const rec of missing) {
                 try {
-                    const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
+                    const dlController = new AbortController();
+                    const dlTimer = setTimeout(() => dlController.abort(), 15000);
+                    let res;
+                    try {
+                        res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`, { signal: dlController.signal });
+                    } finally {
+                        clearTimeout(dlTimer);
+                    }
                     if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
-                    const track = await res.json();
-                    const points = Array.isArray(track) ? track : track && track.points;
+                    const points = await res.json();
                     if (!Array.isArray(points) || points.length < 2 ||
                         !points.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) {
                         throw new Error('El track recibido no tiene un formato válido');
@@ -544,10 +264,7 @@ async function syncRoutes(manual = false) {
                             ? rec.activityType
                             : activityTypeFromName(rec.name),
                         movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
-                        elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null,
-                        points, pois: routePoisFromSync(track && track.pois),
-                        description: String(track && track.description || '').slice(0, 500),
-                        folder: String(track && track.folder || '').slice(0, 60)
+                        elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
                     };
                     await putLocal(r);
                     savedRoutes.push(r);
@@ -570,17 +287,11 @@ async function syncRoutes(manual = false) {
     } catch (e) {
         console.warn('Sync:', e);
         if (manual || e.status !== undefined) {
-            toast(e.status === undefined
-                ? `No se pudo conectar con el servidor: ${e.message || 'error de red'}`
-                : 'Error al sincronizar: ' + e.message, 6000);
+            toast(e.status === undefined ? 'No se pudo conectar con el servidor' : 'Error al sincronizar: ' + e.message, 6000);
         }
     } finally {
         syncing = false;
         renderAccount();
-        if (manualSyncRequested) {
-            manualSyncRequested = false;
-            if (Cloud.loggedIn()) setTimeout(() => syncRoutes(true), 0);
-        }
     }
 }
 
@@ -599,68 +310,50 @@ function initSettings() {
     vibration.addEventListener('change', () => localStorage.setItem('mtb_route_vibration', vibration.checked ? '1' : '0'));
     mapRotation.addEventListener('change', () => setMapRotationMode(mapRotation.checked));
     initSensorConnections();
-    const versionLabel = $('app-version');
-    const [major, minor, patch] = APP_VERSION.split('.').map(Number);
-    versionLabel.textContent = `v${APP_VERSION} (${major * 1000000 + minor * 1000 + patch})`;
-    const capacitor = window.Capacitor;
-    if (capacitor && capacitor.isNativePlatform && capacitor.isNativePlatform()
-        && window.MTBNativeApp && typeof window.MTBNativeApp.getAppInfo === 'function') {
-        window.MTBNativeApp.getAppInfo().then(info => {
-            if (!info || !info.version || !/^\d+$/.test(info.build)) {
-                console.warn('La información de versión instalada no es válida:', info);
-                return;
-            }
-            versionLabel.textContent = `v${info.version} (${info.build})`;
-        }).catch(error => {
-            console.warn('No se pudo leer el código de versión instalado:', error);
-        });
-    }
+    $('app-version').textContent = 'v' + APP_VERSION;
 }
 
 function initAccount() {
     const savedServer = localStorage.getItem('mtb_server');
-    let serverChanged = false;
-    if (savedServer) {
-        try {
-            serverChanged = normalizeServer(savedServer) !== DEFAULT_CLOUD_SERVER;
-        } catch (error) {
-            console.warn('La dirección de servidor guardada no es válida:', error);
-            serverChanged = true;
-        }
-    }
-    localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
-    if (serverChanged) {
+    try {
+        localStorage.setItem('mtb_server', normalizeServer(savedServer || DEFAULT_CLOUD_SERVER));
+    } catch (error) {
+        console.warn('La dirección de servidor guardada no es válida:', error);
+        localStorage.setItem('mtb_server', DEFAULT_CLOUD_SERVER);
         Cloud.clearSession();
-        toast('El servidor de sincronización se ha fijado en vamp69.ddns.net. Inicia sesión de nuevo.', 6000);
+        toast('La dirección de servidor guardada no era válida; se ha restaurado el servidor predeterminado.', 6000);
+    }
+
+    const serverInput = $('acc-server');
+    if (serverInput) {
+        serverInput.value = Cloud.server;
+        serverInput.addEventListener('change', () => {
+            let nextServer;
+            try { nextServer = Cloud.setServer(serverInput.value); }
+            catch (error) {
+                console.warn('Dirección de servidor no válida:', error);
+                toast(error.message, 6000);
+                serverInput.value = Cloud.server;
+                return;
+            }
+            serverInput.value = nextServer;
+            if (Cloud.loggedIn()) {
+                Cloud.clearSession();
+                toast('Servidor cambiado: vuelve a iniciar sesión.', 4000);
+            }
+            renderAccount();
+        });
     }
 
     $('acc-login').addEventListener('click', () => accAuth(false));
     $('acc-register').addEventListener('click', () => accAuth(true));
-    $('acc-profile-save').addEventListener('click', saveAccountProfile);
-    $('acc-profile-edit').addEventListener('click', () => {
-        accountProfileEditing = true;
-        renderAccountProfile(accountProfileRecord);
-    });
-    $('acc-profile-cancel').addEventListener('click', cancelAccountProfileEdit);
-    $('acc-avatar-file').addEventListener('change', handleAccountAvatarSelection);
     $('acc-sync').addEventListener('click', () => syncRoutes(true));
-    $('acc-logout').addEventListener('click', async event => {
-        const button = event.currentTarget;
-        button.disabled = true;
-        try {
-            await stopGroup();
-            Cloud.clearSession();
-            renderFriends();
-            renderAccount();
-            toast('Sesión cerrada. Tus rutas siguen en este móvil.');
-        } catch (error) {
-            console.warn('No se pudo cerrar completamente la sesión:', error);
-            Cloud.clearSession();
-            renderAccount();
-            toast('Sesión cerrada en este dispositivo; no se pudo actualizar el estado del grupo.', 6000);
-        } finally {
-            button.disabled = false;
-        }
+    $('acc-logout').addEventListener('click', async () => {
+        await stopGroup();
+        Cloud.clearSession();
+        renderFriends();
+        renderAccount();
+        toast('Sesión cerrada. Tus rutas siguen en este móvil.');
     });
     window.addEventListener('online', () => { syncRoutes(); syncSharedPois(); });
     renderAccount();
@@ -725,13 +418,17 @@ async function init() {
     renderSavedRoutes();
     refreshStats();
     initAccount();
-    syncRoutes();
     initSettings();
-    await syncSharedPois();
-    setInterval(syncSharedPois, 60000);
-    await restoreGroup();
+
+    // 1) Arrancar GPS y recuperar borrador de inmediato (offline-first, no depende de la red)
     startGps();
     await maybeRestoreDraft();
+
+    // 2) Sincronizaciones con la nube en segundo plano (no bloquean el inicio de la app ni el GPS)
+    syncRoutes();
+    syncSharedPois();
+    setInterval(syncSharedPois, 60000);
+    restoreGroup();
 }
 
 init();
