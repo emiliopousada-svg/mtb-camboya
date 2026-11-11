@@ -65,15 +65,13 @@ function renderGroupState(connected) {
     if (connected && groupInfo && groupInfo.isAdmin) loadAdminMembers();
 }
 
-function stopGroup() {
+async function stopGroup() {
     groupJoined = false;
     groupSyncAvailable = false;
     groupInfo = null;
     localStorage.removeItem('mtb_group_joined');
     if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
-    removeMyLiveLocation().catch(error =>
-        console.warn('No se pudo limpiar la ubicación del grupo:', error)
-    );
+    await removeMyLiveLocation();
     renderGroupState(false);
     renderFriends();
 }
@@ -120,16 +118,15 @@ async function loadAdminMembers() {
                 revoke.className = 'btn-small danger friend-locate';
                 revoke.textContent = 'Revocar';
                 revoke.addEventListener('click', async () => {
-                    const ok = await modal({
-                        message: 'Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?',
-                        ok: 'Revocar',
-                        cancel: 'Cancelar'
-                    });
-                    if (!ok) return;
+                    if (!confirm('Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?')) return;
                     try {
-                        await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                        const res = await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                        if (res && res.inviteCode && groupInfo) {
+                            groupInfo.inviteCode = res.inviteCode;
+                            $('group-invite-code').textContent = res.inviteCode;
+                        }
                         await loadAdminMembers();
-                        toast('Acceso revocado.');
+                        toast('Acceso revocado y código de invitación renovado.');
                     } catch (e) { toast('No se pudo revocar el acceso: ' + e.message, 6000); }
                 });
                 row.appendChild(revoke);
@@ -411,13 +408,7 @@ $('btn-copy-invite').addEventListener('click', async () => {
     } catch (e) { toast('Código de invitación: ' + groupInfo.inviteCode, 6000); }
 });
 $('btn-rotate-invite').addEventListener('click', async () => {
-    if (!groupInfo || !groupInfo.isAdmin) return;
-    const ok = await modal({
-        message: 'El código anterior dejará de servir para nuevas invitaciones. ¿Renovar?',
-        ok: 'Renovar',
-        cancel: 'Cancelar'
-    });
-    if (!ok) return;
+    if (!groupInfo || !groupInfo.isAdmin || !confirm('El código anterior dejará de servir para nuevas invitaciones. ¿Renovar?')) return;
     try {
         const result = await cloudApi('/api/mtb/groups/rotate-invite', 'POST');
         groupInfo = result.group;
@@ -426,13 +417,7 @@ $('btn-rotate-invite').addEventListener('click', async () => {
     } catch (e) { toast('No se pudo renovar el código: ' + e.message, 6000); }
 });
 $('btn-delete-group').addEventListener('click', async () => {
-    if (!groupInfo || !groupInfo.isAdmin) return;
-    const ok = await modal({
-        message: 'Se retirará el acceso a todos los miembros y se borrarán sus posiciones en vivo. ¿Eliminar el grupo?',
-        ok: 'Eliminar',
-        cancel: 'Cancelar'
-    });
-    if (!ok) return;
+    if (!groupInfo || !groupInfo.isAdmin || !confirm('Se retirará el acceso a todos los miembros y se borrarán sus posiciones en vivo. ¿Eliminar el grupo?')) return;
     try {
         await cloudApi('/api/mtb/groups/delete', 'POST');
         await stopGroup();
