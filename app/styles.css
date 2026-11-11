@@ -1086,6 +1086,17 @@ nav {
 }
 
 .leaflet-popup-content-wrapper { color: #121212; }
+.leaflet-control-attribution {
+    max-width: calc(100% - 12px);
+    padding: 2px 5px !important;
+    border-radius: 5px 0 0;
+    background: rgba(255, 255, 255, .82) !important;
+    color: #303943 !important;
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: right;
+}
+.leaflet-control-attribution a { color: #175b91 !important; }
 
 /* Catálogo comunitario */
 .community-overlay {
