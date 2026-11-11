@@ -1098,7 +1098,7 @@ nav {
     padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
     background: rgba(0,0,0,.72);
 }
-.community-overlay[hidden], #community-publish[hidden], #community-catalog[hidden], #community-detail[hidden] { display: none; }
+.community-overlay[hidden], #community-tab[hidden], #community-publish[hidden], #community-catalog[hidden], #community-detail[hidden] { display: none; }
 .community-panel {
     width: min(560px, 100%);
     max-height: 100%;
@@ -1110,6 +1110,14 @@ nav {
     background: var(--surface-card);
     box-shadow: 0 12px 40px rgba(0,0,0,.5);
 }
+.community-tab-panel {
+    width: 100%;
+    max-height: none;
+    margin: 12px 0;
+    overflow: visible;
+    box-shadow: none;
+}
+.community-tab-panel h3 { margin: 0; color: #81c784; }
 .community-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .community-header h2 { color: #81c784; font-size: 1.12rem; }
 .community-close {
@@ -1369,6 +1377,13 @@ body {
     gap: 12px;
     margin-bottom: 12px;
 }
+.account-profile.is-editing {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+}
+.account-profile.is-editing .account-avatar { margin-inline: auto; }
+.account-profile.is-editing .account-profile-content { width: 100%; }
+.account-profile.is-editing .account-profile-content > .hint { text-align: center; }
 .account-avatar {
     display: grid;
     width: 76px;

@@ -40,9 +40,11 @@ let communitySegmentMarkers = [];
 let communitySegmentDraftLayer = null;
 
 function communitySetStatus(message, isError = false) {
-    const status = $('community-status');
-    status.textContent = message;
-    status.classList.toggle('error', isError);
+    ['community-status', 'community-modal-status'].forEach(id => {
+        const status = $(id);
+        status.textContent = message;
+        status.classList.toggle('error', isError);
+    });
 }
 
 function communityFillActivities(select) {
@@ -62,10 +64,8 @@ function openCommunityCatalog() {
     communityCancelSegmentCreation();
     $('community-publish').hidden = true;
     $('community-detail').hidden = true;
-    $('community-catalog').hidden = false;
-    $('community-title').textContent = 'Rutas de la comunidad';
-    $('community-dialog').hidden = false;
-    communitySetStatus('Busca por localidad o por cercanía GPS y filtra por actividad, dificultad y desnivel.');
+    closeCommunityDialog();
+    setRoutesTab('community');
     $('community-activity').focus();
 }
 
@@ -91,7 +91,6 @@ function openCommunityPublish(route) {
     }
     communityShareRoute = route;
     communityCancelSegmentCreation();
-    $('community-catalog').hidden = true;
     $('community-detail').hidden = true;
     $('community-publish').hidden = false;
     $('community-title').textContent = 'Publicar ruta en la comunidad';
@@ -112,7 +111,6 @@ function openCommunityDetail(record, lines, options = {}) {
     communityDetailRecord = record && record.id ? record : null;
     communityDetailLines = lines;
     const pois = Array.isArray(options.pois) ? options.pois : communityPoisFromRecord(record);
-    $('community-catalog').hidden = true;
     $('community-publish').hidden = true;
     $('community-detail').hidden = false;
     $('community-title').textContent = record.title || 'Ruta de la comunidad';
@@ -443,6 +441,7 @@ function communityRecordLines(record) {
 }
 
 function communityPoisFromRecord(record) {
+    if (typeof record?.poisJson === 'string' && !record.poisJson.trim()) return [];
     let pois;
     try {
         pois = typeof record?.poisJson === 'string' ? JSON.parse(record.poisJson) : record?.poisJson;
@@ -1424,7 +1423,6 @@ async function loadCommunityFavorites() {
 function initCommunityRoutes() {
     communityFillActivities($('community-activity'));
     communityFillProvinces($('community-share-province'));
-    $('btn-community-routes').addEventListener('click', openCommunityCatalog);
     $('community-close').addEventListener('click', closeCommunityDialog);
     $('community-dialog').addEventListener('click', event => {
         if (event.target === $('community-dialog')) closeCommunityDialog();

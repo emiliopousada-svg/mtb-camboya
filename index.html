@@ -425,13 +425,49 @@
                     <button class="seg-tab route-summary-card" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true">
                         <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg></span><span class="route-summary-label">Realizadas</span><strong id="routes-count-done">0</strong>
                     </button>
-                    <button class="seg-tab route-summary-card" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog" title="Rutas comunitarias guardadas en este dispositivo">
+                    <button class="seg-tab route-summary-card" type="button" id="btn-community-routes" data-routes-tab="community" aria-pressed="false" title="Explorar rutas publicadas por la comunidad">
                         <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg></span><span class="route-summary-label">Comunidad</span><strong id="routes-count-community">0</strong>
                     </button>
                     <button class="seg-tab route-summary-card" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false">
                         <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5Z"></path></svg></span><span class="route-summary-label">Guardadas</span><strong id="routes-count-pending">0</strong>
                     </button>
                 </div>
+                <section id="community-tab" class="community-panel community-tab-panel" hidden aria-labelledby="community-tab-title">
+                    <h3 id="community-tab-title">Rutas de la comunidad</h3>
+                    <p id="community-status" class="community-status" role="status" aria-live="polite"></p>
+                    <section id="community-catalog">
+                        <label for="community-activity">Tipo de actividad</label>
+                        <select id="community-activity"></select>
+                        <label for="community-locality-search">Localidad o provincia (opcional)</label>
+                        <input id="community-locality-search" type="search" maxlength="80" placeholder="Ej. Girona">
+                        <label for="community-radius">Distancia máxima</label>
+                        <select id="community-radius">
+                            <option value="10">10 km</option>
+                            <option value="25" selected>25 km</option>
+                            <option value="50">50 km</option>
+                            <option value="100">100 km</option>
+                        </select>
+                        <label for="community-difficulty">Dificultad</label>
+                        <select id="community-difficulty">
+                            <option value="">Todas</option>
+                            <option value="easy">Fácil</option>
+                            <option value="moderate">Moderada</option>
+                            <option value="hard">Difícil</option>
+                            <option value="very-hard">Muy difícil</option>
+                        </select>
+                        <label for="community-ascent">Desnivel positivo</label>
+                        <select id="community-ascent">
+                            <option value="0">Cualquier desnivel</option>
+                            <option value="300">Desde 300 m</option>
+                            <option value="600">Desde 600 m</option>
+                            <option value="1000">Desde 1000 m</option>
+                            <option value="1500">Desde 1500 m</option>
+                        </select>
+                        <button id="community-search" class="btn" type="button">Buscar rutas</button>
+                        <div id="community-route-list" class="community-route-list"></div>
+                        <button id="community-favorites-show" class="btn secondary" type="button">Ver mis favoritas</button>
+                    </section>
+                </section>
                 <div class="routes-divider"></div>
                 <section class="routes-latest-section" id="routes-latest-section" aria-labelledby="routes-latest-title">
                     <header class="routes-section-header">
@@ -667,39 +703,7 @@
                 <h2 id="community-title">Rutas de la comunidad</h2>
                 <button id="community-close" class="community-close" type="button" aria-label="Cerrar">×</button>
             </header>
-            <p id="community-status" class="community-status" role="status" aria-live="polite"></p>
-            <section id="community-catalog">
-                <label for="community-activity">Tipo de actividad</label>
-                <select id="community-activity"></select>
-                <label for="community-locality-search">Localidad o provincia (opcional)</label>
-                <input id="community-locality-search" type="search" maxlength="80" placeholder="Ej. Girona">
-                <label for="community-radius">Distancia máxima</label>
-                <select id="community-radius">
-                    <option value="10">10 km</option>
-                    <option value="25" selected>25 km</option>
-                    <option value="50">50 km</option>
-                    <option value="100">100 km</option>
-                </select>
-                <label for="community-difficulty">Dificultad</label>
-                <select id="community-difficulty">
-                    <option value="">Todas</option>
-                    <option value="easy">Fácil</option>
-                    <option value="moderate">Moderada</option>
-                    <option value="hard">Difícil</option>
-                    <option value="very-hard">Muy difícil</option>
-                </select>
-                <label for="community-ascent">Desnivel positivo</label>
-                <select id="community-ascent">
-                    <option value="0">Cualquier desnivel</option>
-                    <option value="300">Desde 300 m</option>
-                    <option value="600">Desde 600 m</option>
-                    <option value="1000">Desde 1000 m</option>
-                    <option value="1500">Desde 1500 m</option>
-                </select>
-                <button id="community-search" class="btn" type="button">Buscar rutas</button>
-                <div id="community-route-list" class="community-route-list"></div>
-                <button id="community-favorites-show" class="btn secondary" type="button">Ver mis favoritas</button>
-            </section>
+            <p id="community-modal-status" class="community-status" role="status" aria-live="polite"></p>
             <section id="community-detail" hidden>
                 <div id="community-detail-map" class="community-detail-map" role="region" aria-label="Mapa con el trazado de la ruta"></div>
                 <div id="community-detail-stats" class="community-detail-stats"></div>

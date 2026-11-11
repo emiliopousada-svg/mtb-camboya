@@ -155,6 +155,7 @@ function renderAccountProfile(record, force = false) {
     weightInput.dataset.profileLoaded = '1';
     const complete = weight !== null && age !== null;
     if (!complete) accountProfileEditing = true;
+    $('acc-logged').querySelector('.account-profile').classList.toggle('is-editing', accountProfileEditing);
     $('acc-profile-summary').textContent = complete ? `${weight} kg · ${age} años` : '';
     $('acc-profile-summary').hidden = !complete;
     editor.hidden = complete && !accountProfileEditing;

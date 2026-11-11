@@ -332,14 +332,17 @@ let routeComparisonSource = null;
 function setRoutesTab(tab) {
     routesTab = tab;
     routesShowAll = tab === 'pending';
+    const communityTab = tab === 'community';
     document.querySelectorAll('[data-routes-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.routesTab === tab)));
     $('routes-import-box').hidden = tab !== 'pending';
-    $('routes-latest-section').hidden = tab === 'pending';
-    $('routes-show-all').hidden = tab === 'pending';
+    $('routes-latest-section').hidden = tab !== 'done';
+    $('routes-show-all').hidden = tab !== 'done';
+    $('community-tab').hidden = !communityTab;
     $('routes-tab-hint').textContent = tab === 'done'
         ? 'Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.'
         : 'Tracks importados y guardados. Cuando los sigas y grabes tu salida, esta quedará en «Realizadas».';
     renderSavedRoutes();
+    if (communityTab && typeof loadCommunityRoutes === 'function') loadCommunityRoutes();
 }
 document.querySelectorAll('[data-routes-tab]').forEach(b => b.addEventListener('click', () => setRoutesTab(b.dataset.routesTab)));
 
@@ -356,9 +359,11 @@ function renderSavedRoutes() {
     routeCardImageUrls.forEach(url => URL.revokeObjectURL(url));
     routeCardImageUrls = [];
     const pendingTab = routesTab === 'pending';
+    const communityTab = routesTab === 'community';
     const tabRoutes = savedRoutes.filter(r => (r.kind === 'imported') === pendingTab);
     updateRouteSummaryCounts();
-    $('route-list-controls').hidden = !routesShowAll && !pendingTab;
+    $('route-list-controls').hidden = communityTab || (!routesShowAll && !pendingTab);
+    c.hidden = communityTab;
     $('routes-show-all').innerHTML = routesShowAll ? 'Ver menos <span aria-hidden="true">↑</span>' : 'Ver todas <span aria-hidden="true">→</span>';
     const userFilter = $('route-user-filter');
     const selectedUser = userFilter.value;
