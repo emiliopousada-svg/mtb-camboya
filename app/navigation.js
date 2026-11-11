@@ -11,7 +11,10 @@ function goToPage(index) {
     swiper.style.transform = `translateX(-${index * 100}vw)`;
     navBtns.forEach((btn, idx) => btn.classList.toggle('active', idx === index));
     if (index === 0 && map) setTimeout(() => map.invalidateSize(), 150);
-    if (index === 4) openOfflineMaps();
+    if (index === 4) {
+        if (typeof renderAccount === 'function') renderAccount();
+        openOfflineMaps();
+    }
 }
 
 // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)

@@ -208,8 +208,13 @@ function statsRenderPerformance(summary, analyses) {
 
     const zonesContainer = $('stats-hr-zones');
     zonesContainer.replaceChildren();
-    const measuredSeconds = summary.zoneMeasuredSeconds;
+    const measuredSeconds = Number.isFinite(summary.zoneMeasuredSeconds)
+        ? Math.max(0, summary.zoneMeasuredSeconds)
+        : 0;
     STATS_HR_ZONES.forEach((zone, index) => {
+        const zoneSeconds = Array.isArray(summary.zoneSeconds) && Number.isFinite(summary.zoneSeconds[index])
+            ? Math.max(0, summary.zoneSeconds[index])
+            : 0;
         const row = document.createElement('div');
         row.className = 'stats-zone';
         const title = document.createElement('span');
@@ -219,11 +224,11 @@ function statsRenderPerformance(summary, analyses) {
             ? `${Math.round(statsHeartRateMax * zone.min)}–${Math.min(240, Math.round(statsHeartRateMax * zone.max))} lpm`
             : `${Math.round(zone.min * 100)}–${Math.round(Math.min(zone.max, 1) * 100)}%`;
         const value = statsHeartRateMax
-            ? fmtDur(summary.zoneSeconds[index])
+            ? fmtDur(zoneSeconds)
             : (measuredSeconds ? 'Configura FC máxima' : 'Sin datos');
         const progress = document.createElement('progress');
         progress.max = measuredSeconds || 1;
-        progress.value = statsHeartRateMax ? summary.zoneSeconds[index] : 0;
+        progress.value = statsHeartRateMax ? zoneSeconds : 0;
         progress.setAttribute('aria-label', `${zone.label}: ${value}`);
         row.append(title, range, progress);
         const time = document.createElement('span');
@@ -231,15 +236,22 @@ function statsRenderPerformance(summary, analyses) {
         row.appendChild(time);
         zonesContainer.appendChild(row);
     });
-    const zoneTotal = summary.zoneSeconds.reduce((total, seconds) => total + seconds, 0);
+    const zoneTotal = Array.isArray(summary.zoneSeconds)
+        ? summary.zoneSeconds.reduce((total, seconds) => total + (Number.isFinite(seconds) ? Math.max(0, seconds) : 0), 0)
+        : 0;
     statsSetText('stats-effort-time', statsHeartRateMax
         ? `Tiempo en zonas de esfuerzo con datos de sensor: ${zoneTotal ? fmtDur(zoneTotal) : 'Sin datos'}`
         : 'Configura tu frecuencia cardíaca máxima para calcular las zonas.');
 
     const powerZonesContainer = $('stats-power-zones');
     powerZonesContainer.replaceChildren();
-    const powerMeasuredSeconds = summary.powerZoneMeasuredSeconds;
+    const powerMeasuredSeconds = Number.isFinite(summary.powerZoneMeasuredSeconds)
+        ? Math.max(0, summary.powerZoneMeasuredSeconds)
+        : 0;
     STATS_POWER_ZONES.forEach((zone, index) => {
+        const zoneSeconds = Array.isArray(summary.powerZoneSeconds) && Number.isFinite(summary.powerZoneSeconds[index])
+            ? Math.max(0, summary.powerZoneSeconds[index])
+            : 0;
         const row = document.createElement('div');
         row.className = 'stats-zone';
         const title = document.createElement('span');
@@ -259,11 +271,11 @@ function statsRenderPerformance(summary, analyses) {
                     : `>${Math.round(zone.min * 100)}%`);
         }
         const value = statsPowerFtp
-            ? fmtDur(summary.powerZoneSeconds[index])
+            ? fmtDur(zoneSeconds)
             : (powerMeasuredSeconds ? 'Configura FTP' : 'Sin datos');
         const progress = document.createElement('progress');
         progress.max = powerMeasuredSeconds || 1;
-        progress.value = statsPowerFtp ? summary.powerZoneSeconds[index] : 0;
+        progress.value = statsPowerFtp ? zoneSeconds : 0;
         progress.setAttribute('aria-label', `${zone.label}: ${value}`);
         row.append(title, range, progress);
         const time = document.createElement('span');
@@ -271,7 +283,9 @@ function statsRenderPerformance(summary, analyses) {
         row.appendChild(time);
         powerZonesContainer.appendChild(row);
     });
-    const powerZoneTotal = summary.powerZoneSeconds.reduce((total, seconds) => total + seconds, 0);
+    const powerZoneTotal = Array.isArray(summary.powerZoneSeconds)
+        ? summary.powerZoneSeconds.reduce((total, seconds) => total + (Number.isFinite(seconds) ? Math.max(0, seconds) : 0), 0)
+        : 0;
     statsSetText('stats-power-zone-time', statsPowerFtp
         ? `Tiempo en zonas de potencia: ${powerZoneTotal ? fmtDur(powerZoneTotal) : 'Sin datos de sensor'}`
         : (powerMeasuredSeconds

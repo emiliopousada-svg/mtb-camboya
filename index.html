@@ -72,7 +72,9 @@
 
             <div id="map"></div>
             <input id="route-photo-input" type="file" accept="image/*" capture="environment" hidden>
-            <div id="gps-center-indicator" hidden aria-hidden="true"></div>
+            <div id="gps-center-indicator" hidden aria-hidden="true">
+                <img id="gps-center-avatar" alt="">
+            </div>
             <div class="map-zoom-controls" role="group" aria-label="Controles del mapa">
                 <button class="map-zoom-btn" id="btn-map-zoom-in" type="button" aria-label="Acercar el mapa" title="Acercar">+</button>
                 <button class="map-zoom-btn" id="btn-map-zoom-out" type="button" aria-label="Alejar el mapa" title="Alejar">−</button>
@@ -413,35 +415,65 @@
         </div>
 
         <!-- PÁGINA 4: RUTAS REALIZADAS Y TRACKS -->
-        <div class="page content-panel">
+        <div class="page content-panel" id="page-routes">
             <div class="card">
-                <h2>🗺️ Mis Rutas</h2>
+                <header class="routes-header">
+                    <h2>Mis rutas</h2>
+                    <button class="routes-add-button" id="btn-routes-add" type="button" aria-label="Empezar a grabar una ruta">+</button>
+                </header>
                 <div class="seg-tabs big-tabs" role="group" aria-label="Tipo de rutas">
-                    <button class="seg-tab" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true"><span class="tab-ico">✅</span>Realizadas</button>
-                    <button class="seg-tab" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog"><span class="tab-ico">🌍</span>Comunidad</button>
-                    <button class="seg-tab" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false"><span class="tab-ico">📥</span>Tracks guardados</button>
+                    <button class="seg-tab route-summary-card" type="button" id="routes-tab-done" data-routes-tab="done" aria-pressed="true">
+                        <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path></svg></span><span class="route-summary-label">Realizadas</span><strong id="routes-count-done">0</strong>
+                    </button>
+                    <button class="seg-tab route-summary-card" type="button" id="btn-community-routes" aria-haspopup="dialog" aria-controls="community-dialog" title="Rutas comunitarias guardadas en este dispositivo">
+                        <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg></span><span class="route-summary-label">Comunidad</span><strong id="routes-count-community">0</strong>
+                    </button>
+                    <button class="seg-tab route-summary-card" type="button" id="routes-tab-pending" data-routes-tab="pending" aria-pressed="false">
+                        <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5Z"></path></svg></span><span class="route-summary-label">Guardadas</span><strong id="routes-count-pending">0</strong>
+                    </button>
                 </div>
-                <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
-                <div id="routes-import-box" hidden>
-                    <input type="file" id="route-file-input" accept=".gpx,.kml,.geojson,.json" aria-label="Archivo del track a importar">
-                    <button class="btn secondary" id="btn-import-route" type="button">📥 Importar track</button>
-                    <p class="hint">Los tracks importados quedan almacenados para realizarlos. Pulsa «Seguir» para verlos en el mapa con su perfil de elevación y tu posición.</p>
+                <div class="routes-divider"></div>
+                <section class="routes-latest-section" id="routes-latest-section" aria-labelledby="routes-latest-title">
+                    <header class="routes-section-header">
+                        <h3 id="routes-latest-title">Últimas actividades</h3>
+                        <button class="routes-show-all" id="routes-show-all" type="button">Ver todas <span aria-hidden="true">→</span></button>
+                    </header>
+                </section>
+                <div id="route-list-controls" hidden>
+                    <p class="hint" id="routes-tab-hint">Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.</p>
+                    <div id="routes-import-box" hidden>
+                        <input type="file" id="route-file-input" accept=".gpx,.kml,.geojson,.json,.fit,application/vnd.ant.fit" aria-label="Archivo del track a importar">
+                        <button class="btn secondary" id="btn-import-route" type="button">📥 Importar track</button>
+                        <p class="hint">Importa GPX, KML, GeoJSON o FIT. Los tracks guardados se pueden previsualizar, exportar o seguir; al grabar una salida siguiendo un track, se guarda como actividad realizada.</p>
+                    </div>
+                    <div class="routes-filters">
+                        <div>
+                            <label for="route-activity-filter" class="hint">Mostrar actividad</label>
+                            <select id="route-activity-filter" aria-label="Filtrar rutas por actividad">
+                                <option value="all">Todas las actividades</option>
+                                <option value="mtb">🚵 MTB</option>
+                                <option value="road">🚴 Carretera</option>
+                                <option value="hiking">🥾 Senderismo</option>
+                                <option value="running">🏃 Correr</option>
+                                <option value="horse">🐎 Caballo</option>
+                                <option value="walking">🚶 Paseo (guardadas)</option>
+                                <option value="other">📍 Sin clasificar</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="route-folder-filter" class="hint">Mostrar carpeta</label>
+                            <select id="route-folder-filter" aria-label="Filtrar rutas por carpeta">
+                                <option value="">Todas las carpetas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="route-user-filter" class="hint">Mostrar usuario</label>
+                            <select id="route-user-filter" aria-label="Filtrar rutas por usuario">
+                                <option value="">Todos los usuarios</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <label for="route-activity-filter" class="hint">Mostrar actividad</label>
-                <select id="route-activity-filter" aria-label="Filtrar rutas por actividad">
-                    <option value="all">Todas las actividades</option>
-                    <option value="mtb">🚵 MTB</option>
-                    <option value="road">🚴 Carretera</option>
-                    <option value="hiking">🥾 Senderismo</option>
-                    <option value="running">🏃 Correr</option>
-                    <option value="horse">🐎 Caballo</option>
-                    <option value="walking">🚶 Paseo (guardadas)</option>
-                    <option value="other">📍 Sin clasificar</option>
-                </select>
-                <label for="route-user-filter" class="hint">Mostrar usuario</label>
-                <select id="route-user-filter" aria-label="Filtrar rutas por usuario">
-                    <option value="">Todos los usuarios</option>
-                </select>
                 <div id="saved-routes-list"></div>
                 <button class="btn secondary" id="btn-unfollow" style="display:none;">Dejar de seguir la ruta cargada</button>
             </div>
@@ -466,11 +498,27 @@
                     <button class="btn secondary" id="acc-register">Crear cuenta</button>
                 </div>
                 <div id="acc-logged" style="display:none;">
-                    <label for="acc-profile-weight">Peso (kg)</label>
-                    <input type="number" id="acc-profile-weight" min="25" max="250" step="0.1" inputmode="decimal">
-                    <label for="acc-profile-age">Edad (años)</label>
-                    <input type="number" id="acc-profile-age" min="10" max="100" step="1" inputmode="numeric">
-                    <button class="btn secondary" id="acc-profile-save">Guardar perfil</button>
+                    <div class="account-profile">
+                        <div class="account-avatar" id="acc-avatar" aria-label="Avatar del usuario">
+                            <span id="acc-avatar-placeholder" aria-hidden="true">👤</span>
+                            <img id="acc-avatar-image" alt="Avatar del usuario" hidden>
+                        </div>
+                        <div class="account-profile-content">
+                            <p class="hint" id="acc-profile-summary" hidden></p>
+                            <div id="acc-profile-editor">
+                                <label for="acc-profile-weight">Peso (kg)</label>
+                                <input type="number" id="acc-profile-weight" min="25" max="250" step="0.1" inputmode="decimal">
+                                <label for="acc-profile-age">Edad (años)</label>
+                                <input type="number" id="acc-profile-age" min="10" max="100" step="1" inputmode="numeric">
+                                <label for="acc-avatar-file">Foto de perfil (opcional)</label>
+                                <input type="file" id="acc-avatar-file" accept="image/jpeg,image/png,image/webp">
+                                <p class="hint">Se ajusta a 512 × 512 y se comprime a un máximo de 256 KB.</p>
+                                <button class="btn secondary" id="acc-profile-save">Guardar perfil</button>
+                                <button class="btn secondary" id="acc-profile-cancel" type="button" hidden>Cancelar</button>
+                            </div>
+                            <button class="btn secondary" id="acc-profile-edit" type="button" hidden>Modificar perfil</button>
+                        </div>
+                    </div>
                     <button class="btn" id="acc-sync">Sincronizar ahora</button>
                     <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
                 </div>
@@ -623,6 +671,8 @@
             <section id="community-catalog">
                 <label for="community-activity">Tipo de actividad</label>
                 <select id="community-activity"></select>
+                <label for="community-locality-search">Localidad o provincia (opcional)</label>
+                <input id="community-locality-search" type="search" maxlength="80" placeholder="Ej. Girona">
                 <label for="community-radius">Distancia máxima</label>
                 <select id="community-radius">
                     <option value="10">10 km</option>
@@ -630,15 +680,47 @@
                     <option value="50">50 km</option>
                     <option value="100">100 km</option>
                 </select>
+                <label for="community-difficulty">Dificultad</label>
+                <select id="community-difficulty">
+                    <option value="">Todas</option>
+                    <option value="easy">Fácil</option>
+                    <option value="moderate">Moderada</option>
+                    <option value="hard">Difícil</option>
+                    <option value="very-hard">Muy difícil</option>
+                </select>
+                <label for="community-ascent">Desnivel positivo</label>
+                <select id="community-ascent">
+                    <option value="0">Cualquier desnivel</option>
+                    <option value="300">Desde 300 m</option>
+                    <option value="600">Desde 600 m</option>
+                    <option value="1000">Desde 1000 m</option>
+                    <option value="1500">Desde 1500 m</option>
+                </select>
                 <button id="community-search" class="btn" type="button">Buscar rutas</button>
                 <div id="community-route-list" class="community-route-list"></div>
+                <button id="community-favorites-show" class="btn secondary" type="button">Ver mis favoritas</button>
             </section>
             <section id="community-detail" hidden>
                 <div id="community-detail-map" class="community-detail-map" role="region" aria-label="Mapa con el trazado de la ruta"></div>
                 <div id="community-detail-stats" class="community-detail-stats"></div>
+                <div id="community-detail-custom-actions" class="community-detail-actions"></div>
+                <section id="route-comparison" class="community-detail-section" hidden aria-labelledby="route-comparison-title">
+                    <h3 id="route-comparison-title">Comparar con otra salida</h3>
+                    <label for="route-compare-select">Elige una actividad</label>
+                    <select id="route-compare-select"></select>
+                    <div id="route-compare-results" class="route-compare-results" aria-live="polite"></div>
+                </section>
+                <section id="community-social" class="community-detail-section" hidden aria-labelledby="community-social-title">
+                    <h3 id="community-social-title">Valoraciones y comentarios</h3>
+                    <div id="community-rating-summary" class="community-rating-summary"></div>
+                    <div id="community-rating-form"></div>
+                    <div id="community-favorite-control"></div>
+                    <div id="community-comments" class="community-comments" aria-live="polite"></div>
+                    <div id="community-comment-form"></div>
+                </section>
                 <section id="community-route-ranking-section" class="community-detail-section" aria-labelledby="community-route-ranking-title">
-                    <h3 id="community-route-ranking-title">Clasificación de la ruta</h3>
-                    <p class="community-privacy">Se comparte solo el apodo y el mejor tiempo. No se publica el track de tu actividad, tu correo ni los datos de sensores.</p>
+                    <h3 id="community-route-ranking-title">Ciclistas con una marca publicada</h3>
+                    <p class="community-privacy">Se muestran mejores marcas voluntarias con apodo; no se puede inferir quién hizo la ruta si no publicó una marca. No se publica su track, correo ni datos de sensores.</p>
                     <div id="community-route-leaderboard" class="community-ranking-list" aria-live="polite"></div>
                     <div id="community-route-attempt"></div>
                 </section>
@@ -671,6 +753,18 @@
                 <p class="community-privacy">Se publicará una copia simplificada del trazado, con unos 150 m ocultos en cada extremo. No se enviarán fechas, horas, pulso ni velocidad. Las fotos y sus ubicaciones se mostrarán públicamente; se eliminan sus metadatos de imagen y se omiten los POI próximos a los extremos, pero una foto aún puede revelar lugares reconocibles. Al confirmar, aparecerá públicamente en el mapa comunitario.</p>
                 <label for="community-share-province">Provincia</label>
                 <select id="community-share-province"></select>
+                <label for="community-share-locality">Localidad</label>
+                <input id="community-share-locality" type="text" maxlength="80" placeholder="Pueblo o zona más cercana">
+                <label for="community-share-description">Descripción (opcional)</label>
+                <textarea id="community-share-description" maxlength="500" rows="3" placeholder="Detalles útiles del recorrido"></textarea>
+                <label for="community-share-difficulty">Dificultad percibida</label>
+                <select id="community-share-difficulty">
+                    <option value="">Sin especificar</option>
+                    <option value="easy">Fácil</option>
+                    <option value="moderate">Moderada</option>
+                    <option value="hard">Difícil</option>
+                    <option value="very-hard">Muy difícil</option>
+                </select>
                 <label class="community-consent">
                     <input id="community-share-consent" type="checkbox">
                     <span>Quiero publicar el trazado y las fotos/ubicaciones de sus POI en el mapa comunitario.</span>
@@ -726,6 +820,7 @@
     <script src="app/recording.js"></script>
     <script src="app/route-following.js"></script>
     <script src="app/routes.js"></script>
+    <script src="lib/fit.js"></script>
     <script src="app/route-files.js"></script>
     <script src="app/statistics-engine.js"></script>
     <script src="app/community-performance.js"></script>

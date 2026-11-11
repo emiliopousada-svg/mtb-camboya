@@ -144,7 +144,41 @@ function applyMapHeading(heading) {
     }
 }
 
+function gpsPositionIcon() {
+    const avatarUrl = typeof getAccountAvatarUrl === 'function' ? getAccountAvatarUrl() : '';
+    const image = avatarUrl
+        ? `<img src="${avatarUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="">`
+        : '<span class="gps-position-dot"></span>';
+    return L.divIcon({
+        className: 'gps-position-icon',
+        html: `<span class="gps-position-avatar">${image}</span>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+    });
+}
+
+function updateGpsAvatarMarkers() {
+    const avatar = typeof getAccountAvatarUrl === 'function' ? getAccountAvatarUrl() : '';
+    const centerImage = $('gps-center-avatar');
+    const centerIndicator = $('gps-center-indicator');
+    if (centerImage && centerIndicator) {
+        if (avatar) {
+            centerImage.src = avatar;
+            centerImage.hidden = false;
+            centerIndicator.classList.add('has-avatar');
+        } else {
+            centerImage.removeAttribute('src');
+            centerImage.hidden = true;
+            centerIndicator.classList.remove('has-avatar');
+        }
+    }
+    if (userMarker && typeof userMarker.setIcon === 'function') {
+        userMarker.setIcon(gpsPositionIcon());
+    }
+}
+
 function onPos(pos) {
+    if (!pos || !pos.coords || !Number.isFinite(pos.coords.latitude) || !Number.isFinite(pos.coords.longitude)) return;
     const { latitude: lat, longitude: lon, accuracy, altitude, speed } = pos.coords;
     const ll = [lat, lon];
     lastLat = lat;
@@ -195,7 +229,7 @@ function onPos(pos) {
 
     if (map) {
         if (!userMarker) {
-            userMarker = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 2, fillColor: '#29b6f6', fillOpacity: 1 }).addTo(map);
+            userMarker = L.marker(ll, { icon: gpsPositionIcon(), interactive: false, keyboard: false }).addTo(map);
         } else {
             userMarker.setLatLng(ll);
         }

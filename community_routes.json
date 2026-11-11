@@ -49,6 +49,27 @@
         "max": 50
       },
       {
+        "id": "commlocal000001",
+        "name": "locality",
+        "type": "text",
+        "required": false,
+        "max": 80
+      },
+      {
+        "id": "commdesc0000001",
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "max": 500
+      },
+      {
+        "id": "commdiff0000001",
+        "name": "difficulty",
+        "type": "text",
+        "required": false,
+        "max": 12
+      },
+      {
         "id": "commact00000001",
         "name": "activityType",
         "type": "text",
@@ -112,6 +133,7 @@
     ],
     "indexes": [
       "CREATE INDEX `idx_community_routes_province_published` ON `community_routes` (`province`, `published`)",
+      "CREATE INDEX `idx_community_routes_locality` ON `community_routes` (`locality`)",
       "CREATE INDEX `idx_community_routes_owner` ON `community_routes` (`owner`)"
     ]
   }

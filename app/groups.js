@@ -65,13 +65,15 @@ function renderGroupState(connected) {
     if (connected && groupInfo && groupInfo.isAdmin) loadAdminMembers();
 }
 
-async function stopGroup() {
+function stopGroup() {
     groupJoined = false;
     groupSyncAvailable = false;
     groupInfo = null;
     localStorage.removeItem('mtb_group_joined');
     if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
-    await removeMyLiveLocation();
+    removeMyLiveLocation().catch(error =>
+        console.warn('No se pudo limpiar la ubicación del grupo:', error)
+    );
     renderGroupState(false);
     renderFriends();
 }

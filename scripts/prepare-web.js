@@ -48,6 +48,16 @@ require('esbuild').buildSync({
   outfile: path.join(www, 'lib/ble.js')
 });
 
+require('esbuild').buildSync({
+  entryPoints: [path.join(root, 'src', 'fit-parser.mjs')],
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  globalName: 'MTBFit',
+  target: 'es2019',
+  outfile: path.join(www, 'lib/fit.js')
+});
+
 const file = path.join(www, 'index.html');
 let html = fs.readFileSync(file, 'utf8');
 const swaps = [

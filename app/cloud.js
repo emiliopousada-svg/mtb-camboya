@@ -18,11 +18,34 @@ const Cloud = {
         if (typeof statsApplyAccountProfile === 'function') {
             statsApplyAccountProfile(rec.weightKg, rec.age);
         }
+        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
     },
     clearSession() {
         ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
+        accountProfileRecord = null;
+        accountProfileEditing = false;
+        accountAvatarFile = null;
+        accountAvatarProcessing = false;
+        if (accountAvatarObjectUrl) URL.revokeObjectURL(accountAvatarObjectUrl);
+        accountAvatarObjectUrl = null;
+        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
     }
 };
+
+const ACCOUNT_AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024;
+const ACCOUNT_AVATAR_MAX_OUTPUT_BYTES = 256 * 1024;
+let accountProfileRecord = null;
+let accountProfileEditing = false;
+let accountAvatarFile = null;
+let accountAvatarObjectUrl = null;
+let accountAvatarProcessing = false;
+
+function getAccountAvatarUrl(record = accountProfileRecord) {
+    if (accountAvatarFile && accountAvatarObjectUrl) return accountAvatarObjectUrl;
+    if (!record || typeof record.avatar !== 'string' || !record.avatar) return '';
+    const recordId = encodeURIComponent(record.id || Cloud.uid);
+    return `${Cloud.server}/api/files/users/${recordId}/${encodeURIComponent(record.avatar)}?thumb=256x256`;
+}
 
 // body: objeto (JSON), FormData (archivos) o null
 async function cloudApi(path, method = 'GET', body = null) {
@@ -86,47 +109,227 @@ function accountProfileNumber(value, min, max) {
     return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
 
+function setAccountAvatar(record) {
+    const image = $('acc-avatar-image');
+    const placeholder = $('acc-avatar-placeholder');
+    if (!image || !placeholder) return;
+    if (accountAvatarObjectUrl) {
+        URL.revokeObjectURL(accountAvatarObjectUrl);
+        accountAvatarObjectUrl = null;
+    }
+
+    let imageUrl = '';
+    if (accountAvatarFile) {
+        accountAvatarObjectUrl = URL.createObjectURL(accountAvatarFile);
+    }
+    imageUrl = getAccountAvatarUrl(record);
+
+    image.hidden = !imageUrl;
+    placeholder.hidden = Boolean(imageUrl);
+    if (!imageUrl) {
+        image.removeAttribute('src');
+        if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
+        return;
+    }
+    image.onerror = () => {
+        image.hidden = true;
+        placeholder.hidden = false;
+    };
+    image.src = imageUrl;
+    if (typeof updateGpsAvatarMarkers === 'function') updateGpsAvatarMarkers();
+}
+
 function renderAccountProfile(record, force = false) {
     const weightInput = $('acc-profile-weight');
     const ageInput = $('acc-profile-age');
-    if (!weightInput || !ageInput || (!force && weightInput.dataset.profileLoaded === '1')) return;
-    const weight = accountProfileNumber(record.weightKg, 25, 250);
-    const age = accountProfileNumber(record.age, 10, 100);
-    weightInput.value = weight ?? '';
-    ageInput.value = age ?? '';
+    const editor = $('acc-profile-editor');
+    if (!weightInput || !ageInput || !editor) return;
+    if (record) accountProfileRecord = record;
+    const profile = accountProfileRecord || {};
+    const weight = accountProfileNumber(profile.weightKg, 25, 250);
+    const age = accountProfileNumber(profile.age, 10, 100);
+    if (force || editor.dataset.profileLoaded !== '1') {
+        weightInput.value = weight ?? '';
+        ageInput.value = age ?? '';
+    }
     weightInput.dataset.profileLoaded = '1';
+    const complete = weight !== null && age !== null;
+    if (!complete) accountProfileEditing = true;
+    $('acc-profile-summary').textContent = complete ? `${weight} kg · ${age} años` : '';
+    $('acc-profile-summary').hidden = !complete;
+    editor.hidden = complete && !accountProfileEditing;
+    $('acc-profile-edit').hidden = !complete || accountProfileEditing;
+    $('acc-profile-cancel').hidden = !complete || !accountProfileEditing;
+    setAccountAvatar(profile);
+}
+
+function canvasToJpeg(canvas, quality) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => blob
+            ? resolve(blob)
+            : reject(new Error('No se pudo comprimir la imagen.')), 'image/jpeg', quality);
+    });
+}
+
+async function decodeAvatarImage(file) {
+    if (typeof createImageBitmap === 'function') {
+        return createImageBitmap(file);
+    }
+    const url = URL.createObjectURL(file);
+    try {
+        const image = new Image();
+        image.src = url;
+        await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error('No se pudo abrir la imagen seleccionada.'));
+        });
+        return {
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            image,
+            close: () => URL.revokeObjectURL(url)
+        };
+    } catch (error) {
+        URL.revokeObjectURL(url);
+        throw error;
+    }
+}
+
+async function compressAccountAvatar(file) {
+    if (!(file instanceof Blob) || !file.type.startsWith('image/')) {
+        throw new Error('Elige un archivo de imagen válido.');
+    }
+    if (file.size > ACCOUNT_AVATAR_MAX_INPUT_BYTES) {
+        throw new Error('La imagen original no puede superar los 10 MB.');
+    }
+    const source = await decodeAvatarImage(file);
+    try {
+        if (!source.width || !source.height) throw new Error('La imagen no tiene dimensiones válidas.');
+        const canvas = document.createElement('canvas');
+        const sizes = [512, 448, 384, 320, 256];
+        const qualities = [0.86, 0.78, 0.68, 0.58];
+        for (const size of sizes) {
+            const ratio = Math.min(1, size / Math.max(source.width, source.height));
+            canvas.width = Math.max(1, Math.round(source.width * ratio));
+            canvas.height = Math.max(1, Math.round(source.height * ratio));
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('No se pudo preparar la imagen en este dispositivo.');
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            if (typeof source.draw === 'function') source.draw(canvas);
+            else context.drawImage(source, 0, 0, canvas.width, canvas.height);
+            for (const quality of qualities) {
+                const blob = await canvasToJpeg(canvas, quality);
+                if (blob.size <= ACCOUNT_AVATAR_MAX_OUTPUT_BYTES) {
+                    return new File([blob], 'avatar.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+                }
+            }
+        }
+    } finally {
+        if (typeof source.close === 'function') source.close();
+    }
+    throw new Error('No se pudo reducir la imagen a 256 KB; prueba con otra foto.');
 }
 
 async function saveAccountProfile() {
     if (!Cloud.loggedIn()) { toast('Inicia sesión para guardar tu perfil.'); return; }
+    if (accountAvatarProcessing) {
+        toast('Espera a que termine de prepararse la imagen.');
+        return;
+    }
     const weight = accountProfileNumber($('acc-profile-weight').value, 25, 250);
     const age = accountProfileNumber($('acc-profile-age').value, 10, 100);
     if (weight === null || age === null) {
         toast('Introduce un peso entre 25 y 250 kg y una edad entre 10 y 100 años.');
         return;
     }
+    const saveButton = $('acc-profile-save');
+    saveButton.disabled = true;
+    let profileSaved = false;
     try {
         const record = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', {
             weightKg: weight,
             age
         });
-        Cloud.setSession(Cloud.token, record);
-        renderAccountProfile(record, true);
+        profileSaved = true;
+        accountProfileRecord = record;
+        if (accountAvatarFile) {
+            const form = new FormData();
+            form.append('avatar', accountAvatarFile, 'avatar.jpg');
+            const avatarRecord = await cloudApi(
+                `/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`,
+                'PATCH',
+                form
+            );
+            accountProfileRecord = avatarRecord;
+            accountAvatarFile = null;
+            if (accountAvatarObjectUrl) URL.revokeObjectURL(accountAvatarObjectUrl);
+            accountAvatarObjectUrl = null;
+        }
+        accountProfileEditing = false;
+        renderAccountProfile(accountProfileRecord, true);
         toast('✅ Perfil guardado en tu cuenta.');
+        try {
+            if (typeof statsApplyAccountProfile === 'function') {
+                statsApplyAccountProfile(weight, age);
+            }
+        } catch (error) {
+            console.warn('No se pudieron actualizar las estadísticas con el perfil guardado:', error);
+            toast('Perfil guardado, pero no se pudieron actualizar las estadísticas.', 6000);
+        }
     } catch (error) {
         console.warn('No se pudo guardar el perfil de la cuenta:', error);
-        toast('No se pudo guardar el perfil: ' + error.message, 6000);
+        if (profileSaved && accountProfileRecord && accountProfileNumber(accountProfileRecord.weightKg, 25, 250) === weight
+            && accountProfileNumber(accountProfileRecord.age, 10, 100) === age && accountAvatarFile) {
+            renderAccountProfile(accountProfileRecord, true);
+            toast(`Peso y edad guardados; no se pudo guardar el avatar: ${error.message}`, 7000);
+        } else {
+            toast('No se pudo guardar el perfil: ' + error.message, 6000);
+        }
+    } finally {
+        saveButton.disabled = false;
     }
 }
 
-function syncStatsProfileToAccount() {
+async function syncStatsProfileToAccount() {
     if (!Cloud.loggedIn()) return;
     const weight = accountProfileNumber($('stats-weight').value, 25, 250);
     const age = accountProfileNumber($('stats-age').value, 10, 100);
     if (weight === null || age === null) return;
     $('acc-profile-weight').value = String(weight);
     $('acc-profile-age').value = String(age);
-    saveAccountProfile();
+    accountProfileEditing = true;
+    renderAccountProfile(accountProfileRecord);
+    await saveAccountProfile();
+}
+
+function cancelAccountProfileEdit() {
+    accountAvatarFile = null;
+    accountProfileEditing = false;
+    $('acc-avatar-file').value = '';
+    renderAccountProfile(accountProfileRecord, true);
+}
+
+async function handleAccountAvatarSelection() {
+    const input = $('acc-avatar-file');
+    const file = input.files[0];
+    if (!file) return;
+    const saveButton = $('acc-profile-save');
+    saveButton.disabled = true;
+    accountAvatarProcessing = true;
+    let prepared = false;
+    try {
+        accountAvatarFile = await compressAccountAvatar(file);
+        setAccountAvatar(accountProfileRecord);
+        prepared = true;
+        toast(`Imagen preparada (${Math.ceil(accountAvatarFile.size / 1024)} KB). Guarda el perfil para subirla.`);
+    } catch (error) {
+        console.warn('No se pudo preparar el avatar:', error);
+        toast(`No se pudo usar la imagen: ${error.message}`, 6000);
+    } finally {
+        accountAvatarProcessing = false;
+        saveButton.disabled = false;
+        if (!prepared) input.value = '';
+    }
 }
 
 async function accAuth(register) {
@@ -230,14 +433,29 @@ async function routeForm(r) {
     fd.append('hrAvg', String(route.hrAvg ?? 0));
     const points = Array.isArray(route.points) ? route.points : [];
     const pois = await routePoisForSync(route.pois);
-    const track = pois.length ? { version: 2, points, pois } : points;
+    const description = String(route.description || '').trim().slice(0, 500);
+    const folder = String(route.folder || '').trim().slice(0, 60);
+    const track = pois.length || description || folder
+        ? { version: 3, points, pois, description, folder }
+        : points;
     fd.append('track', new Blob([JSON.stringify(track)], { type: 'application/json' }), 'track.json');
     return fd;
 }
 
 let syncing = false;
+let manualSyncRequested = false;
 async function syncRoutes(manual = false) {
-    if (!Cloud.loggedIn() || syncing) return;
+    if (!Cloud.loggedIn()) {
+        if (manual) toast('Inicia sesión para sincronizar tus rutas.');
+        return;
+    }
+    if (syncing) {
+        if (manual) {
+            manualSyncRequested = true;
+            toast('La sincronización en curso terminará y después se volverá a intentar.', 5000);
+        }
+        return;
+    }
     if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
@@ -289,7 +507,7 @@ async function syncRoutes(manual = false) {
             if (r.remoteId && !r.dirty) continue;
             try {
                 let rec;
-                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { name: r.name });
+                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', await routeForm(r));
                 else rec = await cloudApi('/api/collections/routes/records', 'POST', await routeForm(r));
                 r.remoteId = rec.id;
                 r.dirty = false;
@@ -326,7 +544,9 @@ async function syncRoutes(manual = false) {
                             : activityTypeFromName(rec.name),
                         movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
                         elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null,
-                        points, pois: routePoisFromSync(track && track.pois)
+                        points, pois: routePoisFromSync(track && track.pois),
+                        description: String(track && track.description || '').slice(0, 500),
+                        folder: String(track && track.folder || '').slice(0, 60)
                     };
                     await putLocal(r);
                     savedRoutes.push(r);
@@ -349,11 +569,17 @@ async function syncRoutes(manual = false) {
     } catch (e) {
         console.warn('Sync:', e);
         if (manual || e.status !== undefined) {
-            toast(e.status === undefined ? 'No se pudo conectar con el servidor' : 'Error al sincronizar: ' + e.message, 6000);
+            toast(e.status === undefined
+                ? `No se pudo conectar con el servidor: ${e.message || 'error de red'}`
+                : 'Error al sincronizar: ' + e.message, 6000);
         }
     } finally {
         syncing = false;
         renderAccount();
+        if (manualSyncRequested) {
+            manualSyncRequested = false;
+            if (Cloud.loggedIn()) setTimeout(() => syncRoutes(true), 0);
+        }
     }
 }
 
@@ -372,7 +598,7 @@ function initSettings() {
     vibration.addEventListener('change', () => localStorage.setItem('mtb_route_vibration', vibration.checked ? '1' : '0'));
     mapRotation.addEventListener('change', () => setMapRotationMode(mapRotation.checked));
     initSensorConnections();
-    $('app-version').textContent = 'v' + APP_VERSION;
+    $('app-version').textContent = 'v1.2.0';
 }
 
 function initAccount() {
@@ -395,13 +621,30 @@ function initAccount() {
     $('acc-login').addEventListener('click', () => accAuth(false));
     $('acc-register').addEventListener('click', () => accAuth(true));
     $('acc-profile-save').addEventListener('click', saveAccountProfile);
+    $('acc-profile-edit').addEventListener('click', () => {
+        accountProfileEditing = true;
+        renderAccountProfile(accountProfileRecord);
+    });
+    $('acc-profile-cancel').addEventListener('click', cancelAccountProfileEdit);
+    $('acc-avatar-file').addEventListener('change', handleAccountAvatarSelection);
     $('acc-sync').addEventListener('click', () => syncRoutes(true));
-    $('acc-logout').addEventListener('click', async () => {
-        await stopGroup();
-        Cloud.clearSession();
-        renderFriends();
-        renderAccount();
-        toast('Sesión cerrada. Tus rutas siguen en este móvil.');
+    $('acc-logout').addEventListener('click', async event => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+            await stopGroup();
+            Cloud.clearSession();
+            renderFriends();
+            renderAccount();
+            toast('Sesión cerrada. Tus rutas siguen en este móvil.');
+        } catch (error) {
+            console.warn('No se pudo cerrar completamente la sesión:', error);
+            Cloud.clearSession();
+            renderAccount();
+            toast('Sesión cerrada en este dispositivo; no se pudo actualizar el estado del grupo.', 6000);
+        } finally {
+            button.disabled = false;
+        }
     });
     window.addEventListener('online', () => { syncRoutes(); syncSharedPois(); });
     renderAccount();

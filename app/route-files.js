@@ -118,6 +118,13 @@ function parseTrack(text, fname) {
     return { name, segs };
 }
 
+function parseFitTrack(buffer) {
+    if (typeof MTBFit === 'undefined' || typeof MTBFit.parseFitFile !== 'function') {
+        throw new Error('no está disponible el lector de archivos FIT');
+    }
+    return MTBFit.parseFitFile(buffer);
+}
+
 function buildImportedRoute(parsed, routeName) {
     const full = [];
     let km = 0;
@@ -127,7 +134,8 @@ function buildImportedRoute(parsed, routeName) {
         seg.forEach(c => {
             const [lat, lon, alt, t] = c;
             if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
-            const p = [lat, lon, Number.isFinite(alt) ? alt : null, Number.isFinite(t) ? t : null, null];
+            const heartRate = Number.isFinite(c[4]) ? c[4] : null;
+            const p = [lat, lon, Number.isFinite(alt) ? alt : null, Number.isFinite(t) ? t : null, heartRate];
             if (first && full.length > 0) p.push(1);
             if (prev) km += dist(prev, p) / 1000;
             el.add(p[2]);
@@ -143,6 +151,7 @@ function buildImportedRoute(parsed, routeName) {
         const k = Math.ceil(full.length / 20000);
         stored = full.filter((p, i) => i % k === 0 || p[5] === 1 || i === full.length - 1);
     }
+    const heartRates = full.map(point => point[4]).filter(value => Number.isFinite(value) && value > 0);
     return {
         id: Date.now(),
         kind: 'imported',
@@ -152,7 +161,11 @@ function buildImportedRoute(parsed, routeName) {
         movingTimeSec: 0,
         distanceKm: +km.toFixed(3),
         elevationGain: Math.round(el.gain),
-        hrAvg: null,
+        hrAvg: heartRates.length
+            ? Math.round(heartRates.reduce((sum, value) => sum + value, 0) / heartRates.length)
+            : null,
+        description: String(parsed.description || ''),
+        folder: '',
         points: stored
     };
 }

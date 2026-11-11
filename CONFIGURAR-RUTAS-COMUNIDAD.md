@@ -7,8 +7,8 @@ La app puede compartir una copia pública y reducida de una ruta grabada, separa
 1. Haz una copia de seguridad de PocketBase.
 2. En PocketBase Admin abre **Settings → Import collections** y selecciona `community_routes.json`.
 3. Activa **Merge with the existing collections**.
-4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, confirma solo que se añaden los campos opcionales `poisJson` y `poiPhotos`; cancela si se propone reemplazar o borrar `community_routes`, `users`, `routes`, grupos u otras colecciones.
-5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema y los campos de POI.
+4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, acepta solo la incorporación de los campos opcionales `poisJson`, `poiPhotos`, `locality`, `description` y `difficulty` y el índice de localidad; cancela si se propone reemplazar o borrar colecciones existentes.
+5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema y los campos de POI, localidad, descripción y dificultad.
 
 La regla de lectura deja ver públicamente solo registros con `published = true`; el autor también puede consultar sus propias rutas. Un envío nuevo debe tener el propietario autenticado y `published = true`, por lo que aparece en el catálogo inmediatamente. La app no permite cambiar el estado de publicación después de crear el registro.
 
@@ -28,11 +28,11 @@ Las rutas enviadas antes de activar la publicación automática seguirán con `p
 
 ## Privacidad y datos
 
-La app solo envía una copia para el catálogo después de que el usuario pulse **Publicar** y acepte la confirmación. Esa copia se publica inmediatamente, omite horas, fechas, pulso, velocidad y otros datos de sensores, recorta aproximadamente 150 metros de ambos extremos y simplifica el trazado. Las fotos se comprimen en el dispositivo a un máximo de 600 KB en JPEG, eliminando metadatos incrustados; cada ruta admite hasta 5 fotos. Se excluyen del envío las fotos situadas a menos de 150 metros de los extremos del trazado original. Aun así, las fotos y las coordenadas de sus POI son públicas y pueden identificar lugares; el usuario debe revisarlas antes de confirmar. El track privado local y la sincronización personal no se publican.
+La app solo envía una copia para el catálogo después de que el usuario pulse **Publicar** y acepte la confirmación. Esa copia se publica inmediatamente, omite horas, fechas, pulso, velocidad y otros datos de sensores, recorta aproximadamente 150 metros de ambos extremos y simplifica el trazado. Localidad, descripción y dificultad son datos aportados manualmente; la dificultad es subjetiva. Las fotos se comprimen en el dispositivo a un máximo de 600 KB en JPEG, eliminando metadatos incrustados; cada ruta admite hasta 5 fotos. Se excluyen del envío las fotos situadas a menos de 150 metros de los extremos del trazado original. Aun así, las fotos y las coordenadas de sus POI son públicas y pueden identificar lugares; el usuario debe revisarlas antes de confirmar. El track privado local y la sincronización personal no se publican.
 
 El recorte reduce la exposición de los puntos de salida y llegada, pero no garantiza anonimato: una ruta puede revelar lugares reconocibles. El usuario debe revisar y confirmar antes de enviarla.
 
-El catálogo guarda título, provincia, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. El detalle de cada ruta muestra un recorte del mapa con su trazado y las métricas disponibles; al seguirla, los POI con foto aparecen como marcadores en el mapa.
+El catálogo guarda título, provincia, localidad, descripción, dificultad percibida, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. La búsqueda permite filtrar por localidad/provincia o cercanía GPS, actividad, dificultad y desnivel positivo. El detalle muestra mapa, valoraciones, comentarios y las mejores marcas voluntarias publicadas con apodo; al seguirla, los POI con foto aparecen como marcadores en el mapa.
 
 ## Limitación de la primera fase
 
@@ -40,13 +40,13 @@ La provincia se elige manualmente al publicar; el sistema aún no la deduce auto
 
 ## Segmentos personales y clasificaciones por tiempo
 
-La app puede preparar tres colecciones adicionales para guardar segmentos públicos dibujados sobre una ruta comunitaria y la mejor marca de cada usuario para la ruta o un segmento:
+La app puede preparar colecciones adicionales para guardar segmentos públicos dibujados sobre una ruta comunitaria, mejores marcas, valoraciones, comentarios y favoritos:
 
 1. Haz una copia de seguridad de PocketBase.
 2. En **Settings → Import collections**, importa `community_performance.json` y activa **Merge with the existing collections**.
-3. Antes de confirmar, comprueba que solo se añaden `community_segments`, `community_route_efforts` y `community_segment_efforts`; cancela si se proponen cambios a colecciones existentes.
-4. Comprueba en **Collections** que las reglas permiten ver marcas solo de rutas publicadas y que cada usuario solo puede modificar o borrar sus propios registros.
+3. Antes de confirmar, comprueba que se añaden únicamente `community_route_ratings`, `community_route_comments` y `community_route_favorites`; si aún no existen las colecciones de rendimiento, acepta también `community_segments`, `community_route_efforts` y `community_segment_efforts`. Cancela si se proponen cambios a colecciones existentes distintas de esas.
+4. Comprueba en **Collections** que las reglas limitan cada modificación al propietario, las valoraciones y comentarios solo se leen para rutas publicadas y los favoritos solo los ve su propietario.
 
-La app usa el apodo que el usuario confirma para cada envío; no envía el correo ni adjunta la actividad GPS. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
+La app usa el apodo que el usuario confirma para comentarios y marcas; no envía el correo ni adjunta la actividad GPS. Las valoraciones permiten una puntuación de 1 a 5 por usuario y ruta; los comentarios admiten hasta 500 caracteres y el autor puede borrarlos. Los favoritos son privados por cuenta. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
 
 Los cambios del cliente no instalan estas colecciones por sí solos. Hasta importar el esquema en el servidor, el catálogo actual de rutas sigue funcionando, pero las nuevas funciones compartidas no podrán guardar ni leer segmentos y clasificaciones.
