@@ -86,6 +86,78 @@ function newestRemoteUpdate(records, fallbackMs) {
     return new Date(Math.max(0, (latest || fallbackMs) - ROUTE_SYNC_CURSOR_OVERLAP_MS)).toISOString();
 }
 
+function normalizeRemoteTrack(raw) {
+    let value = raw;
+    for (let depth = 0; depth < 3 && typeof value === 'string'; depth++) {
+        try { value = JSON.parse(value); }
+        catch (_) { return null; }
+    }
+
+    let geoJson = false;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (value.type === 'Feature') value = value.geometry;
+        else if (value.type === 'FeatureCollection') {
+            geoJson = true;
+            value = (Array.isArray(value.features) ? value.features : [])
+                .map(feature => feature && feature.geometry)
+                .filter(geometry => geometry && ['LineString', 'MultiLineString'].includes(geometry.type))
+                .map(geometry => geometry.coordinates);
+        }
+        if (value && !Array.isArray(value) && ['LineString', 'MultiLineString'].includes(value.type)) {
+            geoJson = true;
+            value = value.coordinates;
+        } else if (value && !Array.isArray(value)) {
+            value = value.points ?? value.trackPoints ?? value.routePoints ?? value.coords ??
+                value.segments ?? value.lines ?? value.track ?? value.coordinates ?? value.data;
+        }
+    }
+
+    const pointFrom = (item, reverseCoordinates) => {
+        let point;
+        if (Array.isArray(item) && item.length >= 2 && Number.isFinite(Number(item[0])) && Number.isFinite(Number(item[1]))) {
+            point = reverseCoordinates
+                ? [Number(item[1]), Number(item[0]), ...item.slice(2)]
+                : [Number(item[0]), Number(item[1]), ...item.slice(2)];
+        } else if (item && typeof item === 'object') {
+            const lat = Number(item.lat ?? item.latitude);
+            const lng = Number(item.lng ?? item.lon ?? item.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            point = [lat, lng, item.altitude ?? item.alt ?? null, item.time ?? null, item.hr ?? null];
+        } else return null;
+        if (Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180) return null;
+        while (point.length < 6) point.push(null);
+        return point;
+    };
+
+    const points = [];
+    const appendSegment = (segment, reverseCoordinates, startsNewSegment = false) => {
+        if (!Array.isArray(segment) || !segment.length) return false;
+        const parsed = segment.map(item => pointFrom(item, reverseCoordinates));
+        if (parsed.some(point => !point)) return false;
+        if (startsNewSegment && points.length) parsed[0][5] = 1;
+        points.push(...parsed);
+        return true;
+    };
+    const visit = (items, reverseCoordinates = geoJson) => {
+        if (!Array.isArray(items) || !items.length) return false;
+        if (pointFrom(items[0], reverseCoordinates)) return appendSegment(items, reverseCoordinates, false);
+        let added = false;
+        for (const segment of items) {
+            const before = points.length;
+            if (Array.isArray(segment) && pointFrom(segment[0], reverseCoordinates)) {
+                added = appendSegment(segment, reverseCoordinates, before > 0) || added;
+            } else {
+                added = visit(segment, reverseCoordinates) || added;
+                if (points.length > before && before > 0) points[before][5] = 1;
+            }
+        }
+        return added;
+    };
+
+    visit(value);
+    return points.length >= 2 ? points : null;
+}
+
 function routeNicknameStorageKey() {
     return Cloud.uid ? `mtb_route_nickname_${Cloud.uid}` : '';
 }
@@ -448,10 +520,16 @@ async function syncRoutes(manual = false) {
                         clearTimeout(dlTimer);
                     }
                     if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
-                    const points = await res.json();
-                    if (!Array.isArray(points) || points.length < 2 ||
-                        !points.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) {
-                        throw new Error('El track recibido no tiene un formato válido');
+                    let trackData;
+                    try { trackData = JSON.parse(await res.text()); }
+                    catch (_) { throw new Error('El archivo del track no contiene JSON válido'); }
+                    const points = normalizeRemoteTrack(trackData);
+                    if (!points) {
+                        const shape = Array.isArray(trackData) ? `array (${trackData.length} elementos)`
+                            : trackData && typeof trackData === 'object'
+                                ? `objeto (${Object.keys(trackData).slice(0, 6).join(', ') || 'sin campos'})`
+                                : typeof trackData;
+                        throw new Error(`El formato del track no es compatible: ${shape}`);
                     }
                     const id = Number(rec.clientId);
                     if (!Number.isSafeInteger(id) || id < 0) throw new Error('El identificador de ruta no es válido');
