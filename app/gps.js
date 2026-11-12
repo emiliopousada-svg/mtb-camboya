@@ -11,6 +11,24 @@ let gpsHighAccuracyMode = null;
 let gpsPermissionDenied = false, gpsPermissionNoticeShown = false;
 let gpsOneShotPending = false, gpsResumeCheckPending = false;
 let gpsRecenterPending = true;
+let lastGpsSpeedFix = null;
+
+function gpsSpeedFromFix(position, timestamp, accuracy) {
+    if (!Number.isFinite(timestamp) || !Number.isFinite(accuracy) || accuracy > MAX_ACC_M) return null;
+    const previous = lastGpsSpeedFix;
+    if (!previous || timestamp <= previous.timestamp || timestamp - previous.timestamp > 10000) {
+        lastGpsSpeedFix = { position, timestamp };
+        return 0;
+    }
+
+    const distance = dist(previous.position, position);
+    const elapsedSeconds = (timestamp - previous.timestamp) / 1000;
+    if (distance < MIN_STEP_M) return 0; // conserva el origen para acumular desplazamiento sin ruido
+
+    lastGpsSpeedFix = { position, timestamp };
+    const speedMs = distance / elapsedSeconds;
+    return Number.isFinite(speedMs) && speedMs <= MAX_SPEED_MS ? speedMs * 3.6 : 0;
+}
 
 function clearGpsWatch() {
     if (gpsWatchId === null || !navigator.geolocation) return;
@@ -252,7 +270,12 @@ function onPos(pos) {
     const now = Date.now();
     const bleSpeedFresh = currentBleSpeed !== null && now - currentBleSpeedAt <= 5000;
     if (currentCadence !== null && now - sensorStates.cadence.lastReadingAt > 5000) updateCadence(null);
-    let kmh = bleSpeedFresh ? currentBleSpeed : (speed != null && !isNaN(speed) ? speed * 3.6 : 0);
+    const gpsTimestamp = Number.isFinite(pos.timestamp) ? pos.timestamp : now;
+    const calculatedGpsSpeed = gpsSpeedFromFix(ll, gpsTimestamp, accuracy);
+    const gpsSpeed = speed != null && Number.isFinite(speed) && speed >= 0
+        ? speed * 3.6
+        : calculatedGpsSpeed;
+    let kmh = bleSpeedFresh ? currentBleSpeed : (gpsSpeed ?? 0);
     if (isPaused || kmh < 0.5) kmh = 0;
     $('m-speed').textContent = kmh.toFixed(1);
 
