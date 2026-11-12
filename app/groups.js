@@ -11,8 +11,129 @@ const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
 const FRIENDS_IDLE_REFRESH_MS = 30000;
 
 let groupInfo = null, groupChoices = [], liveFriendCount = 0;
+let groupRankingMembers = [];
 
 function groupName() { return Cloud.groupCode || ''; }
+
+function renderGroupMetricRanking(containerId, key, format) {
+    const container = $(containerId);
+    container.replaceChildren();
+    const entries = groupRankingMembers
+        .filter(member => Number.isFinite(Number(member[key])) && Number(member[key]) > 0)
+        .sort((a, b) => Number(b[key]) - Number(a[key]));
+    if (!entries.length) {
+        const empty = document.createElement('p');
+        empty.className = 'community-empty';
+        empty.textContent = 'Aún no hay marcas compartidas.';
+        container.appendChild(empty);
+        return;
+    }
+    entries.forEach((member, index) => {
+        const row = document.createElement('div');
+        row.className = 'group-ranking-item';
+        const name = document.createElement('span');
+        name.textContent = `${index + 1}. ${member.nickname}`;
+        const value = document.createElement('strong');
+        value.textContent = format(member);
+        row.append(name, value);
+        container.appendChild(row);
+    });
+}
+
+async function loadGroupRankings() {
+    const status = $('group-ranking-status');
+    if (!Cloud.loggedIn() || !groupJoined) {
+        groupRankingMembers = [];
+        renderGroupMetricRanking('group-ranking-distance', 'maxDistanceKm', () => '');
+        renderGroupMetricRanking('group-ranking-speed', 'maxSpeedKmh', () => '');
+        renderGroupMetricRanking('group-ranking-time', 'bestMovingTimeSec', () => '');
+        status.textContent = 'Inicia sesión y únete a un grupo para consultar sus marcas.';
+        return;
+    }
+    status.classList.remove('error');
+    status.textContent = 'Cargando marcas del grupo…';
+    groupRankingMembers = [];
+    renderGroupMetricRanking('group-ranking-distance', 'maxDistanceKm', () => '');
+    renderGroupMetricRanking('group-ranking-speed', 'maxSpeedKmh', () => '');
+    renderGroupMetricRanking('group-ranking-time', 'bestMovingTimeSec', () => '');
+    const requestedGroupId = groupName();
+    try {
+        const result = await cloudApi('/api/mtb/groups/rankings');
+        if (groupName() !== requestedGroupId) return;
+        groupRankingMembers = Array.isArray(result.members) ? result.members : [];
+        renderGroupMetricRanking('group-ranking-distance', 'maxDistanceKm', member => {
+            const duration = Number(member.distanceMovingTimeSec);
+            return `${Number(member.maxDistanceKm).toFixed(1)} km${duration > 0 ? ` · ${fmtDur(duration)}` : ''}`;
+        });
+        renderGroupMetricRanking('group-ranking-speed', 'maxSpeedKmh', member => `${Number(member.maxSpeedKmh).toFixed(1)} km/h`);
+        renderGroupMetricRanking('group-ranking-time', 'bestMovingTimeSec', member => fmtDur(Number(member.bestMovingTimeSec)));
+        status.textContent = `${result.group.name} · marcas de todos los tiempos`;
+    } catch (error) {
+        console.warn('No se pudo cargar el ranking del grupo:', error);
+        status.textContent = error.status === 404
+            ? 'Falta instalar mtb_group_rankings.json y actualizar groups.pb.js en PocketBase.'
+            : `No se pudo cargar el ranking: ${error.message || 'error de conexión'}`;
+        status.classList.add('error');
+    }
+}
+
+async function shareRouteToGroupRanking(route, button) {
+    if (!Cloud.loggedIn() || !groupJoined) {
+        toast('Inicia sesión y únete a un grupo para compartir marcas.');
+        return;
+    }
+    if (!navigator.onLine) {
+        toast('Necesitas conexión para compartir una marca con el grupo.');
+        return;
+    }
+    if (!route || route.kind !== 'recorded') {
+        toast('Solo se pueden compartir actividades grabadas.');
+        return;
+    }
+    const analysis = typeof statsAnalyzeRoute === 'function' ? statsAnalyzeRoute(route) : null;
+    const distanceKm = analysis && Number.isFinite(analysis.distanceKm)
+        ? analysis.distanceKm
+        : Number(route.distanceKm) || 0;
+    const movingTimeSec = analysis && !analysis.movingTimeEstimated && Number.isFinite(analysis.movingTimeSec)
+        ? analysis.movingTimeSec
+        : Number(route.movingTimeSec) || 0;
+    const maxSpeedKmh = analysis && Number.isFinite(analysis.maxSpeed) ? analysis.maxSpeed : 0;
+    if (distanceKm <= 0 && maxSpeedKmh <= 0) {
+        toast('Esta actividad no tiene marcas válidas para compartir.');
+        return;
+    }
+    const details = [];
+    if (distanceKm > 0) details.push(`Distancia: ${distanceKm.toFixed(1)} km`);
+    if (movingTimeSec > 0) details.push(`Tiempo en movimiento: ${fmtDur(movingTimeSec)}`);
+    if (maxSpeedKmh > 0) details.push(`Velocidad punta: ${maxSpeedKmh.toFixed(1)} km/h`);
+    if (button) button.disabled = true;
+    try {
+        const confirmed = await modal({
+            message: `Compartir con «${groupInfo && groupInfo.name ? groupInfo.name : 'el grupo'}» estas marcas de la actividad:\n\n${details.join('\n')}\n\nNo se enviarán el trazado GPS, el nombre, la fecha ni la ubicación.`,
+            ok: 'Compartir marcas'
+        });
+        if (!confirmed) return;
+        const result = await cloudApi('/api/mtb/groups/rankings/share', 'POST', {
+            distanceKm,
+            movingTimeSec,
+            maxSpeedKmh
+        });
+        const records = [];
+        if (result.newDistanceRecord) records.push('nueva actividad más larga');
+        if (result.newTimeRecord) records.push('mayor tiempo en movimiento');
+        if (result.newSpeedRecord) records.push('nueva velocidad punta');
+        toast(records.length ? `Marca compartida: ${records.join(' y ')}.` : 'Marcas compartidas; ya conservabas un mejor récord.');
+        if (currentPage === 2) await loadGroupRankings();
+    } catch (error) {
+        console.warn('No se pudieron compartir las marcas con el grupo:', error);
+        toast(error.status === 404
+            ? 'Falta instalar mtb_group_rankings.json y actualizar groups.pb.js en PocketBase.'
+            : `No se pudieron compartir las marcas: ${error.message || 'error de conexión'}`, 6000);
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 function pendingGroupLeaveKey() {
     return Cloud.uid ? `mtb_pending_group_leave_${encodeURIComponent(Cloud.server)}_${Cloud.uid}` : '';
 }
@@ -120,6 +241,7 @@ async function stopGroup() {
     await removeMyLiveLocation();
     renderGroupState(false);
     renderFriends();
+    if (currentPage === 2) await loadGroupRankings();
 }
 
 function startFriendsTimer() {
@@ -151,6 +273,7 @@ async function loadMyGroup() {
     else localStorage.removeItem('mtb_group_code');
     if (!groupJoined) localStorage.removeItem('mtb_group_joined');
     renderGroupState(groupJoined);
+    if (currentPage === 2) await loadGroupRankings();
     return groupInfo;
 }
 
@@ -499,6 +622,7 @@ async function connectGroup(action) {
         localStorage.setItem('mtb_group_joined', result.group.id);
         renderGroupState(true);
         await refreshFriends();
+        await loadGroupRankings();
         startFriendsTimer();
         if (isRecording && !isPaused) publishMyLocation(true);
         toast(action === 'create' ? 'Grupo creado: ya eres el administrador.' : 'Te has unido al grupo.');
@@ -510,6 +634,9 @@ async function connectGroup(action) {
 
 $('btn-create-group').addEventListener('click', () => connectGroup('create'));
 $('btn-join').addEventListener('click', () => connectGroup('join'));
+$('group-rankings-refresh').addEventListener('click', () => {
+    loadGroupRankings();
+});
 $('btn-copy-invite').addEventListener('click', async () => {
     if (!groupInfo || !groupInfo.isAdmin) return;
     try {
@@ -553,6 +680,7 @@ async function leaveGroupLocally() {
     if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
     renderGroupState(false);
     renderFriends();
+    if (currentPage === 2) loadGroupRankings();
     renderAccount();
     if (!navigator.onLine) {
         $('group-status').textContent = 'Has salido en este dispositivo; la salida del servidor está pendiente de conexión.';

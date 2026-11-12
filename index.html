@@ -382,6 +382,27 @@
                 </div>
             </div>
 
+            <div class="card" id="group-ranking-card">
+                <h2>🏆 Ranking del grupo</h2>
+                <p class="hint">Solo aparecen las marcas que cada miembro comparte manualmente. No se envían trazados ni ubicaciones.</p>
+                <div class="group-ranking-header">
+                    <p id="group-ranking-status" class="hint" role="status" aria-live="polite">Únete a un grupo para consultar sus marcas.</p>
+                    <button class="btn-small secondary" id="group-rankings-refresh" type="button">Actualizar</button>
+                </div>
+                <div class="group-ranking-grid">
+                    <section>
+                        <h3>Actividad más larga</h3>
+                        <div id="group-ranking-distance" class="group-ranking-list"></div>
+                    </section>
+                    <section>
+                        <h3>Velocidad punta</h3>
+                        <div id="group-ranking-speed" class="group-ranking-list"></div>
+                    </section>
+                </div>
+                <h3>Mayor tiempo en movimiento</h3>
+                <div id="group-ranking-time" class="group-ranking-list"></div>
+            </div>
+
             <div class="card">
                 <h2>👥 Grupos y amigos (Live)</h2>
                 <p class="hint">Crea un grupo para administrarlo o únete con una invitación. La ubicación solo se comparte mientras grabas y formas parte del grupo.</p>
@@ -778,8 +799,6 @@
                 <p class="community-privacy">Se publicará una copia simplificada del trazado, con unos 150 m ocultos en cada extremo. No se enviarán fechas, horas, pulso ni velocidad. Las fotos y sus ubicaciones se mostrarán públicamente; se eliminan sus metadatos de imagen y se omiten los POI próximos a los extremos, pero una foto aún puede revelar lugares reconocibles. Al confirmar, aparecerá públicamente en el mapa comunitario.</p>
                 <label for="community-share-province">Provincia</label>
                 <select id="community-share-province"></select>
-                <label for="community-share-locality">Localidad</label>
-                <input id="community-share-locality" type="text" maxlength="80" placeholder="Pueblo o zona más cercana">
                 <label for="community-share-description">Descripción (opcional)</label>
                 <textarea id="community-share-description" maxlength="500" rows="3" placeholder="Detalles útiles del recorrido"></textarea>
                 <label for="community-share-difficulty">Dificultad percibida</label>

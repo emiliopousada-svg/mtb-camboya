@@ -117,11 +117,10 @@ function openCommunityPublish(route) {
     $('community-title').textContent = 'Publicar ruta en la comunidad';
     $('community-share-title').textContent = route.name || 'Ruta grabada';
     $('community-share-province').value = '';
-    $('community-share-locality').value = '';
     $('community-share-description').value = route.description || '';
     $('community-share-difficulty').value = '';
     $('community-share-consent').checked = false;
-    $('community-submit').disabled = true;
+    $('community-submit').disabled = false;
     communitySetStatus('Al enviarla, la ruta aparecerá publicada en el mapa comunitario.');
     $('community-dialog').hidden = false;
     $('community-share-province').focus();
@@ -619,7 +618,6 @@ async function submitCommunityRoute() {
         formData.append('owner', Cloud.uid);
         formData.append('title', String(route.name || 'Ruta MTB').trim().slice(0, 100));
         formData.append('province', province);
-        formData.append('locality', String($('community-share-locality').value || '').trim().slice(0, 80));
         formData.append('description', String($('community-share-description').value || '').trim().slice(0, 500));
         formData.append('difficulty', $('community-share-difficulty').value);
         formData.append('activityType', activityTypeForRoute(route) || 'mtb');
@@ -1568,12 +1566,6 @@ function initCommunityRoutes() {
     $('community-search').addEventListener('click', loadCommunityRoutes);
     $('community-favorites-show').addEventListener('click', loadCommunityFavorites);
     $('community-submit').addEventListener('click', submitCommunityRoute);
-    $('community-share-consent').addEventListener('change', event => {
-        $('community-submit').disabled = !event.target.checked || !$('community-share-province').value;
-    });
-    $('community-share-province').addEventListener('change', () => {
-        $('community-submit').disabled = !$('community-share-consent').checked || !$('community-share-province').value;
-    });
     $('community-back').addEventListener('click', openCommunityCatalog);
     $('community-detail-back').addEventListener('click', () => communityDetailBackAction());
     $('community-detail-follow').addEventListener('click', () => {

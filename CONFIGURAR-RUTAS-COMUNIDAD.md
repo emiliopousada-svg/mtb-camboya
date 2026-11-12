@@ -35,11 +35,11 @@ La app solo envía una copia para el catálogo después de que el usuario pulse 
 
 El recorte reduce la exposición de los puntos de salida y llegada, pero no garantiza anonimato: una ruta puede revelar lugares reconocibles. El usuario debe revisar y confirmar antes de enviarla.
 
-El catálogo guarda título, provincia, localidad, descripción, dificultad percibida, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. La búsqueda permite filtrar por localidad/provincia, apodo de usuario o cercanía GPS, actividad, dificultad y desnivel positivo. El filtro de usuario usa `users.nickname`, que debe estar configurado como se explica en `CONFIGURAR-PERFIL-USUARIO.md`. El detalle muestra mapa, valoraciones, comentarios y las mejores marcas voluntarias publicadas con apodo; al seguirla, los POI con foto aparecen como marcadores en el mapa.
+El catálogo guarda título, provincia, localidad (si existe en una publicación anterior), descripción, dificultad percibida, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. La búsqueda permite filtrar por localidad/provincia, apodo de usuario o cercanía GPS, actividad, dificultad y desnivel positivo. El formulario actual no solicita ni envía localidad; el filtro sigue disponible para publicaciones anteriores que ya tengan ese dato. El filtro de usuario usa `users.nickname`, que debe estar configurado como se explica en `CONFIGURAR-PERFIL-USUARIO.md`. El detalle muestra mapa, valoraciones, comentarios y las mejores marcas voluntarias publicadas con apodo; al seguirla, los POI con foto aparecen como marcadores en el mapa.
 
 ## Limitación de la primera fase
 
-La provincia se elige manualmente al publicar; el sistema aún no la deduce automáticamente del recorrido. La búsqueda usa la ubicación GPS actual, un radio y el tipo de actividad. La base es una colección compartida con índice por provincia, no una base física separada para cada provincia.
+La provincia se elige manualmente al publicar; el sistema aún no la deduce automáticamente del recorrido. El formulario ya no solicita localidad. La búsqueda usa la ubicación GPS actual, un radio y el tipo de actividad. La base es una colección compartida con índice por provincia, no una base física separada para cada provincia.
 
 ## Segmentos personales y clasificaciones por tiempo
 

@@ -1180,6 +1180,12 @@ nav {
 .community-status { min-height: 1.3em; margin: 10px 0; color: var(--text-secondary); font-size: .8rem; line-height: 1.4; }
 .community-status.error { color: #ff9e9e; }
 .community-route-list { display: grid; gap: 9px; margin-top: 12px; }
+.group-ranking-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.group-ranking-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 10px 0; }
+.group-ranking-grid h3 { margin: 0 0 7px; font-size: .9rem; }
+.group-ranking-list { display: grid; gap: 6px; margin-top: 8px; }
+.group-ranking-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border-radius: 9px; background: rgba(143, 166, 199, .07); font-size: .82rem; }
+.group-ranking-item strong { color: var(--primary); text-align: right; white-space: nowrap; }
 .community-route-card { padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #1c1c1c; }
 .community-route-title { display: block; padding: 0; border: 0; color: #81c784; background: transparent; font-size: .95rem; font-weight: 700; text-align: left; cursor: pointer; }
 .community-route-title:hover, .community-route-title:focus-visible { text-decoration: underline; }

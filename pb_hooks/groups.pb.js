@@ -172,6 +172,128 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
     }
 }, $apis.requireAuth("users"));
 
+routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
+    const { requireSafeValue, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
+    try {
+        const user = $app.findRecordById("users", e.auth.id);
+        const groupId = user.getString("groupCode");
+        if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
+        const safeGroupId = requireSafeValue(groupId, "groupId");
+        if (!safeMembership(safeGroupId, user.id).length) {
+            return e.json(403, { message: "Ya no tienes autorización para consultar este grupo." });
+        }
+
+        const memberships = findAllRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "");
+        const rankings = findAllRecordsByFilter("mtb_group_rankings", 'group = "' + safeGroupId + '"', "");
+        const rankingsByUser = {};
+        rankings.forEach((ranking) => {
+            rankingsByUser[ranking.getString("owner")] = {
+                maxDistanceKm: ranking.getFloat("maxDistanceKm"),
+                distanceMovingTimeSec: ranking.getFloat("distanceMovingTimeSec"),
+                bestMovingTimeSec: ranking.getFloat("bestMovingTimeSec"),
+                maxSpeedKmh: ranking.getFloat("maxSpeedKmh")
+            };
+        });
+        const members = memberships.map((membership) => {
+            const userId = membership.getString("user");
+            const ranking = rankingsByUser[userId] || {};
+            return {
+                userId,
+                nickname: membership.getString("nickname") || "Apodo pendiente",
+                isMe: userId === user.id,
+                maxDistanceKm: ranking.maxDistanceKm ?? null,
+                distanceMovingTimeSec: ranking.distanceMovingTimeSec ?? null,
+                bestMovingTimeSec: ranking.bestMovingTimeSec ?? null,
+                maxSpeedKmh: ranking.maxSpeedKmh ?? null
+            };
+        });
+        return e.json(200, {
+            group: { id: safeGroupId, name: $app.findRecordById("mtb_groups", safeGroupId).getString("name") },
+            members
+        });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudo cargar el ranking del grupo." });
+    }
+}, $apis.requireAuth("users"));
+
+routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
+    const { requireSafeValue, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    try {
+        const body = new DynamicModel({ distanceKm: 0, movingTimeSec: 0, maxSpeedKmh: 0 });
+        e.bindBody(body);
+        const user = $app.findRecordById("users", e.auth.id);
+        const groupId = user.getString("groupCode");
+        if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
+        const safeGroupId = requireSafeValue(groupId, "groupId");
+        if (!safeMembership(safeGroupId, user.id).length) {
+            return e.json(403, { message: "Ya no tienes autorización para compartir marcas en este grupo." });
+        }
+
+        const distanceKm = Number(body.distanceKm);
+        const movingTimeSec = Number(body.movingTimeSec);
+        const maxSpeedKmh = Number(body.maxSpeedKmh);
+        if (!Number.isFinite(distanceKm) || distanceKm < 0 || distanceKm > 1000
+            || !Number.isFinite(movingTimeSec) || movingTimeSec < 0 || movingTimeSec > 604800
+            || !Number.isFinite(maxSpeedKmh) || maxSpeedKmh < 0 || maxSpeedKmh > 150
+            || (distanceKm === 0 && maxSpeedKmh === 0)) {
+            return e.json(400, { message: "Las marcas de la actividad no son válidas." });
+        }
+
+        const collection = $app.findCollectionByNameOrId("mtb_group_rankings");
+        const existing = $app.findRecordsByFilter(
+            "mtb_group_rankings",
+            "group = {:group} && owner = {:owner}",
+            "",
+            1,
+            0,
+            { group: safeGroupId, owner: user.id }
+        );
+        const ranking = existing.length
+            ? existing[0]
+            : new Record(collection);
+        let changed = !existing.length;
+        let newDistanceRecord = false;
+        let newSpeedRecord = false;
+        if (!existing.length) {
+            ranking.set("group", safeGroupId);
+            ranking.set("owner", user.id);
+            ranking.set("maxDistanceKm", 0);
+            ranking.set("distanceMovingTimeSec", 0);
+            ranking.set("bestMovingTimeSec", 0);
+            ranking.set("maxSpeedKmh", 0);
+        }
+        if (distanceKm > ranking.getFloat("maxDistanceKm")) {
+            ranking.set("maxDistanceKm", distanceKm);
+            ranking.set("distanceMovingTimeSec", movingTimeSec);
+            changed = true;
+            newDistanceRecord = true;
+        }
+        let newTimeRecord = false;
+        if (movingTimeSec > ranking.getFloat("bestMovingTimeSec")) {
+            ranking.set("bestMovingTimeSec", movingTimeSec);
+            changed = true;
+            newTimeRecord = true;
+        }
+        if (maxSpeedKmh > ranking.getFloat("maxSpeedKmh")) {
+            ranking.set("maxSpeedKmh", maxSpeedKmh);
+            changed = true;
+            newSpeedRecord = true;
+        }
+        if (changed) $app.save(ranking);
+        return e.json(200, {
+            maxDistanceKm: ranking.getFloat("maxDistanceKm"),
+            distanceMovingTimeSec: ranking.getFloat("distanceMovingTimeSec"),
+            bestMovingTimeSec: ranking.getFloat("bestMovingTimeSec"),
+            maxSpeedKmh: ranking.getFloat("maxSpeedKmh"),
+            newDistanceRecord,
+            newTimeRecord,
+            newSpeedRecord
+        });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudo compartir la actividad." });
+    }
+}, $apis.requireAuth("users"));
+
 routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {

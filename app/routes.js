@@ -506,10 +506,13 @@ function createRouteCard(route) {
     body.append(title, subtitle, description, metrics, viewButton);
     card.append(cover, body);
 
-    if (routesShowAll || routesTab === 'pending') {
+    const showFullActions = routesShowAll || routesTab === 'pending';
+    const canPublishCommunity = route.kind !== 'community' && !route.communityRouteId;
+    const canShareGroupRanking = route.kind === 'recorded';
+    if (showFullActions || (routesTab === 'done' && (canPublishCommunity || canShareGroupRanking))) {
         const actions = document.createElement('div');
         actions.className = 'route-actions';
-        const routeActions = [
+        const routeActions = showFullActions ? [
             ['follow', 'Seguir', ''],
             ['edit-details', 'Descripción/carpeta', 'secondary'],
             ['compare', 'Comparar', 'secondary'],
@@ -518,10 +521,9 @@ function createRouteCard(route) {
             ['rename', '✏️', 'secondary'],
             ['gpx', '⬇️ GPX', 'secondary'],
             ['del', '🗑️', 'danger']
-        ];
-        if (route.kind !== 'community' && !route.communityRouteId) {
-            routeActions.splice(1, 0, ['community', '🌍 Publicar', 'secondary']);
-        }
+        ] : [];
+        if (canPublishCommunity) routeActions.splice(showFullActions ? 1 : 0, 0, ['community', '🌍 Publicar', 'secondary']);
+        if (canShareGroupRanking) routeActions.push(['group-ranking', '🏆 Grupo', 'secondary']);
         routeActions.forEach(([action, label, className]) => {
             const button = document.createElement('button');
             button.className = `btn-small ${className}`;
@@ -545,6 +547,7 @@ $('routes-show-all').addEventListener('click', () => {
 });
 
 async function openSavedRouteDetail(route) {
+    const returnRoutesTab = routesTab;
     try { await DB.loadRoutePhotos(route); }
     catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
     const lines = communityRawSegments(route.points);
@@ -584,8 +587,12 @@ async function openSavedRouteDetail(route) {
     $('route-compare-results').replaceChildren();
     openCommunityDetail({ title: route.name }, lines, {
         backLabel: 'Volver a mis rutas',
+        onBack: () => {
+            closeCommunityDialog();
+            if (currentPage !== 3) goToPage(3);
+            setRoutesTab(returnRoutesTab);
+        },
         pois: Array.isArray(route.pois) ? route.pois : [],
-        onBack: closeCommunityDialog,
         onFollow: () => {
             closeCommunityDialog();
             followRoute(route);
@@ -690,6 +697,8 @@ $('saved-routes-list').addEventListener('click', async e => {
         try { await DB.loadRoutePhotos(r); }
         catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
         openCommunityPublish(r);
+    } else if (btn.dataset.act === 'group-ranking') {
+        await shareRouteToGroupRanking(r, btn);
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
         if (!ok) return;

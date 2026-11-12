@@ -1,0 +1,82 @@
+[
+  {
+    "id": "mtbgranks9x2k7q",
+    "name": "mtb_group_rankings",
+    "type": "base",
+    "system": false,
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "id": "mtbgrankid00001",
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      {
+        "id": "mtbgrankgrp001",
+        "name": "group",
+        "type": "relation",
+        "required": true,
+        "collectionId": "mtbgroups9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbgrankuser01",
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbgrankdist01",
+        "name": "maxDistanceKm",
+        "type": "number",
+        "required": false,
+        "min": 0,
+        "max": 1000
+      },
+      {
+        "id": "mtbgranktime01",
+        "name": "distanceMovingTimeSec",
+        "type": "number",
+        "required": false,
+        "min": 0,
+        "max": 604800
+      },
+      {
+        "id": "mtbgrankbesttime1",
+        "name": "bestMovingTimeSec",
+        "type": "number",
+        "required": false,
+        "min": 0,
+        "max": 604800
+      },
+      {
+        "id": "mtbgrankspeed01",
+        "name": "maxSpeedKmh",
+        "type": "number",
+        "required": false,
+        "min": 0,
+        "max": 150
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_mtb_group_rankings_group_owner` ON `mtb_group_rankings` (`group`, `owner`)"
+    ]
+  }
+]
