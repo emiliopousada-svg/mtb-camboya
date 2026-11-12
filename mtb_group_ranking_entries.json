@@ -1,0 +1,82 @@
+[
+  {
+    "id": "mtbgrentryx2k7q",
+    "name": "mtb_group_ranking_entries",
+    "type": "base",
+    "system": false,
+    "listRule": null,
+    "viewRule": null,
+    "createRule": null,
+    "updateRule": null,
+    "deleteRule": null,
+    "fields": [
+      {
+        "id": "mtbgrentid00001",
+        "system": true,
+        "name": "id",
+        "type": "text",
+        "required": true,
+        "primaryKey": true,
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "min": 15,
+        "max": 15,
+        "pattern": "^[a-z0-9]+$"
+      },
+      {
+        "id": "mtbgrentgrp0001",
+        "name": "group",
+        "type": "relation",
+        "required": true,
+        "collectionId": "mtbgroups9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbgrentowner01",
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "id": "mtbgrentclient1",
+        "name": "clientId",
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 9007199254740991
+      },
+      {
+        "id": "mtbgrentdist001",
+        "name": "distanceKm",
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 1000
+      },
+      {
+        "id": "mtbgrenttime001",
+        "name": "movingTimeSec",
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 604800
+      },
+      {
+        "id": "mtbgrentspeed01",
+        "name": "maxSpeedKmh",
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 150
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_mtb_group_ranking_entries_activity` ON `mtb_group_ranking_entries` (`group`, `owner`, `clientId`)"
+    ]
+  }
+]

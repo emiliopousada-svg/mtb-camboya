@@ -172,6 +172,30 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
     }
 }, $apis.requireAuth("users"));
 
+function groupRankingSummaryFromEntries(entries) {
+    const rankings = {};
+    entries.forEach((entry) => {
+        const owner = entry.getString("owner");
+        const ranking = rankings[owner] || {
+            maxDistanceKm: 0,
+            distanceMovingTimeSec: 0,
+            bestMovingTimeSec: 0,
+            maxSpeedKmh: 0
+        };
+        const distanceKm = entry.getFloat("distanceKm");
+        const movingTimeSec = entry.getFloat("movingTimeSec");
+        const maxSpeedKmh = entry.getFloat("maxSpeedKmh");
+        if (distanceKm > ranking.maxDistanceKm) {
+            ranking.maxDistanceKm = distanceKm;
+            ranking.distanceMovingTimeSec = movingTimeSec;
+        }
+        if (movingTimeSec > ranking.bestMovingTimeSec) ranking.bestMovingTimeSec = movingTimeSec;
+        if (maxSpeedKmh > ranking.maxSpeedKmh) ranking.maxSpeedKmh = maxSpeedKmh;
+        rankings[owner] = ranking;
+    });
+    return rankings;
+}
+
 routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
     const { requireSafeValue, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
@@ -184,16 +208,8 @@ routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
         }
 
         const memberships = findAllRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "");
-        const rankings = findAllRecordsByFilter("mtb_group_rankings", 'group = "' + safeGroupId + '"', "");
-        const rankingsByUser = {};
-        rankings.forEach((ranking) => {
-            rankingsByUser[ranking.getString("owner")] = {
-                maxDistanceKm: ranking.getFloat("maxDistanceKm"),
-                distanceMovingTimeSec: ranking.getFloat("distanceMovingTimeSec"),
-                bestMovingTimeSec: ranking.getFloat("bestMovingTimeSec"),
-                maxSpeedKmh: ranking.getFloat("maxSpeedKmh")
-            };
-        });
+        const entries = findAllRecordsByFilter("mtb_group_ranking_entries", 'group = "' + safeGroupId + '"', "");
+        const rankingsByUser = groupRankingSummaryFromEntries(entries);
         const members = memberships.map((membership) => {
             const userId = membership.getString("user");
             const ranking = rankingsByUser[userId] || {};
@@ -217,10 +233,22 @@ routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
-    const { requireSafeValue, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { requireSafeValue, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
-        const body = new DynamicModel({ distanceKm: 0.1, movingTimeSec: 0.1, maxSpeedKmh: 0.1 });
+        const body = new DynamicModel({ clientId: 0, distanceKm: 0.1, movingTimeSec: 0.1, maxSpeedKmh: 0.1 });
         e.bindBody(body);
+        const clientId = Number(body.clientId);
+        const distanceKm = Number(body.distanceKm);
+        const movingTimeSec = Number(body.movingTimeSec);
+        const maxSpeedKmh = Number(body.maxSpeedKmh);
+        if (!Number.isFinite(clientId) || clientId <= 0 || Math.floor(clientId) !== clientId || clientId > 9007199254740991
+            || !Number.isFinite(distanceKm) || distanceKm < 0 || distanceKm > 1000
+            || !Number.isFinite(movingTimeSec) || movingTimeSec < 0 || movingTimeSec > 604800
+            || !Number.isFinite(maxSpeedKmh) || maxSpeedKmh < 0 || maxSpeedKmh > 150
+            || (distanceKm === 0 && maxSpeedKmh === 0)) {
+            return e.json(400, { message: "Las marcas de la actividad no son válidas." });
+        }
+
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
         if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
@@ -229,68 +257,66 @@ routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
             return e.json(403, { message: "Ya no tienes autorización para compartir marcas en este grupo." });
         }
 
-        const distanceKm = Number(body.distanceKm);
-        const movingTimeSec = Number(body.movingTimeSec);
-        const maxSpeedKmh = Number(body.maxSpeedKmh);
-        if (!Number.isFinite(distanceKm) || distanceKm < 0 || distanceKm > 1000
-            || !Number.isFinite(movingTimeSec) || movingTimeSec < 0 || movingTimeSec > 604800
-            || !Number.isFinite(maxSpeedKmh) || maxSpeedKmh < 0 || maxSpeedKmh > 150
-            || (distanceKm === 0 && maxSpeedKmh === 0)) {
-            return e.json(400, { message: "Las marcas de la actividad no son válidas." });
-        }
-
-        const collection = $app.findCollectionByNameOrId("mtb_group_rankings");
+        const filter = 'group = "' + safeGroupId + '" && owner = "' + user.id + '"';
+        const existingEntries = findAllRecordsByFilter("mtb_group_ranking_entries", filter, "");
+        const previousRanking = groupRankingSummaryFromEntries(existingEntries)[user.id] || {
+            maxDistanceKm: 0,
+            bestMovingTimeSec: 0,
+            maxSpeedKmh: 0
+        };
         const existing = $app.findRecordsByFilter(
-            "mtb_group_rankings",
-            "group = {:group} && owner = {:owner}",
+            "mtb_group_ranking_entries",
+            "group = {:group} && owner = {:owner} && clientId = {:clientId}",
             "",
             1,
             0,
-            { group: safeGroupId, owner: user.id }
+            { group: safeGroupId, owner: user.id, clientId }
         );
-        const ranking = existing.length
-            ? existing[0]
-            : new Record(collection);
-        let changed = !existing.length;
-        let newDistanceRecord = false;
-        let newSpeedRecord = false;
-        if (!existing.length) {
-            ranking.set("group", safeGroupId);
-            ranking.set("owner", user.id);
-            ranking.set("maxDistanceKm", 0);
-            ranking.set("distanceMovingTimeSec", 0);
-            ranking.set("bestMovingTimeSec", 0);
-            ranking.set("maxSpeedKmh", 0);
-        }
-        if (distanceKm > ranking.getFloat("maxDistanceKm")) {
-            ranking.set("maxDistanceKm", distanceKm);
-            ranking.set("distanceMovingTimeSec", movingTimeSec);
-            changed = true;
-            newDistanceRecord = true;
-        }
-        let newTimeRecord = false;
-        if (movingTimeSec > ranking.getFloat("bestMovingTimeSec")) {
-            ranking.set("bestMovingTimeSec", movingTimeSec);
-            changed = true;
-            newTimeRecord = true;
-        }
-        if (maxSpeedKmh > ranking.getFloat("maxSpeedKmh")) {
-            ranking.set("maxSpeedKmh", maxSpeedKmh);
-            changed = true;
-            newSpeedRecord = true;
-        }
-        if (changed) $app.save(ranking);
+        const entry = existing.length ? existing[0] : new Record($app.findCollectionByNameOrId("mtb_group_ranking_entries"));
+        entry.set("group", safeGroupId);
+        entry.set("owner", user.id);
+        entry.set("clientId", clientId);
+        entry.set("distanceKm", distanceKm);
+        entry.set("movingTimeSec", movingTimeSec);
+        entry.set("maxSpeedKmh", maxSpeedKmh);
+        $app.save(entry);
+
+        const entriesAfter = existingEntries.filter(item => item.getFloat("clientId") !== clientId);
+        entriesAfter.push(entry);
+        const ranking = groupRankingSummaryFromEntries(entriesAfter)[user.id];
         return e.json(200, {
-            maxDistanceKm: ranking.getFloat("maxDistanceKm"),
-            distanceMovingTimeSec: ranking.getFloat("distanceMovingTimeSec"),
-            bestMovingTimeSec: ranking.getFloat("bestMovingTimeSec"),
-            maxSpeedKmh: ranking.getFloat("maxSpeedKmh"),
-            newDistanceRecord,
-            newTimeRecord,
-            newSpeedRecord
+            maxDistanceKm: ranking.maxDistanceKm,
+            distanceMovingTimeSec: ranking.distanceMovingTimeSec,
+            bestMovingTimeSec: ranking.bestMovingTimeSec,
+            maxSpeedKmh: ranking.maxSpeedKmh,
+            newDistanceRecord: distanceKm > previousRanking.maxDistanceKm,
+            newTimeRecord: movingTimeSec > previousRanking.bestMovingTimeSec,
+            newSpeedRecord: maxSpeedKmh > previousRanking.maxSpeedKmh
         });
     } catch (err) {
-        return e.json(400, { message: err.message || "No se pudo compartir la actividad." });
+        return e.json(400, { message: err.message || "No se pudieron compartir las marcas de la actividad." });
+    }
+}, $apis.requireAuth("users"));
+
+routerAdd("POST", "/api/mtb/groups/rankings/delete", (e) => {
+    const { requireSafeValue, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
+    try {
+        const body = new DynamicModel({ clientId: 0 });
+        e.bindBody(body);
+        const clientId = Number(body.clientId);
+        if (!Number.isFinite(clientId) || clientId <= 0 || Math.floor(clientId) !== clientId || clientId > 9007199254740991) {
+            return e.json(400, { message: "El identificador de la actividad no es válido." });
+        }
+        const userId = requireSafeValue(e.auth.id, "owner");
+        const entries = findAllRecordsByFilter(
+            "mtb_group_ranking_entries",
+            'owner = "' + userId + '" && clientId = ' + clientId,
+            ""
+        );
+        entries.forEach((entry) => $app.delete(entry));
+        return e.json(200, { deleted: entries.length });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudo retirar la marca de la actividad." });
     }
 }, $apis.requireAuth("users"));
 

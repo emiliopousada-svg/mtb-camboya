@@ -4,6 +4,7 @@
 // ============================================================
 let groupJoined = false, groupSyncAvailable = false, friendsTimer = null, restoreGroupPending = false;
 let friendsRefreshPending = false, lastLivePush = 0, lastFriendsRefreshAt = 0, livePushPending = false;
+let groupRankingDeletesSyncing = false;
 let myLiveRecordId = null;
 let groupLiveEndpointUnsupportedFor = '';
 const friendMarkers = new Map();
@@ -71,7 +72,7 @@ async function loadGroupRankings() {
     } catch (error) {
         console.warn('No se pudo cargar el ranking del grupo:', error);
         status.textContent = error.status === 404
-            ? 'Falta instalar mtb_group_rankings.json y actualizar groups.pb.js en PocketBase.'
+            ? 'Falta instalar mtb_group_ranking_entries.json y actualizar groups.pb.js en PocketBase.'
             : `No se pudo cargar el ranking: ${error.message || 'error de conexión'}`;
         status.classList.add('error');
     }
@@ -113,7 +114,26 @@ async function shareRouteToGroupRanking(route, button) {
             ok: 'Compartir marcas'
         });
         if (!confirmed) return;
+        const clientId = Number(route.id);
+        if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+            toast('No se pudo identificar esta actividad para el ranking.');
+            return;
+        }
+        const previousRankingOwnerId = route.groupRankingOwnerId;
+        const previousRankingServer = route.groupRankingServer;
+        route.groupRankingOwnerId = Cloud.uid;
+        route.groupRankingServer = Cloud.server;
+        try {
+            await DB.put(route);
+        } catch (error) {
+            if (previousRankingOwnerId === undefined) delete route.groupRankingOwnerId;
+            else route.groupRankingOwnerId = previousRankingOwnerId;
+            if (previousRankingServer === undefined) delete route.groupRankingServer;
+            else route.groupRankingServer = previousRankingServer;
+            throw error;
+        }
         const result = await cloudApi('/api/mtb/groups/rankings/share', 'POST', {
+            clientId,
             distanceKm,
             movingTimeSec,
             maxSpeedKmh
@@ -127,11 +147,55 @@ async function shareRouteToGroupRanking(route, button) {
     } catch (error) {
         console.warn('No se pudieron compartir las marcas con el grupo:', error);
         toast(error.status === 404
-            ? 'Falta instalar mtb_group_rankings.json y actualizar groups.pb.js en PocketBase.'
+            ? 'Falta instalar mtb_group_ranking_entries.json y actualizar groups.pb.js en PocketBase.'
             : `No se pudieron compartir las marcas: ${error.message || 'error de conexión'}`, 6000);
     } finally {
         if (button) button.disabled = false;
     }
+}
+
+async function syncPendingGroupRankingDeletes() {
+    if (!Cloud.loggedIn() || !navigator.onLine || groupRankingDeletesSyncing) return false;
+    groupRankingDeletesSyncing = true;
+    let pending;
+    try {
+        pending = await DB.kvGet('pendingGroupRankingDeletes') || [];
+    } catch (error) {
+        console.warn('No se pudo leer la cola de borrados del ranking:', error);
+        groupRankingDeletesSyncing = false;
+        return false;
+    }
+    if (!Array.isArray(pending)) {
+        console.warn('La cola de borrados del ranking tiene un formato no válido.');
+        groupRankingDeletesSyncing = false;
+        return false;
+    }
+
+    const remaining = [];
+    let failed = false;
+    for (const item of pending) {
+        if (!item || item.ownerId !== Cloud.uid || item.server !== Cloud.server) {
+            remaining.push(item);
+            continue;
+        }
+        try {
+            await cloudApi('/api/mtb/groups/rankings/delete', 'POST', { clientId: item.clientId });
+        } catch (error) {
+            failed = true;
+            remaining.push(item);
+            console.warn(`No se pudo retirar del ranking la actividad ${item.clientId}:`, error);
+        }
+    }
+    try {
+        await DB.kvSet('pendingGroupRankingDeletes', remaining);
+    } catch (error) {
+        failed = true;
+        console.warn('No se pudo guardar la cola de borrados del ranking:', error);
+    } finally {
+        groupRankingDeletesSyncing = false;
+    }
+    if (failed) toast('La ruta se borró, pero su marca del ranking sigue pendiente de sincronizar.', 6000);
+    return !failed;
 }
 
 function pendingGroupLeaveKey() {
@@ -362,7 +426,10 @@ async function restoreGroup() {
             renderGroupState(false);
             renderFriends();
             if (navigator.onLine) {
-                try { await syncPendingGroupLeave(); }
+                try {
+                    await syncPendingGroupLeave();
+                    await syncPendingGroupRankingDeletes();
+                }
                 catch (e) {
                     localStorage.removeItem('mtb_group_code');
                     $('group-status').textContent = 'Has salido en este dispositivo; se completará la salida del servidor al recuperar conexión.';
@@ -386,6 +453,7 @@ async function restoreGroup() {
         try {
             const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
             Cloud.setSession(auth.token, auth.record);
+            await syncPendingGroupRankingDeletes();
             await loadMyGroup();
             if (!groupJoined) {
                 if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }

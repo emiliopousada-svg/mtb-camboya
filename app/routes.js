@@ -610,12 +610,19 @@ $('saved-routes-list').addEventListener('click', async e => {
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
         if (!ok) return;
-        try { await DB.deleteRoute(id, r.remoteId); }
+        const ownerId = r.kind === 'recorded' ? (r.groupRankingOwnerId || Cloud.uid) : '';
+        const rankingServer = r.groupRankingServer || Cloud.server;
+        const clientId = Number(r.id);
+        const rankingDelete = ownerId && rankingServer && Number.isSafeInteger(clientId) && clientId > 0
+            ? { ownerId, server: rankingServer, clientId }
+            : null;
+        try { await DB.deleteRoute(id, r.remoteId, rankingDelete); }
         catch (err) { toast('No se pudo eliminar la ruta ni programar su borrado'); return; }
         savedRoutes = savedRoutes.filter(x => x.id !== id);
         if (followedRoute && followedRoute.id === id) unfollowRoute();
         renderSavedRoutes();
         refreshStats();
+        if (rankingDelete) await syncPendingGroupRankingDeletes();
         syncRoutes();
     }
 });

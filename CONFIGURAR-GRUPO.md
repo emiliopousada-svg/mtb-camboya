@@ -22,12 +22,12 @@ Haz cada importación con **Merge with the existing collections** activado. Revi
 
 1. En **Settings → Import collections**, importa [mtb_groups.json](mtb_groups.json). Comprueba que se añade `mtb_groups`.
 2. Repite con [mtb_group_members.json](mtb_group_members.json). Debe añadirse `mtb_group_members`.
-3. Importa [mtb_group_rankings.json](mtb_group_rankings.json). Debe añadirse `mtb_group_rankings`, con acceso REST directo cerrado.
+3. Importa [mtb_group_ranking_entries.json](mtb_group_ranking_entries.json). Debe añadirse `mtb_group_ranking_entries`, con acceso REST directo cerrado.
 4. Si aún no existe, importa [live_locations.json](live_locations.json) y comprueba que solo se añade esa colección.
 
-Si ya importaste una versión anterior de `mtb_group_rankings.json`, vuelve a importar la versión actualizada con **Merge with the existing collections** y acepta únicamente la incorporación del campo `bestMovingTimeSec` y el aumento del máximo de `distanceMovingTimeSec`; no borres ni reemplaces datos existentes.
+`mtb_group_rankings` es la colección antigua de máximos acumulados y ya no se consulta. Como esas marcas históricas no indican qué ruta las produjo, antes de desplegar esta versión haz una copia de seguridad y elimina sus registros desde el panel de PocketBase para reiniciar el ranking histórico. No elimines las colecciones de grupos o miembros ni las rutas. No hace falta importar `mtb_group_rankings.json` en instalaciones nuevas.
 
-Las colecciones de grupos, miembros y ranking quedan cerradas a las operaciones REST directas. El hook autoriza las acciones según quién creó el grupo y qué miembros siguen autorizados.
+Las colecciones de grupos, miembros y aportaciones al ranking quedan cerradas a las operaciones REST directas. El hook autoriza las acciones según quién creó el grupo y qué miembros siguen autorizados.
 
 ## 3. Instalar el hook en el NAS
 
@@ -42,7 +42,7 @@ El archivo del servidor está en [pb_hooks/groups.pb.js](pb_hooks/groups.pb.js).
 3. Recrea o reinicia el contenedor para que PocketBase cargue el hook.
 4. Revisa el registro del contenedor. Si hay errores al arrancar, el hook no se habrá instalado.
 
-`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. También devuelve las posiciones en vivo de los miembros autorizados junto con su apodo de cuenta y el nombre de archivo de su avatar para mostrarlo en el mapa; si falta el apodo de cuenta, usa el apodo del grupo. El hook gestiona también el envío y consulta del ranking, y solo devuelve las marcas de miembros autorizados. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
+`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. También devuelve las posiciones en vivo de los miembros autorizados junto con su apodo de cuenta y el nombre de archivo de su avatar para mostrarlo en el mapa; si falta el apodo de cuenta, usa el apodo del grupo. El hook guarda las marcas por actividad, calcula el ranking a partir de ellas y permite retirar las aportaciones de una ruta borrada; solo devuelve las marcas de miembros autorizados. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
 
 ## 4. Reglas de `live_locations`
 
@@ -82,8 +82,8 @@ Las reglas consultan `mtb_group_members` en cada petición, por lo que una revoc
 6. El administrador puede renovar el código para impedir nuevas invitaciones. Las autorizaciones de los miembros existentes se mantienen.
 7. Desde la lista de miembros, el administrador puede revocar la entrada de una persona. Esa persona dejará de ver el grupo y ya no podrá volver a entrar salvo que reciba una invitación nueva.
 8. El administrador puede eliminar el grupo para retirar todas las autorizaciones y borrar las posiciones asociadas.
-9. En **Mis rutas → Realizadas**, pulsa **🏆 Grupo** para compartir manualmente las marcas de una actividad. Cada envío pide confirmación y comparte distancia, tiempo en movimiento y velocidad punta; no envía el track, nombre, fecha ni ubicación.
-10. En la tarjeta **Ranking del grupo** aparecen, para ese grupo Live, la actividad más larga, el mayor tiempo en movimiento de una actividad individual y la velocidad punta de cada miembro. Cada grupo mantiene su propio ranking.
+9. En **Mis rutas → Realizadas**, pulsa **🏆 Grupo** para compartir manualmente las marcas de una actividad. Cada envío pide confirmación y comparte distancia, tiempo en movimiento y velocidad punta; no envía el track, nombre, fecha ni ubicación. El servidor guarda el identificador numérico interno de la actividad para poder reemplazar sus marcas al volver a compartirla o retirarlas si se borra la ruta.
+10. En la tarjeta **Ranking del grupo** aparecen, para ese grupo Live, la actividad más larga, el mayor tiempo en movimiento de una actividad individual y la velocidad punta de cada miembro. Cada grupo mantiene su propio ranking. Al borrar una actividad, sus marcas se eliminan y los máximos se recalculan con las actividades restantes; sin conexión, el borrado se sincroniza al volver a conectarse con la cuenta correspondiente.
 
 En **Compañeros Cerca**, las tarjetas muestran el apodo y la hora de actualización. El botón **Ver mapa** centra el mapa en esa persona.
 
@@ -95,6 +95,6 @@ Los códigos asignados manualmente antes de instalar este sistema no tienen un r
 
 - Solo los miembros autorizados del grupo activo pueden ver ubicaciones en vivo.
 - Se comparte el apodo y la posición; no se muestra el correo.
-- Las marcas deportivas se envían únicamente cuando el usuario pulsa **🏆 Grupo** y confirma. El servidor conserva solo sus récords de distancia, tiempo en movimiento y velocidad punta dentro de ese grupo; no recibe el recorrido, el título ni la fecha de la actividad.
+- Las marcas deportivas se envían únicamente cuando el usuario pulsa **🏆 Grupo** y confirma. El servidor conserva por actividad distancia, tiempo en movimiento, velocidad punta y un identificador numérico interno necesario para reemplazar o retirar esa aportación; no recibe el recorrido, el título, la fecha ni la ubicación de la actividad.
 - La app renueva la sesión durante la actividad para aplicar pronto una revocación.
 - Renovar una invitación impide que el código anterior autorice a personas nuevas; no elimina miembros que ya estaban autorizados.

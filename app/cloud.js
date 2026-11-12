@@ -490,8 +490,15 @@ async function syncRoutes(manual = false) {
             // Una ruta borrada desde otro dispositivo ya no existe en el inventario remoto.
             if (r.remoteId && (skip.has(r.remoteId) || (fullAudit && !matched))) {
                 try {
-                    await DB.del(r.id);
+                    const ownerId = r.kind === 'recorded' ? (r.groupRankingOwnerId || Cloud.uid) : '';
+                    const rankingServer = r.groupRankingServer || Cloud.server;
+                    const clientId = Number(r.id);
+                    const rankingDelete = ownerId && rankingServer && Number.isSafeInteger(clientId) && clientId > 0
+                        ? { ownerId, server: rankingServer, clientId }
+                        : null;
+                    await DB.deleteRoute(r.id, null, rankingDelete);
                     savedRoutes = savedRoutes.filter(x => x.id !== r.id);
+                    if (rankingDelete) await syncPendingGroupRankingDeletes();
                 } catch (e) {
                     blockedIds.add(r.id);
                     noteSyncFailure(`No se pudo aplicar el cambio remoto a «${r.name || 'ruta'}»: ${e.message}`);

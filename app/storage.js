@@ -104,7 +104,7 @@ const DB = {
         route.pois = pois;
         return route;
     },
-    deleteRoute(id, remoteId) {
+    deleteRoute(id, remoteId, rankingDelete) {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject(new Error('no-db'));
             try {
@@ -118,6 +118,21 @@ const DB = {
                         const pending = Array.isArray(req.result) ? req.result : [];
                         if (!pending.includes(remoteId)) pending.push(remoteId);
                         kv.put(pending, 'pendingDeletes');
+                    };
+                    req.onerror = () => { try { tx.abort(); } catch (e) {} };
+                }
+                if (rankingDelete && rankingDelete.ownerId && rankingDelete.server
+                    && Number.isSafeInteger(rankingDelete.clientId) && rankingDelete.clientId > 0) {
+                    const kv = tx.objectStore('kv');
+                    const req = kv.get('pendingGroupRankingDeletes');
+                    req.onsuccess = () => {
+                        const pending = Array.isArray(req.result) ? req.result : [];
+                        const exists = pending.some(item => item
+                            && item.ownerId === rankingDelete.ownerId
+                            && item.server === rankingDelete.server
+                            && item.clientId === rankingDelete.clientId);
+                        if (!exists) pending.push(rankingDelete);
+                        kv.put(pending, 'pendingGroupRankingDeletes');
                     };
                     req.onerror = () => { try { tx.abort(); } catch (e) {} };
                 }
