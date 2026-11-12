@@ -308,6 +308,7 @@ function onPos(pos) {
     resumeBreak = false;
 
     totalDistance += add;
+    if (brk) elev.reset();
     elev.add(altitude);
 
     const pt = [

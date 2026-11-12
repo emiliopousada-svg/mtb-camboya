@@ -658,7 +658,10 @@ function restoreDraft(d) {
         : activityTypeFromName(d.name) || 'mtb';
     movingMs = d.movingMs || 0;
     totalDistance = d.totalDistance || 0;
-    points.forEach(p => elev.add(p[2]));
+    points.forEach((p, index) => {
+        if (index > 0 && p[5] === 1) elev.reset();
+        elev.add(p[2]);
+    });
     segments = buildSegments(points);
     isRecording = true;
     isPaused = true;

@@ -71,27 +71,18 @@ const DB = {
 //  DESNIVEL SUAVIZADO
 // ============================================================
 function makeElevTracker() {
-    const buf = [];
-    let ref = null, gain = 0;
-    return {
-        add(alt) {
-            if (alt == null || isNaN(alt)) return;
-            buf.push(alt);
-            if (buf.length > 5) buf.shift();
-            const s = buf.reduce((x, y) => x + y, 0) / buf.length; // media móvil
-            if (ref === null) { ref = s; return; }
-            if (s - ref >= ELEV_STEP) { gain += s - ref; ref = s; }
-            else if (ref - s >= ELEV_STEP) { ref = s; }
-        },
-        get gain() { return gain; }
-    };
+    return MTBStatisticsEngine.createElevationTracker({ threshold: ELEV_STEP, smoothingWindow: 5 });
 }
 
 // Desnivel positivo acumulado en cada punto de un track con altitud en p[2].
 function gainCumulative(points) {
     const tracker = makeElevTracker();
     const out = new Float64Array(points.length);
-    points.forEach((p, i) => { tracker.add(p[2] == null ? null : Number(p[2])); out[i] = tracker.gain; });
+    points.forEach((p, i) => {
+        if (i > 0 && p[5] === 1) tracker.reset();
+        tracker.add(p[2] == null ? null : Number(p[2]));
+        out[i] = tracker.gain;
+    });
     return out;
 }
 

@@ -138,6 +138,7 @@ function buildImportedRoute(parsed, routeName) {
             const p = [lat, lon, Number.isFinite(alt) ? alt : null, Number.isFinite(t) ? t : null, heartRate];
             if (first && full.length > 0) p.push(1);
             if (prev) km += dist(prev, p) / 1000;
+            if (p[5] === 1) el.reset();
             el.add(p[2]);
             full.push(p);
             prev = p;

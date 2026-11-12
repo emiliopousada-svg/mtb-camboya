@@ -67,6 +67,42 @@
         return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
     }
 
+    function createElevationTracker(options = {}) {
+        const threshold = Number.isFinite(options.threshold) ? Math.max(0, options.threshold) : DEFAULTS.elevationThresholdM;
+        const smoothingWindow = Number.isInteger(options.smoothingWindow) ? Math.max(1, options.smoothingWindow) : DEFAULTS.smoothingWindow;
+        const minAltitude = Number.isFinite(options.minAltitude) ? options.minAltitude : -500;
+        const maxAltitude = Number.isFinite(options.maxAltitude) ? options.maxAltitude : 9000;
+        let samples = [], reference = null, ascent = 0, descent = 0;
+
+        return {
+            add(value) {
+                const altitude = finiteNumber(value);
+                if (altitude === null || altitude < minAltitude || altitude > maxAltitude) {
+                    this.reset();
+                    return null;
+                }
+                samples.push(altitude);
+                if (samples.length > smoothingWindow) samples.shift();
+                const smoothed = median(samples);
+                if (reference === null) reference = smoothed;
+                else if (smoothed - reference >= threshold) {
+                    ascent += smoothed - reference;
+                    reference = smoothed;
+                } else if (reference - smoothed >= threshold) {
+                    descent += reference - smoothed;
+                    reference = smoothed;
+                }
+                return smoothed;
+            },
+            reset() {
+                samples = [];
+                reference = null;
+            },
+            get gain() { return ascent; },
+            get loss() { return descent; }
+        };
+    }
+
     function maximum(values) {
         return values.reduce((max, value) => Math.max(max, value), -Infinity);
     }
@@ -85,7 +121,7 @@
         const zoneSeconds = Array(hrZones.length).fill(0);
         const powerZoneSeconds = Array(powerZones.length).fill(0);
         const gradeDistributionKm = { steepDownhill: 0, downhill: 0, flat: 0, climb: 0, steepClimb: 0 };
-        let distanceM = 0, ascentM = 0, descentM = 0;
+        let distanceM = 0;
         let climbAscentM = 0, vamAscentM = 0, estimatedMovingTimeSec = 0;
         let longestClimbDistanceKm = 0, longestClimbAscentM = 0;
         let currentClimbDistanceKm = 0, currentClimbAscentM = 0;
@@ -95,8 +131,12 @@
         let climbTimeSec = 0, downhillTimeSec = 0, zoneMeasuredSeconds = 0;
         let powerZoneMeasuredSeconds = 0;
         let previous = null, currentMapSegment = null;
-        let elevationReference = null, gradeAnchor = null, currentSlope = null;
-        let previousSmoothedAltitude = null, altitudeSamples = [], breakPending = false;
+        let elevationTracker = createElevationTracker({
+            threshold: config.elevationThresholdM,
+            smoothingWindow: config.smoothingWindow
+        });
+        let gradeAnchor = null, currentSlope = null;
+        let previousSmoothedAltitude = null, breakPending = false;
         let validAltitudeCount = 0, rejectedGpsPoints = 0;
 
         const startTime = route.startedAt == null ? NaN : new Date(route.startedAt).getTime();
@@ -112,11 +152,10 @@
         const resetSegment = () => {
             finishClimb();
             previous = null;
-            elevationReference = null;
+            elevationTracker.reset();
             gradeAnchor = null;
             currentSlope = null;
             previousSmoothedAltitude = null;
-            altitudeSamples = [];
         };
 
         sourcePoints.forEach((point, index) => {
@@ -165,26 +204,13 @@
             const altitude = finiteNumber(point[2]);
             let smoothedAltitude = null;
             if (altitude !== null && altitude >= -500 && altitude <= 9000) {
-                altitudeSamples.push(altitude);
-                if (altitudeSamples.length > config.smoothingWindow) altitudeSamples.shift();
-                smoothedAltitude = median(altitudeSamples);
+                smoothedAltitude = elevationTracker.add(altitude);
                 validAltitudeCount++;
                 minAltitude = Math.min(minAltitude, smoothedAltitude);
                 maxAltitude = Math.max(maxAltitude, smoothedAltitude);
-
-                if (elevationReference === null) {
-                    elevationReference = smoothedAltitude;
-                } else if (smoothedAltitude - elevationReference >= config.elevationThresholdM) {
-                    ascentM += smoothedAltitude - elevationReference;
-                    elevationReference = smoothedAltitude;
-                } else if (elevationReference - smoothedAltitude >= config.elevationThresholdM) {
-                    descentM += elevationReference - smoothedAltitude;
-                    elevationReference = smoothedAltitude;
-                }
             } else {
                 finishClimb();
-                altitudeSamples = [];
-                elevationReference = null;
+                elevationTracker.reset();
                 gradeAnchor = null;
                 currentSlope = null;
                 previousSmoothedAltitude = null;
@@ -348,8 +374,8 @@
             movingTimeEstimated,
             elapsedTimeSec,
             stoppedTimeSec,
-            ascentM: validAltitudeCount >= 2 ? ascentM : Math.max(0, recordedAscent || 0),
-            descentM,
+            ascentM: validAltitudeCount >= 2 ? elevationTracker.gain : Math.max(0, recordedAscent || 0),
+            descentM: elevationTracker.loss,
             ascentAvailable: validAltitudeCount >= 2 || recordedAscent !== null,
             descentAvailable: validAltitudeCount >= 2,
             averageSpeed,
@@ -476,5 +502,5 @@
         };
     }
 
-    return { calculateDistanceMeters, analyzeRoute, aggregate };
+    return { calculateDistanceMeters, createElevationTracker, analyzeRoute, aggregate };
 });
