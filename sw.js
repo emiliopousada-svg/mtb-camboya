@@ -18,6 +18,7 @@ const SHELL_URLS = [
   'app/state.js',
   'app/offline-maps.js',
   'app/map.js',
+  'app/account-avatar.js',
   'app/gps.js',
   'app/recording.js',
   'app/route-following.js',

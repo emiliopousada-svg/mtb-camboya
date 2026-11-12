@@ -1434,6 +1434,13 @@ body {
     letter-spacing: -.015em;
 }
 .hint { color: #9aa9bd; line-height: 1.5; }
+.server-address {
+    display: block;
+    margin: 3px 0 10px;
+    color: var(--primary);
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+}
 
 #page-routes > .card { padding: 12px 10px; }
 .routes-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

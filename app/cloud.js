@@ -134,10 +134,7 @@ function normalizeServer(v) {
 }
 
 function renderAccount() {
-    const serverInput = $('acc-server');
-    if (serverInput) {
-        serverInput.value = Cloud.server;
-    }
+    renderAccountServer();
     const on = Cloud.loggedIn();
     $('acc-form').style.display = on ? 'none' : 'block';
     $('acc-logged').style.display = on ? 'block' : 'none';
@@ -146,6 +143,14 @@ function renderAccount() {
     $('acc-status').textContent = on
         ? `Conectado como ${Cloud.email}` + (Cloud.groupCode ? ' · grupo asignado' : ' · sin grupo asignado') + (last ? ` · última sincronización: ${new Date(Number(last)).toLocaleString('es-ES')}` : '') + (syncFailures ? ` · sincronización parcial: ${syncFailures} elemento(s) pendiente(s)` : '')
         : 'Sin sesión: tus rutas se guardan solo en este móvil.';
+}
+
+function renderAccountServer() {
+    const serverInput = $('acc-server');
+    if (serverInput) {
+        try { serverInput.textContent = Cloud.server || DEFAULT_CLOUD_SERVER; }
+        catch (error) { serverInput.textContent = DEFAULT_CLOUD_SERVER; }
+    }
 }
 
 async function accAuth(register) {
@@ -526,6 +531,7 @@ async function purgeLegacyCaminoData() {
 }
 
 async function init() {
+    renderAccountServer();
     initMap();
     initCharts();
     initMetricPanel();
