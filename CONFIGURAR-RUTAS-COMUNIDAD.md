@@ -1,6 +1,6 @@
 # Rutas de la comunidad
 
-La app puede compartir una copia pública y reducida de una ruta grabada, separada de la ruta privada que sincroniza la cuenta. El catálogo usa una única colección PocketBase; guarda la provincia de cada ruta y permite buscar por cercanía y actividad.
+La app puede compartir una copia pública y reducida de una ruta grabada, separada de la ruta privada que sincroniza la cuenta. El catálogo usa una única colección PocketBase; guarda la provincia de cada ruta y permite buscar por cercanía, actividad y apodo de usuario.
 
 ## Instalar la colección en PocketBase
 
@@ -35,7 +35,7 @@ La app solo envía una copia para el catálogo después de que el usuario pulse 
 
 El recorte reduce la exposición de los puntos de salida y llegada, pero no garantiza anonimato: una ruta puede revelar lugares reconocibles. El usuario debe revisar y confirmar antes de enviarla.
 
-El catálogo guarda título, provincia, localidad, descripción, dificultad percibida, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. La búsqueda permite filtrar por localidad/provincia o cercanía GPS, actividad, dificultad y desnivel positivo. El detalle muestra mapa, valoraciones, comentarios y las mejores marcas voluntarias publicadas con apodo; al seguirla, los POI con foto aparecen como marcadores en el mapa.
+El catálogo guarda título, provincia, localidad, descripción, dificultad percibida, tipo de actividad, distancia, desnivel, tiempo en movimiento cuando está disponible, trazado simplificado, POI con fotos y propietario para gestión. La lectura pública está habilitada inmediatamente para cada ruta publicada. La búsqueda permite filtrar por localidad/provincia, apodo de usuario o cercanía GPS, actividad, dificultad y desnivel positivo. El filtro de usuario usa `users.nickname`, que debe estar configurado como se explica en `CONFIGURAR-PERFIL-USUARIO.md`. El detalle muestra mapa, valoraciones, comentarios y las mejores marcas voluntarias publicadas con apodo; al seguirla, los POI con foto aparecen como marcadores en el mapa.
 
 ## Limitación de la primera fase
 

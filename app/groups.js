@@ -304,7 +304,7 @@ function renderFriends(items = []) {
         return;
     }
     live.forEach(rec => {
-        const name = rec.name || 'Compañero';
+        const name = String(rec.nickname || rec.name || 'Compañero').trim();
         const ll = [Number(rec.lat), Number(rec.lon)];
         let marker = friendMarkers.get(rec.id);
         if (map) {
@@ -425,7 +425,7 @@ async function refreshFriends(retryAuth = true, ownsPending = false) {
 }
 async function publishMyLocation(force = false) {
     if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
-    const nickname = localStorage.getItem('mtb_group_name')?.trim();
+    const nickname = String(Cloud.nickname || localStorage.getItem('mtb_group_name') || '').trim();
     if (!nickname) {
         $('group-status').textContent = 'Añade un apodo antes de compartir tu posición.';
         return;

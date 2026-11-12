@@ -443,6 +443,8 @@
                         <select id="community-activity"></select>
                         <label for="community-locality-search">Localidad o provincia (opcional)</label>
                         <input id="community-locality-search" type="search" maxlength="80" placeholder="Ej. Girona">
+                        <label for="community-author-search">Usuario (apodo)</label>
+                        <input id="community-author-search" type="search" maxlength="32" placeholder="Ej. emilio">
                         <label for="community-radius">Distancia máxima</label>
                         <select id="community-radius">
                             <option value="10">10 km</option>
@@ -527,6 +529,8 @@
                 <p class="hint">Servidor de sincronización:</p>
                 <code id="acc-server" class="server-address" aria-live="polite">https://vamp69.ddns.net</code>
                 <div id="acc-form">
+                    <label for="acc-nickname">Apodo</label>
+                    <input type="text" id="acc-nickname" maxlength="32" autocomplete="nickname" placeholder="Obligatorio al crear cuenta">
                     <input type="text" id="acc-email" placeholder="Correo" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <input type="password" id="acc-pass" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password">
                     <label for="acc-weight">Peso (kg)</label>
@@ -538,29 +542,42 @@
                     <button class="btn secondary" id="acc-register">Crear cuenta</button>
                 </div>
                 <div id="acc-logged" style="display:none;">
-                    <div class="account-profile">
-                        <div class="account-avatar" id="acc-avatar" aria-label="Avatar del usuario">
-                            <span id="acc-avatar-placeholder" aria-hidden="true">👤</span>
-                            <img id="acc-avatar-image" alt="Avatar del usuario" hidden>
-                        </div>
-                        <div class="account-profile-content">
-                            <p class="hint" id="acc-profile-summary" hidden></p>
-                            <div id="acc-profile-editor">
-                                <label for="acc-profile-weight">Peso (kg)</label>
-                                <input type="number" id="acc-profile-weight" min="25" max="250" step="0.1" inputmode="decimal">
-                                <label for="acc-profile-age">Edad (años)</label>
-                                <input type="number" id="acc-profile-age" min="10" max="100" step="1" inputmode="numeric">
-                                <label for="acc-avatar-file">Foto de perfil (opcional)</label>
-                                <input type="file" id="acc-avatar-file" accept="image/jpeg,image/png,image/webp">
-                                <p class="hint">Se ajusta a 512 × 512 y se comprime a un máximo de 256 KB.</p>
-                                <button class="btn secondary" id="acc-profile-save">Guardar perfil</button>
-                                <button class="btn secondary" id="acc-profile-cancel" type="button" hidden>Cancelar</button>
-                            </div>
-                            <button class="btn secondary" id="acc-profile-edit" type="button" hidden>Modificar perfil</button>
-                        </div>
+                    <div id="acc-nickname-setup" hidden>
+                        <p class="hint">Elige un apodo para completar tu cuenta y sincronizar tus rutas.</p>
+                        <label for="acc-account-nickname">Apodo</label>
+                        <input type="text" id="acc-account-nickname" maxlength="32" autocomplete="nickname" required>
+                        <button class="btn" id="acc-nickname-save" type="button">Guardar apodo</button>
+                        <button class="btn secondary" id="acc-logout-incomplete" type="button">Cerrar sesión</button>
                     </div>
-                    <button class="btn" id="acc-sync">Sincronizar ahora</button>
-                    <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
+                    <div id="acc-ready" hidden>
+                        <p id="acc-nickname-summary" class="hint"></p>
+                        <button class="btn" id="acc-sync">Sincronizar ahora</button>
+                        <details class="account-options">
+                            <summary>Perfil y sesión</summary>
+                            <div class="account-profile">
+                                <div class="account-avatar" id="acc-avatar" aria-label="Avatar del usuario">
+                                    <span id="acc-avatar-placeholder" aria-hidden="true">👤</span>
+                                    <img id="acc-avatar-image" alt="Avatar del usuario" hidden>
+                                </div>
+                                <div class="account-profile-content">
+                                    <p class="hint" id="acc-profile-summary" hidden></p>
+                                    <div id="acc-profile-editor">
+                                        <label for="acc-profile-weight">Peso (kg)</label>
+                                        <input type="number" id="acc-profile-weight" min="25" max="250" step="0.1" inputmode="decimal">
+                                        <label for="acc-profile-age">Edad (años)</label>
+                                        <input type="number" id="acc-profile-age" min="10" max="100" step="1" inputmode="numeric">
+                                        <label for="acc-avatar-file">Foto de perfil (opcional)</label>
+                                        <input type="file" id="acc-avatar-file" accept="image/jpeg,image/png,image/webp">
+                                        <p class="hint">Se ajusta a 512 × 512 y se comprime a un máximo de 256 KB.</p>
+                                        <button class="btn secondary" id="acc-profile-save">Guardar perfil</button>
+                                        <button class="btn secondary" id="acc-profile-cancel" type="button" hidden>Cancelar</button>
+                                    </div>
+                                    <button class="btn secondary" id="acc-profile-edit" type="button" hidden>Modificar perfil</button>
+                                </div>
+                            </div>
+                            <button class="btn secondary" id="acc-logout">Cerrar sesión</button>
+                        </details>
+                    </div>
                 </div>
             </div>
             <div class="card">

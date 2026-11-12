@@ -19,6 +19,7 @@ const Cloud = {
     get token()  { return localStorage.getItem('mtb_token') || ''; },
     get uid()    { return localStorage.getItem('mtb_uid') || ''; },
     get email()  { return localStorage.getItem('mtb_email') || ''; },
+    get nickname() { return localStorage.getItem('mtb_nickname') || ''; },
     get groupCode() { return localStorage.getItem('mtb_group_code') || ''; },
     loggedIn()   { return !!(this.server && this.token && this.uid); },
     setSession(token, rec) {
@@ -26,11 +27,13 @@ const Cloud = {
         localStorage.setItem('mtb_uid', rec.id);
         localStorage.setItem('mtb_avatar_last_uid', rec.id);
         localStorage.setItem('mtb_email', rec.email || '');
+        if (rec.nickname) localStorage.setItem('mtb_nickname', String(rec.nickname).trim().slice(0, ROUTE_NICKNAME_LIMIT));
+        else localStorage.removeItem('mtb_nickname');
         localStorage.setItem('mtb_group_code', rec.groupCode || '');
         if (typeof renderAccountAvatar === 'function') renderAccountAvatar();
     },
     clearSession() {
-        ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
+        ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_nickname', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
         if (typeof resetAccountProfileCache === 'function') resetAccountProfileCache();
         if (typeof renderAccountAvatar === 'function') renderAccountAvatar();
     }
@@ -164,7 +167,7 @@ function routeNicknameStorageKey() {
 
 function getRouteNickname() {
     const key = routeNicknameStorageKey();
-    return key ? String(localStorage.getItem(key) || '').trim().slice(0, ROUTE_NICKNAME_LIMIT) : '';
+    return String(Cloud.nickname || (key && localStorage.getItem(key)) || '').trim().slice(0, ROUTE_NICKNAME_LIMIT);
 }
 
 async function ensureRouteNickname() {
@@ -257,6 +260,13 @@ function renderAccount() {
     const on = Cloud.loggedIn();
     $('acc-form').style.display = on ? 'none' : 'block';
     $('acc-logged').style.display = on ? 'block' : 'none';
+    const hasNickname = Boolean(Cloud.nickname);
+    $('acc-nickname-setup').hidden = !on || hasNickname;
+    $('acc-ready').hidden = !on || !hasNickname;
+    if (hasNickname) {
+        $('acc-account-nickname').value = Cloud.nickname;
+        $('acc-nickname-summary').textContent = `Apodo: ${Cloud.nickname}`;
+    }
     const last = localStorage.getItem('mtb_lastsync');
     const syncFailures = Number(localStorage.getItem('mtb_sync_failures') || 0);
     $('acc-status').textContent = on
@@ -274,9 +284,11 @@ function renderAccountServer() {
 
 async function accAuth(register) {
     const server = Cloud.server;
+    const nickname = $('acc-nickname').value.trim().slice(0, ROUTE_NICKNAME_LIMIT);
     const email = $('acc-email').value.trim();
     const pass = $('acc-pass').value;
     if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
+    if (register && !nickname) { toast('Escribe un apodo para crear la cuenta.'); $('acc-nickname').focus(); return; }
     if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
     const weightKg = $('acc-weight').value.trim();
     const age = $('acc-age').value.trim();
@@ -286,7 +298,7 @@ async function accAuth(register) {
     Cloud.clearSession();
     try {
         if (register) {
-            const profile = { email, password: pass, passwordConfirm: pass };
+            const profile = { email, password: pass, passwordConfirm: pass, nickname };
             if (weightKg) profile.weightKg = Number(weightKg);
             if (age) profile.age = Number(age);
             await cloudApi('/api/collections/users/records', 'POST', profile);
@@ -298,9 +310,10 @@ async function accAuth(register) {
         catch (avatarError) { console.warn('No se pudo sincronizar el avatar pendiente:', avatarError); }
         $('acc-pass').value = '';
         renderAccount();
+        if (!Cloud.nickname && nickname) $('acc-account-nickname').value = nickname;
         await restoreGroup();
         toast(register ? '✅ Cuenta creada' : '✅ Sesión iniciada');
-        syncRoutes(true);
+        if (Cloud.nickname) syncRoutes(true);
         syncSharedPois();
     } catch (e) {
         console.warn('Auth:', e);
@@ -308,6 +321,30 @@ async function accAuth(register) {
             ? 'No se pudo conectar con el servidor. Revisa la dirección.'
             : 'No se pudo entrar: ' + e.message, 6000);
     }
+}
+
+async function saveAccountNickname() {
+    const nickname = $('acc-account-nickname').value.trim().slice(0, ROUTE_NICKNAME_LIMIT);
+    if (!nickname) { toast('Escribe un apodo para completar tu cuenta.'); $('acc-account-nickname').focus(); return; }
+    const button = $('acc-nickname-save');
+    button.disabled = true;
+    try {
+        const updated = await cloudApi(`/api/collections/users/records/${encodeURIComponent(Cloud.uid)}`, 'PATCH', { nickname });
+        Cloud.setSession(Cloud.token, updated);
+        renderAccount();
+        toast('Apodo guardado en tu cuenta.');
+    } catch (error) {
+        console.warn('No se pudo guardar el apodo de la cuenta:', error);
+        toast('No se pudo guardar el apodo: ' + error.message, 6000);
+    } finally { button.disabled = false; }
+}
+
+async function logoutCloudAccount() {
+    await stopGroup();
+    Cloud.clearSession();
+    renderFriends();
+    renderAccount();
+    toast('Sesión cerrada. Tus rutas siguen en este móvil.');
 }
 
 async function putLocal(r) { await DB.put(r); }
@@ -340,6 +377,10 @@ function routeForm(r) {
 let syncing = false, syncRetryQueued = false;
 async function syncRoutes(manual = false) {
     if (!Cloud.loggedIn() || syncing) return;
+    if (!Cloud.nickname) {
+        if (manual) toast('Completa el apodo de tu cuenta antes de sincronizar rutas.');
+        return;
+    }
     if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
@@ -636,17 +677,13 @@ function initAccount() {
 
     $('acc-login').addEventListener('click', () => accAuth(false));
     $('acc-register').addEventListener('click', () => accAuth(true));
+    $('acc-nickname-save').addEventListener('click', saveAccountNickname);
     $('acc-sync').addEventListener('click', async () => {
         await syncRoutes(true);
         await restoreGroup();
     });
-    $('acc-logout').addEventListener('click', async () => {
-        await stopGroup();
-        Cloud.clearSession();
-        renderFriends();
-        renderAccount();
-        toast('Sesión cerrada. Tus rutas siguen en este móvil.');
-    });
+    $('acc-logout').addEventListener('click', logoutCloudAccount);
+    $('acc-logout-incomplete').addEventListener('click', logoutCloudAccount);
     const syncWhenOnline = () => {
         if (syncing) syncRetryQueued = true;
         else syncRoutes();

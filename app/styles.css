@@ -1430,10 +1430,14 @@ body {
 .account-profile-content { min-width: 0; }
 .account-profile-content > .hint { margin: 4px 0 10px; }
 #acc-profile-editor[hidden], #acc-profile-summary[hidden],
-#acc-profile-edit[hidden], #acc-profile-cancel[hidden] { display: none; }
+#acc-profile-edit[hidden], #acc-profile-cancel[hidden],
+#acc-nickname-setup[hidden], #acc-ready[hidden] { display: none; }
 #acc-profile-editor { display: grid; gap: 7px; }
 #acc-profile-editor > .hint { margin-bottom: 4px; font-size: .75rem; }
 #acc-avatar-file { width: 100%; min-width: 0; font-size: .78rem; }
+.account-options { margin-top: 10px; }
+.account-options > summary { color: #b8c6da; cursor: pointer; font-size: .85rem; padding: 6px 0; }
+.account-options[open] > summary { margin-bottom: 10px; }
 .card {
     border: 1px solid rgba(143, 166, 199, .11);
     border-radius: 15px;

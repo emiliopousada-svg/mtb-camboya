@@ -22,6 +22,31 @@ function safeMembership(groupId, userId) {
     return $app.findRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '" && user = "' + safeUserId + '"', "", 1, 0);
 }
 
+function findAllRecordsByFilter(collection, filter, sort) {
+    const records = [];
+    const pageSize = 200;
+    let offset = 0;
+    while (true) {
+        const page = $app.findRecordsByFilter(collection, filter, sort, pageSize, offset);
+        records.push(...page);
+        if (page.length < pageSize) return records;
+        offset += page.length;
+    }
+}
+
+function deleteAllRecordsByFilter(collection, filter) {
+    const batchSize = 200;
+    let deleted = 0;
+    while (true) {
+        const batch = $app.findRecordsByFilter(collection, filter, "", batchSize, 0);
+        if (!batch.length) return deleted;
+        for (const record of batch) {
+            $app.delete(record);
+            deleted++;
+        }
+    }
+}
+
 routerAdd("POST", "/api/mtb/groups/create", (e) => {
     let group = null;
     try {
@@ -114,7 +139,7 @@ routerAdd("GET", "/api/mtb/groups/my", (e) => {
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const safeUserId = requireSafeValue(user.id, "userId");
-        const memberships = $app.findRecordsByFilter("mtb_group_members", 'user = "' + safeUserId + '"', "", 200, 0);
+        const memberships = findAllRecordsByFilter("mtb_group_members", 'user = "' + safeUserId + '"', "");
         const groups = [];
         for (const membership of memberships) {
             try {
@@ -139,7 +164,7 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
         const safeGroupId = requireSafeValue(groupId, "groupId");
         const group = $app.findRecordById("mtb_groups", safeGroupId);
         if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede ver y gestionar los miembros." });
-        const memberships = $app.findRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "", 200, 0);
+        const memberships = findAllRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "");
         const members = memberships.map((membership) => ({
             userId: membership.getString("user"),
             nickname: membership.getString("nickname") || "Apodo pendiente",
@@ -160,7 +185,7 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
         if (!safeMembership(safeGroupId, user.id).length) {
             return e.json(403, { message: "Ya no tienes autorización para consultar este grupo." });
         }
-        const locations = $app.findRecordsByFilter("live_locations", 'groupCode = "' + safeGroupId + '"', "-updated", 200, 0);
+        const locations = findAllRecordsByFilter("live_locations", 'groupCode = "' + safeGroupId + '"', "-updated");
         const items = locations.map((location) => {
             const owner = location.getString("owner");
             const item = {
@@ -168,11 +193,17 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
                 owner,
                 groupCode: location.getString("groupCode"),
                 name: location.getString("name"),
+                nickname: "",
                 lat: location.getFloat("lat"),
                 lon: location.getFloat("lon"),
                 accuracy: location.getFloat("accuracy"),
                 updated: location.getString("updated")
             };
+            try {
+                const profile = $app.findRecordById("users", owner);
+                item.nickname = profile.getString("nickname").trim();
+                if (item.nickname) item.name = item.nickname;
+            } catch (_) {}
             try { item.avatar = $app.findRecordById("users", owner).getString("avatar"); } catch (_) {}
             return item;
         });
@@ -214,8 +245,7 @@ routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
         if (!memberships.length) return e.json(404, { message: "Ese miembro ya no pertenece al grupo." });
         const target = $app.findRecordById("users", targetId);
         if (target.getString("groupCode") === safeGroupId) { target.set("groupCode", ""); $app.save(target); }
-        const locations = $app.findRecordsByFilter("live_locations", 'owner = "' + targetId + '" && groupCode = "' + safeGroupId + '"', "", 500, 0);
-        for (const location of locations) $app.delete(location);
+        deleteAllRecordsByFilter("live_locations", 'owner = "' + targetId + '" && groupCode = "' + safeGroupId + '"');
         $app.delete(memberships[0]);
         const newInviteCode = $security.randomString(12).toUpperCase();
         group.set("inviteCode", newInviteCode);
@@ -232,8 +262,7 @@ routerAdd("POST", "/api/mtb/groups/leave", (e) => {
         const groupId = user.getString("groupCode");
         if (!groupId) return e.json(200, { ok: true });
         const safeGroupId = requireSafeValue(groupId, "groupId");
-        const locations = $app.findRecordsByFilter("live_locations", 'owner = "' + user.id + '" && groupCode = "' + safeGroupId + '"', "", 500, 0);
-        for (const location of locations) $app.delete(location);
+        deleteAllRecordsByFilter("live_locations", 'owner = "' + user.id + '" && groupCode = "' + safeGroupId + '"');
         user.set("groupCode", "");
         $app.save(user);
         return e.json(200, { ok: true, retained: true });
@@ -250,17 +279,16 @@ routerAdd("POST", "/api/mtb/groups/delete", (e) => {
         const safeGroupId = requireSafeValue(groupId, "groupId");
         const group = $app.findRecordById("mtb_groups", safeGroupId);
         if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede eliminar el grupo." });
-        const memberships = $app.findRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "", 500, 0);
-        for (const membership of memberships) {
-            const memberId = membership.getString("user");
-            try {
-                const member = $app.findRecordById("users", memberId);
+        while (true) {
+            const memberships = $app.findRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "", 200, 0);
+            if (!memberships.length) break;
+            for (const membership of memberships) {
+                const member = $app.findRecordById("users", membership.getString("user"));
                 if (member.getString("groupCode") === safeGroupId) { member.set("groupCode", ""); $app.save(member); }
-            } catch (_) {}
-            $app.delete(membership);
+                $app.delete(membership);
+            }
         }
-        const locations = $app.findRecordsByFilter("live_locations", 'groupCode = "' + safeGroupId + '"', "", 500, 0);
-        for (const location of locations) $app.delete(location);
+        deleteAllRecordsByFilter("live_locations", 'groupCode = "' + safeGroupId + '"');
         $app.delete(group);
         return e.json(200, { ok: true });
     } catch (err) {
