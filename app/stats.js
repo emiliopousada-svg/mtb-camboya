@@ -1029,7 +1029,14 @@ function statsRenderRecords() {
     improvement.textContent = summary;
 }
 
+let statsNeedsRefresh = true;
+
 function refreshStats() {
+    if (currentPage !== 1) {
+        statsNeedsRefresh = true;
+        return;
+    }
+    statsNeedsRefresh = false;
     const rides = statsRangeRides(statsPeriod);
     const analyses = rides.map(statsAnalyzeRoute);
     const summary = statsAggregate(analyses);

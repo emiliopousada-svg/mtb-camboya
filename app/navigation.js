@@ -11,6 +11,7 @@ function renderPage(index) {
     currentPage = index;
     swiper.style.transform = `translateX(-${index * 100}vw)`;
     navBtns.forEach((btn, idx) => btn.classList.toggle('active', idx === index));
+    if (index === 1 && statsNeedsRefresh) requestAnimationFrame(refreshStats);
     if (index === 0 && map) setTimeout(() => map.invalidateSize(), 150);
     if (index === 4) {
         if (typeof renderAccount === 'function') renderAccount();

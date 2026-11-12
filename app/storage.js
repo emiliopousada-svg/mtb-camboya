@@ -7,11 +7,37 @@ const DB = {
     open() {
         return new Promise((res, rej) => {
             if (!window.indexedDB) return rej(new Error('no-idb'));
-            const r = indexedDB.open('mtb_app', 1);
-            r.onupgradeneeded = () => {
+            const r = indexedDB.open('mtb_app', 2);
+            r.onupgradeneeded = event => {
                 const d = r.result;
-                d.createObjectStore('routes', { keyPath: 'id' });
-                d.createObjectStore('kv');
+                if (!d.objectStoreNames.contains('routes')) d.createObjectStore('routes', { keyPath: 'id' });
+                if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+                const photos = d.objectStoreNames.contains('routePhotos')
+                    ? event.target.transaction.objectStore('routePhotos')
+                    : d.createObjectStore('routePhotos', { keyPath: 'routeId' });
+
+                // Move photo blobs out of route records so startup doesn't retain every image in RAM.
+                if (event.oldVersion > 0 && event.oldVersion < 2) {
+                    const routes = event.target.transaction.objectStore('routes');
+                    const cursorRequest = routes.openCursor();
+                    cursorRequest.onsuccess = cursorEvent => {
+                        const cursor = cursorEvent.target.result;
+                        if (!cursor) return;
+                        const route = cursor.value;
+                        const savedPhotos = [];
+                        if (Array.isArray(route.pois)) {
+                            route.pois = route.pois.map((poi, index) => {
+                                if (!poi || !(poi.photo instanceof Blob)) return poi;
+                                savedPhotos.push({ index, photo: poi.photo });
+                                const { photo, ...metadata } = poi;
+                                return metadata;
+                            });
+                        }
+                        if (savedPhotos.length) photos.put({ routeId: route.id, photos: savedPhotos });
+                        cursor.update(route);
+                        cursor.continue();
+                    };
+                }
             };
             r.onsuccess = () => { this.db = r.result; res(); };
             r.onerror = () => rej(r.error);
@@ -30,14 +56,61 @@ const DB = {
         });
     },
     all()       { return this.run('routes', 'readonly',  s => s.getAll()); },
-    put(r)      { return this.run('routes', 'readwrite', s => s.put(r)); },
-    del(id)     { return this.run('routes', 'readwrite', s => s.delete(id)); },
+    put(route)  {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['routes', 'routePhotos'], 'readwrite');
+                const record = { ...route };
+                const photos = [];
+                if (Array.isArray(route.pois)) {
+                    record.pois = route.pois.map((poi, index) => {
+                        if (!poi || !(poi.photo instanceof Blob)) return poi;
+                        photos.push({ index, photo: poi.photo });
+                        const { photo, ...metadata } = poi;
+                        return metadata;
+                    });
+                }
+                tx.objectStore('routes').put(record);
+                if (photos.length) tx.objectStore('routePhotos').put({ routeId: route.id, photos });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('save-failed'));
+                tx.onabort = () => reject(tx.error || new Error('save-aborted'));
+            } catch (e) { reject(e); }
+        });
+    },
+    del(id) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['routes', 'routePhotos'], 'readwrite');
+                tx.objectStore('routes').delete(id);
+                tx.objectStore('routePhotos').delete(id);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('delete-failed'));
+                tx.onabort = () => reject(tx.error || new Error('delete-aborted'));
+            } catch (e) { reject(e); }
+        });
+    },
+    async loadRoutePhotos(route) {
+        if (!route || !Array.isArray(route.pois)) return route;
+        const stored = await this.run('routePhotos', 'readonly', store => store.get(route.id));
+        if (!stored || !Array.isArray(stored.photos)) return route;
+        const pois = route.pois.slice();
+        stored.photos.forEach(item => {
+            if (!Number.isInteger(item.index) || item.index < 0 || !(item.photo instanceof Blob)) return;
+            pois[item.index] = { ...(pois[item.index] || {}), photo: item.photo };
+        });
+        route.pois = pois;
+        return route;
+    },
     deleteRoute(id, remoteId) {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject(new Error('no-db'));
             try {
-                const tx = this.db.transaction(['routes', 'kv'], 'readwrite');
+                const tx = this.db.transaction(['routes', 'kv', 'routePhotos'], 'readwrite');
                 tx.objectStore('routes').delete(id);
+                tx.objectStore('routePhotos').delete(id);
                 if (remoteId) {
                     const kv = tx.objectStore('kv');
                     const req = kv.get('pendingDeletes');

@@ -544,7 +544,9 @@ $('routes-show-all').addEventListener('click', () => {
     renderSavedRoutes();
 });
 
-function openSavedRouteDetail(route) {
+async function openSavedRouteDetail(route) {
+    try { await DB.loadRoutePhotos(route); }
+    catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
     const lines = communityRawSegments(route.points);
     if (!lines.length) {
         toast('Esta ruta no contiene un trazado que se pueda mostrar.');
@@ -641,13 +643,15 @@ $('saved-routes-list').addEventListener('click', async e => {
     if (!r) return;
 
     if (btn.dataset.act === 'view') {
-        openSavedRouteDetail(r);
+        await openSavedRouteDetail(r);
     } else if (btn.dataset.act === 'follow') {
+        try { await DB.loadRoutePhotos(r); }
+        catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
         followRoute(r);
     } else if (btn.dataset.act === 'edit-details') {
         await editRouteDetails(r);
     } else if (btn.dataset.act === 'compare') {
-        openSavedRouteDetail(r);
+        await openSavedRouteDetail(r);
         setTimeout(() => {
             $('route-comparison').hidden = false;
             $('route-compare-select').focus();
@@ -683,6 +687,8 @@ $('saved-routes-list').addEventListener('click', async e => {
         const safe = r.name.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
         download(`${safe}.gpx`, routeToGpx(r), 'application/gpx+xml');
     } else if (btn.dataset.act === 'community') {
+        try { await DB.loadRoutePhotos(r); }
+        catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
         openCommunityPublish(r);
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
