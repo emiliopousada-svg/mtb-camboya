@@ -199,7 +199,9 @@ async function syncRoutes(manual = false) {
 
         // 2) borrados pendientes
         let pend = [];
-        try { pend = (await DB.kvGet('pendingDeletes')) || []; } catch (e) {}
+        let pendingDeletesAvailable = true;
+        try { pend = (await DB.kvGet('pendingDeletes')) || []; }
+        catch (e) { pendingDeletesAvailable = false; syncFailures++; console.warn('No se pudo leer la cola de borrados:', e); }
         const rest = [];
         for (const rid of pend) {
             try { await cloudApi(`/api/collections/routes/records/${rid}`, 'DELETE'); }
@@ -211,14 +213,51 @@ async function syncRoutes(manual = false) {
                 }
             }
         }
-        try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
+        if (pendingDeletesAvailable) {
+            try { await DB.kvSet('pendingDeletes', rest); }
+            catch (e) { syncFailures++; console.warn('No se pudo guardar la cola de borrados:', e); }
+        }
         const skip = new Set(pend);
 
-        // 3) subir lo nuevo y los cambios de nombre
+        // 3) reconciliar lo remoto y subir cambios locales sin bloquear otras rutas
         const byClient = new Map(remote.map(x => [Number(x.clientId), x]));
-        for (const r of savedRoutes) {
+        const byRemoteId = new Map(remote.map(x => [x.id, x]));
+        const blockedIds = new Set();
+        for (const r of [...savedRoutes]) {
             const found = byClient.get(r.id);
-            if (!r.remoteId && found && !skip.has(found.id)) { r.remoteId = found.id; r.dirty = false; await putLocal(r); }
+            const remoteRecord = r.remoteId && !skip.has(r.remoteId) ? byRemoteId.get(r.remoteId) : null;
+            const matched = remoteRecord || (found && !skip.has(found.id) ? found : null);
+
+            // Una ruta borrada desde otro dispositivo ya no existe en el inventario remoto.
+            if (r.remoteId && (skip.has(r.remoteId) || !matched)) {
+                try {
+                    await DB.del(r.id);
+                    savedRoutes = savedRoutes.filter(x => x.id !== r.id);
+                } catch (e) {
+                    blockedIds.add(r.id);
+                    syncFailures++;
+                    console.warn(`No se pudo aplicar el borrado remoto de la ruta ${r.id}:`, e);
+                }
+                continue;
+            }
+
+            if (matched && !r.dirty) {
+                const remoteIdChanged = r.remoteId !== matched.id;
+                r.remoteId = matched.id;
+                const remoteName = matched.name || r.name;
+                const remoteActivity = activityTypeFromName(remoteName) || r.activityType || 'mtb';
+                const changed = remoteIdChanged || r.name !== remoteName || r.activityType !== remoteActivity;
+                r.name = remoteName;
+                r.activityType = remoteActivity;
+                r.dirty = false;
+                if (changed) {
+                    try { await putLocal(r); }
+                    catch (e) { blockedIds.add(r.id); syncFailures++; console.warn(`No se pudo actualizar localmente la ruta ${r.id}:`, e); }
+                }
+                continue;
+            }
+            if (blockedIds.has(r.id)) continue;
+            if (matched) r.remoteId = matched.id;
             if (r.remoteId && !r.dirty) continue;
             try {
                 let rec;
@@ -229,8 +268,13 @@ async function syncRoutes(manual = false) {
                 await putLocal(r);
                 pushed++;
             } catch (e) {
-                if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); } // desaparecida del servidor: se subirá de nuevo
-                else throw e;
+                syncFailures++;
+                console.warn(`No se pudo sincronizar la ruta ${r.id}:`, e);
+                if (e.status === 404 && r.remoteId) {
+                    r.remoteId = null;
+                    try { await putLocal(r); }
+                    catch (localError) { console.warn(`No se pudo actualizar la ruta local ${r.id}:`, localError); }
+                }
             }
         }
 

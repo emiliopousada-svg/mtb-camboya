@@ -15,6 +15,9 @@ const COMMUNITY_PROVINCES = [
 const COMMUNITY_TRIM_METERS = 150;
 const COMMUNITY_PAGE_SIZE = 100;
 const COMMUNITY_MAX_RESULTS = 15;
+const COMMUNITY_TRACK_BATCH_SIZE = 5;
+const COMMUNITY_MAX_TRACKS_TO_CHECK = 40;
+const COMMUNITY_MAX_METADATA_CANDIDATES = 2000;
 const COMMUNITY_DIFFICULTIES = {
     easy: 'Fácil',
     moderate: 'Moderada',
@@ -491,6 +494,17 @@ function communityDistanceToRoute(position, lines) {
     return nearest;
 }
 
+function communityDistanceToBounds(position, record) {
+    const minLat = Number(record.minLat), maxLat = Number(record.maxLat);
+    const minLng = Number(record.minLng), maxLng = Number(record.maxLng);
+    if (![minLat, maxLat, minLng, maxLng].every(Number.isFinite)) return Infinity;
+    const nearest = [
+        Math.max(minLat, Math.min(maxLat, position[0])),
+        Math.max(minLng, Math.min(maxLng, position[1]))
+    ];
+    return communityDistance(position, nearest) / 1000;
+}
+
 function communityRawSegments(points) {
     const lines = [];
     let current = [];
@@ -574,6 +588,16 @@ function communityPublicTrack(route) {
     if (count < 2) throw new Error('La ruta es demasiado corta para compartirla tras ocultar sus extremos.');
     if (count > 3000) throw new Error('No se pudo reducir el track a un tamaño seguro para publicarlo.');
     return lines;
+}
+
+function communityTrackBounds(lines) {
+    const points = lines.flat();
+    return {
+        minLat: Math.min(...points.map(point => point[0])),
+        maxLat: Math.max(...points.map(point => point[0])),
+        minLng: Math.min(...points.map(point => point[1])),
+        maxLng: Math.max(...points.map(point => point[1]))
+    };
 }
 
 async function submitCommunityRoute() {
@@ -1325,74 +1349,99 @@ async function loadCommunityRoutes() {
         communitySetStatus('El catálogo necesita conexión. Las rutas guardadas sí están disponibles sin conexión.', true);
         return;
     }
-    const localityQuery = String($('community-locality-search').value || '').trim().toLocaleLowerCase('es');
-    if (!localityQuery && (lastLat === null || lastLon === null)) {
+    if (lastLat === null || lastLon === null) {
         communitySetStatus('Esperando una ubicación GPS para buscar rutas cercanas. Comprueba el permiso de ubicación e inténtalo de nuevo.', true);
         if (typeof requestCurrentGpsFix === 'function') requestCurrentGpsFix();
         return;
     }
-    const searchPosition = lastLat === null || lastLon === null ? null : [lastLat, lastLon];
+    const searchPosition = [lastLat, lastLon];
     const button = $('community-search');
     button.disabled = true;
     communitySetStatus('Buscando rutas cercanas…');
     try {
         const activity = $('community-activity').value;
         const radiusKm = Number($('community-radius').value) || 25;
-        const difficulty = $('community-difficulty').value;
-        const minimumAscent = Number($('community-ascent').value) || 0;
-        const filters = ['published = true'];
+        const latDelta = radiusKm / 110.574;
+        const lonDelta = Math.min(180, radiusKm / (111.32 * Math.max(0.05, Math.cos(searchPosition[0] * Math.PI / 180))));
+        const south = Math.max(-90, searchPosition[0] - latDelta);
+        const north = Math.min(90, searchPosition[0] + latDelta);
+        const west = Math.max(-180, searchPosition[1] - lonDelta);
+        const east = Math.min(180, searchPosition[1] + lonDelta);
+        const filters = [
+            'published = true',
+            `minLat <= ${north.toFixed(6)}`,
+            `maxLat >= ${south.toFixed(6)}`,
+            `minLng <= ${east.toFixed(6)}`,
+            `maxLng >= ${west.toFixed(6)}`
+        ];
         if (activity) filters.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
         const filter = filters.join(' && ');
-        const allRoutes = [];
-        let extendedRouteFields = true;
+        const metadata = [];
         let page = 1, totalPages = 1;
         do {
-            const base = `/api/collections/community_routes/records?page=${page}&perPage=${COMMUNITY_PAGE_SIZE}&filter=${encodeURIComponent(filter)}`;
-            let result;
-            if (extendedRouteFields) {
-                try {
-                    result = await cloudApi(`${base}&fields=id,owner,title,province,locality,description,difficulty,activityType,distanceKm,elevationGain,movingTimeSec,trackJson,poisJson,poiPhotos`);
-                } catch (error) {
-                    if (error.status !== 400) throw error;
-                    extendedRouteFields = false;
-                }
+            const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
+                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,minLat,maxLat,minLng,maxLng&filter=' + encodeURIComponent(filter));
+            if (Array.isArray(result.items)) {
+                metadata.push(...result.items.slice(0, COMMUNITY_MAX_METADATA_CANDIDATES - metadata.length));
             }
-            if (!extendedRouteFields) {
-                result = await cloudApi(`${base}&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,trackJson,poisJson,poiPhotos`);
-            }
-            if (Array.isArray(result.items)) allRoutes.push(...result.items);
             totalPages = Number(result.totalPages) || 1;
             page++;
-        } while (page <= totalPages);
+        } while (page <= totalPages && metadata.length < COMMUNITY_MAX_METADATA_CANDIDATES);
 
-        const nearbyRoutes = allRoutes.map(record => {
-            const lines = communityRecordLines(record);
-            const proximityKm = lines && searchPosition
-                ? communityDistanceToRoute(searchPosition, lines) / 1000
-                : null;
-            return lines ? { ...record, proximityKm } : null;
-        }).filter(record => record
-            && (localityQuery
-                ? `${record.locality || ''} ${record.province || ''}`.toLocaleLowerCase('es').includes(localityQuery)
-                : record.proximityKm <= radiusKm)
-            && (!extendedRouteFields || !difficulty || record.difficulty === difficulty)
-            && (!extendedRouteFields || Number(record.elevationGain || 0) >= minimumAscent)
-        ).sort((a, b) => searchPosition
-            ? a.proximityKm - b.proximityKm
-            : String(a.locality || a.province || a.title).localeCompare(String(b.locality || b.province || b.title), 'es'));
+        // Incluye un conjunto acotado de rutas anteriores a los campos espaciales nuevos.
+        const indexedIds = new Set(metadata.map(record => record.id));
+        const legacyFilter = ['published = true', '(minLat = null || maxLat = null || minLng = null || maxLng = null)'];
+        if (activity) legacyFilter.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
+        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-created&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
+        const legacyRoutes = (legacyResult.items || []).filter(record => !indexedIds.has(record.id));
+        const legacyTruncated = Number(legacyResult.totalItems) > legacyRoutes.length;
+
+        const candidates = metadata.map(record => ({
+            ...record,
+            boundsDistanceKm: communityDistanceToBounds(searchPosition, record),
+            indexed: true
+        })).filter(record => record.boundsDistanceKm <= radiusKm)
+            .concat(legacyRoutes.map(record => ({ ...record, boundsDistanceKm: 0, indexed: false })))
+            .sort((a, b) => a.boundsDistanceKm - b.boundsDistanceKm);
+
+        const nearbyRoutes = [];
+        let checked = 0, tracksComplete = false;
+        while (checked < candidates.length && checked < COMMUNITY_MAX_TRACKS_TO_CHECK) {
+            const batch = candidates.slice(checked, Math.min(checked + COMMUNITY_TRACK_BATCH_SIZE, COMMUNITY_MAX_TRACKS_TO_CHECK));
+            const results = await Promise.allSettled(batch.map(async record => {
+                const detail = await cloudApi(`/api/collections/community_routes/records/${encodeURIComponent(record.id)}?fields=trackJson`);
+                const fullRecord = { ...record, trackJson: detail.trackJson };
+                const lines = communityRecordLines(fullRecord);
+                if (!lines) return null;
+                const proximityKm = communityDistanceToRoute(searchPosition, lines) / 1000;
+                return proximityKm <= radiusKm ? { ...fullRecord, proximityKm } : null;
+            }));
+            checked += batch.length;
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && result.value) nearbyRoutes.push(result.value);
+                else if (result.status === 'rejected') console.warn('No se pudo cargar un trazado candidato:', result.reason);
+            });
+            nearbyRoutes.sort((a, b) => a.proximityKm - b.proximityKm);
+            const nextCandidate = candidates[checked];
+            if (nearbyRoutes.length >= COMMUNITY_MAX_RESULTS
+                && (!nextCandidate || nextCandidate.boundsDistanceKm > nearbyRoutes[COMMUNITY_MAX_RESULTS - 1].proximityKm)) {
+                tracksComplete = true;
+                break;
+            }
+        }
+        if (checked >= candidates.length) tracksComplete = true;
+        const metadataTruncated = metadata.length >= COMMUNITY_MAX_METADATA_CANDIDATES && page <= totalPages;
+        const searchLimited = metadataTruncated || legacyTruncated || (!tracksComplete && checked < candidates.length);
         communityCatalogRoutes = nearbyRoutes.slice(0, COMMUNITY_MAX_RESULTS);
         renderCommunityRoutes(communityCatalogRoutes);
         communityUpdateStatsRouteSelect();
-        communitySetStatus(!extendedRouteFields
-            ? 'El catálogo funciona, pero actualiza community_routes para activar localidad, dificultad y descripción. ' +
-                (nearbyRoutes.length ? `Mostrando ${Math.min(nearbyRoutes.length, COMMUNITY_MAX_RESULTS)} ruta(s) con el esquema anterior.` : 'No hay rutas con estos filtros.')
-            : nearbyRoutes.length > COMMUNITY_MAX_RESULTS
-            ? `Mostrando ${COMMUNITY_MAX_RESULTS} de ${nearbyRoutes.length} resultados ${localityQuery ? `para «${localityQuery}»` : `dentro de ${radiusKm} km`}.`
-            : nearbyRoutes.length
-                ? `${nearbyRoutes.length} rutas. Puedes abrir el detalle, ver valoraciones y comentarios, mostrarlas en el mapa, seguirlas o guardarlas.`
-                : localityQuery
-                    ? `No hay rutas publicadas para «${localityQuery}» con esos filtros.`
-                    : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esos filtros.');
+        communitySetStatus(searchLimited
+            ? `${communityCatalogRoutes.length} rutas encontradas en una búsqueda limitada a ${checked} trazados. Reduce el radio para afinar los resultados.`
+            : nearbyRoutes.length >= COMMUNITY_MAX_RESULTS
+                ? `Mostrando las ${COMMUNITY_MAX_RESULTS} rutas más cercanas dentro de ${radiusKm} km.`
+                : nearbyRoutes.length
+                ? `${nearbyRoutes.length} rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.`
+                : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esta actividad.');
     } catch (error) {
         console.warn('No se pudo cargar el catálogo comunitario:', error);
         communitySetStatus(error.status === 404
@@ -1403,39 +1452,6 @@ async function loadCommunityRoutes() {
         button.disabled = false;
     }
 }
-
-async function loadCommunityFavorites() {
-    if (!Cloud.loggedIn()) {
-        communitySetStatus('Inicia sesión para consultar tus rutas favoritas.', true);
-        return;
-    }
-    if (!navigator.onLine) {
-        communitySetStatus('Conéctate para cargar tus rutas favoritas.', true);
-        return;
-    }
-    const button = $('community-favorites-show');
-    button.disabled = true;
-    communitySetStatus('Cargando tus favoritas…');
-    try {
-        const filter = `owner = "${Cloud.uid}"`;
-        const response = await cloudApi(`/api/collections/community_route_favorites/records?page=1&perPage=100&expand=route&fields=id,route,expand.route.id,expand.route.owner,expand.route.title,expand.route.province,expand.route.locality,expand.route.description,expand.route.difficulty,expand.route.activityType,expand.route.distanceKm,expand.route.elevationGain,expand.route.movingTimeSec,expand.route.trackJson,expand.route.poisJson,expand.route.poiPhotos&filter=${encodeURIComponent(filter)}`);
-        communityCatalogRoutes = (Array.isArray(response.items) ? response.items : [])
-            .map(item => item.expand && item.expand.route)
-            .filter(record => record && communityRecordLines(record));
-        communityCatalogRoutes.forEach(record => { record.proximityKm = null; });
-        renderCommunityRoutes(communityCatalogRoutes);
-        communityUpdateStatsRouteSelect();
-        communitySetStatus(communityCatalogRoutes.length
-            ? `${communityCatalogRoutes.length} ruta(s) guardadas en favoritos.`
-            : 'Aún no tienes rutas comunitarias favoritas.');
-    } catch (error) {
-        console.warn('No se pudieron cargar las rutas favoritas:', error);
-        communitySetStatus(communitySocialError(error, 'community_route_favorites'), true);
-    } finally {
-        button.disabled = false;
-    }
-}
-
 function initCommunityRoutes() {
     communityFillActivities($('community-activity'));
     communityFillProvinces($('community-share-province'));

@@ -1,7 +1,8 @@
 // Service Worker de MTB CAMBOYA
 // - Guarda la app y las librerías para que abra sin conexión.
 // - Los mapas offline (teselas del IGN) se guardan en IndexedDB desde la propia aplicación.
-const SHELL = 'mtb-shell-v28';
+// prepare-web.js sustituye el marcador con la versión de package.json.
+const SHELL = 'mtb-shell-v__APP_VERSION__';
 
 const SHELL_URLS = [
   './',
@@ -14,16 +15,13 @@ const SHELL_URLS = [
   'app/config.js',
   'app/storage.js',
   'app/navigation.js',
-  'app/back-button.js',
   'app/state.js',
   'app/offline-maps.js',
   'app/map.js',
-  'app/route-photos.js',
   'app/gps.js',
   'app/recording.js',
   'app/route-following.js',
   'app/routes.js',
-  'lib/fit.js',
   'app/route-files.js',
   'app/statistics-engine.js',
   'app/community-performance.js',
@@ -34,8 +32,6 @@ const SHELL_URLS = [
   'app/ui.js',
   'app/cloud.js',
   'app/community-routes.js',
-  'app/screen-activity.js',
-  'lib/native-app.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdn.jsdelivr.net/gh/tomickigrzegorz/leaflet-rotate@v0.3.0/dist/leaflet-rotate.umd.min.js',
@@ -62,10 +58,23 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin === location.origin || url.hostname === 'unpkg.com' || url.hostname === 'cdn.jsdelivr.net') {
+  if (url.origin === location.origin) {
+    e.respondWith(networkFirst(req));
+  } else if (url.hostname === 'unpkg.com' || url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(staleWhileRevalidate(req));
   }
 });
+
+async function networkFirst(req) {
+  const cache = await caches.open(SHELL);
+  try {
+    const response = await fetch(req);
+    if (response && response.ok) await cache.put(req, response.clone());
+    return response;
+  } catch (error) {
+    return (await cache.match(req)) || Response.error();
+  }
+}
 
 async function staleWhileRevalidate(req) {
   const cache = await caches.open(SHELL);

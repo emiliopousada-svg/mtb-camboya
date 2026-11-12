@@ -121,7 +121,9 @@
         "required": false,
         "maxSelect": 5,
         "maxSize": 614400,
-        "mimeTypes": ["image/jpeg"],
+        "mimeTypes": [
+          "image/jpeg"
+        ],
         "protected": false
       },
       {
@@ -129,12 +131,48 @@
         "name": "published",
         "type": "bool",
         "required": false
+      },
+      {
+        "id": "commminlat00001",
+        "name": "minLat",
+        "type": "number",
+        "required": false,
+        "min": -90,
+        "max": 90
+      },
+      {
+        "id": "commmaxlat00001",
+        "name": "maxLat",
+        "type": "number",
+        "required": false,
+        "min": -90,
+        "max": 90
+      },
+      {
+        "id": "commminlng00001",
+        "name": "minLng",
+        "type": "number",
+        "required": false,
+        "min": -180,
+        "max": 180
+      },
+      {
+        "id": "commmaxlng00001",
+        "name": "maxLng",
+        "type": "number",
+        "required": false,
+        "min": -180,
+        "max": 180
       }
     ],
     "indexes": [
       "CREATE INDEX `idx_community_routes_province_published` ON `community_routes` (`province`, `published`)",
       "CREATE INDEX `idx_community_routes_locality` ON `community_routes` (`locality`)",
-      "CREATE INDEX `idx_community_routes_owner` ON `community_routes` (`owner`)"
+      "CREATE INDEX `idx_community_routes_owner` ON `community_routes` (`owner`)",
+      "CREATE INDEX `idx_community_routes_min_lat` ON `community_routes` (`minLat`)",
+      "CREATE INDEX `idx_community_routes_max_lat` ON `community_routes` (`maxLat`)",
+      "CREATE INDEX `idx_community_routes_min_lng` ON `community_routes` (`minLng`)",
+      "CREATE INDEX `idx_community_routes_max_lng` ON `community_routes` (`maxLng`)"
     ]
   }
 ]

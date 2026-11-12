@@ -4,8 +4,8 @@
     "name": "map_pois",
     "type": "base",
     "system": false,
-    "listRule": "",
-    "viewRule": "",
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
     "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id",
     "updateRule": null,
     "deleteRule": "@request.auth.id != '' && owner = @request.auth.id",
@@ -25,9 +25,9 @@
       { "id": "poi_owner", "name": "owner", "type": "relation", "required": true, "collectionId": "_pb_users_auth_", "cascadeDelete": true, "minSelect": 0, "maxSelect": 1 },
       { "id": "poi_client_id", "name": "clientId", "type": "text", "required": true },
       { "id": "poi_type", "name": "type", "type": "select", "required": true, "maxSelect": 1, "values": ["fountain", "bar", "food"] },
-      { "id": "poi_name", "name": "name", "type": "text", "required": true },
-      { "id": "poi_lat", "name": "lat", "type": "number", "required": true },
-      { "id": "poi_lng", "name": "lng", "type": "number", "required": true },
+      { "id": "poi_name", "name": "name", "type": "text", "required": true, "min": 1, "max": 100 },
+      { "id": "poi_lat", "name": "lat", "type": "number", "required": true, "min": -90, "max": 90 },
+      { "id": "poi_lng", "name": "lng", "type": "number", "required": true, "min": -180, "max": 180 },
       { "id": "poi_created", "name": "created", "type": "autodate", "onCreate": true, "onUpdate": false }
     ],
     "indexes": [

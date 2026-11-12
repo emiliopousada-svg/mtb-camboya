@@ -32,6 +32,28 @@ const DB = {
     all()       { return this.run('routes', 'readonly',  s => s.getAll()); },
     put(r)      { return this.run('routes', 'readwrite', s => s.put(r)); },
     del(id)     { return this.run('routes', 'readwrite', s => s.delete(id)); },
+    deleteRoute(id, remoteId) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['routes', 'kv'], 'readwrite');
+                tx.objectStore('routes').delete(id);
+                if (remoteId) {
+                    const kv = tx.objectStore('kv');
+                    const req = kv.get('pendingDeletes');
+                    req.onsuccess = () => {
+                        const pending = Array.isArray(req.result) ? req.result : [];
+                        if (!pending.includes(remoteId)) pending.push(remoteId);
+                        kv.put(pending, 'pendingDeletes');
+                    };
+                    req.onerror = () => { try { tx.abort(); } catch (e) {} };
+                }
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('delete-failed'));
+                tx.onabort = () => reject(tx.error || new Error('delete-aborted'));
+            } catch (e) { reject(e); }
+        });
+    },
     kvGet(k)    { return this.run('kv', 'readonly',  s => s.get(k)); },
     kvSet(k, v) { return this.run('kv', 'readwrite', s => s.put(v, k)); },
     kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); },

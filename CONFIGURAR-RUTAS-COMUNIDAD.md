@@ -9,6 +9,9 @@ La app puede compartir una copia pública y reducida de una ruta grabada, separa
 3. Activa **Merge with the existing collections**.
 4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, acepta solo la incorporación de los campos opcionales `poisJson`, `poiPhotos`, `locality`, `description` y `difficulty` y el índice de localidad; cancela si se propone reemplazar o borrar colecciones existentes.
 5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema y los campos de POI, localidad, descripción y dificultad.
+6. Copia `pb_hooks/community_routes.pb.js` al directorio `pb_hooks` de PocketBase y reinicia PocketBase para calcular los límites geográficos.
+
+El catálogo pagina metadatos por zona y descarga los trazados completos solo para un conjunto acotado de candidatos; las rutas antiguas sin límites usan un fallback limitado.
 
 La regla de lectura deja ver públicamente solo registros con `published = true`; el autor también puede consultar sus propias rutas. Un envío nuevo debe tener el propietario autenticado y `published = true`, por lo que aparece en el catálogo inmediatamente. La app no permite cambiar el estado de publicación después de crear el registro.
 

@@ -7,12 +7,13 @@ La colección `map_pois` hace que las fuentes, los bares y los sitios de comida 
 1. Abre el panel de PocketBase en el NAS.
 2. Ve a **Settings → Import collections**.
 3. Pega el contenido completo de `map_pois.json` y pulsa **Review**.
-4. Confirma que `map_pois` aparece como colección nueva. Si el panel propone modificar o borrar `users`, `routes` o `live_locations`, cancela y revisa el JSON antes de continuar.
-5. Importa la colección.
+4. Si `map_pois` ya existe, activa **Merge with the existing collections** y confirma que solo cambia esa colección. Cancela si el panel propone cambios o borrados en otras colecciones.
+5. Importa la colección o sus cambios.
+6. Copia `pb_hooks/map_pois.pb.js` al directorio `pb_hooks` de PocketBase y reinicia PocketBase. El hook limita a 500 puntos compartidos por cuenta. La colección exige iniciar sesión para listar o consultar puntos y valida nombres y coordenadas.
 
 ## Permisos incluidos
 
-- Cualquier instalación puede consultar los puntos del mapa.
+- Solo las cuentas iniciadas pueden consultar los puntos compartidos; los puntos ya descargados siguen disponibles en la copia local.
 - Para crear un punto hace falta una cuenta iniciada. Cada registro queda vinculado al usuario que lo creó.
 - Solo el creador puede eliminarlo. Los demás usuarios lo ven sin botón de borrar.
 - Los registros no se pueden editar desde la API.

@@ -216,6 +216,8 @@ async function fetchAndStoreTile(z, x, y, automatic = false) {
 function createOfflineTileLayer() {
     const Layer = L.GridLayer.extend({
         createTile: function(coords, done) {
+            const layer = this;
+            const tileKey = layer._tileCoordsToKey(coords);
             const img = document.createElement('img');
             img.alt = '';
             img.setAttribute('role', 'presentation');
@@ -224,7 +226,13 @@ function createOfflineTileLayer() {
             img.style.width = `${tileSize}px`;
             img.style.height = `${tileSize}px`;
             let finished = false;
-            const finish = err => { if (finished) return; finished = true; done(err, img); };
+            const finish = err => {
+                if (finished) return;
+                finished = true;
+                const currentTile = layer._tiles && layer._tiles[tileKey];
+                if (!layer._map || !currentTile || currentTile.el !== img) return;
+                done(err, img);
+            };
             (async () => {
                 try {
                     const blob = await getOfflineTile(sourceCoords.z, sourceCoords.x, sourceCoords.y);
@@ -268,6 +276,8 @@ function createOfflineTileLayer() {
 function createCachedOnlineTileLayer(style, urlTemplate, options) {
     const Layer = L.GridLayer.extend({
         createTile: function(coords, done) {
+            const layer = this;
+            const tileKey = layer._tileCoordsToKey(coords);
             const tile = document.createElement('div');
             const img = document.createElement('img');
             img.alt = '';
@@ -284,6 +294,8 @@ function createCachedOnlineTileLayer(style, urlTemplate, options) {
             const finish = err => {
                 if (finished) return;
                 finished = true;
+                const currentTile = layer._tiles && layer._tiles[tileKey];
+                if (!layer._map || !currentTile || currentTile.el !== tile) return;
                 done(err, tile);
             };
             const showBlob = (blob, sourceZoom = sourceCoords.z, sourceX = sourceCoords.x, sourceY = sourceCoords.y) => {
@@ -514,14 +526,13 @@ function applyMapStyle() {
             ? `${MAP_STYLE_NAMES.ign} con las teselas descargadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`
             : `Sin conexión: ${MAP_STYLE_NAMES.ign} y teselas guardadas. Cartografía nativa hasta zoom 17; por encima se amplía la imagen.${retinaText}`;
     } else {
-        status.textContent = `${MAP_STYLE_NAMES[style]} guarda automáticamente las zonas visitadas (hasta 10.000 teselas). Sin conexión se usa ${MAP_STYLE_NAMES.ign} y las teselas guardadas.${retinaText}`;
+        status.textContent = `${MAP_STYLE_NAMES[style]} guarda automáticamente las zonas visitadas (hasta ${MAX_CACHED_ONLINE_TILES.toLocaleString('es-ES')} teselas). Sin conexión se usa ${MAP_STYLE_NAMES.ign} y las teselas guardadas.${retinaText}`;
     }
 }
 
 // Rectángulos aproximados para descargar una comunidad cada vez.
 function regionTiles(region, maxZoom) {
     const bounds = {
-        portugal: [{ west: -9.55, east: -6.15, south: 36.90, north: 42.20 }],
         andalucia: [{ west: -7.55, east: -1.60, south: 35.90, north: 38.75 }],
         aragon: [{ west: -1.80, east: 0.80, south: 39.80, north: 42.95 }],
         asturias: [{ west: -7.20, east: -4.50, south: 43.10, north: 43.70 }],
@@ -546,6 +557,10 @@ function regionTiles(region, maxZoom) {
     for (let z = 7; z <= maxZoom; z++) {
         for (const { west, east, south, north } of areas) {
             const x1 = xt(west, z), x2 = xt(east, z), y1 = yt(north, z), y2 = yt(south, z);
+            const candidateCount = (x2 - x1 + 1) * (y2 - y1 + 1);
+            if (out.size + candidateCount > MAX_TILES_PER_DOWNLOAD) {
+                throw new Error(`La selección supera el límite de ${MAX_TILES_PER_DOWNLOAD.toLocaleString('es-ES')} teselas por descarga.`);
+            }
             for (let x = x1; x <= x2; x++) {
                 for (let y = y1; y <= y2; y++) out.set(`${z}/${x}/${y}`, { z, x, y });
             }
@@ -553,6 +568,31 @@ function regionTiles(region, maxZoom) {
     }
     return [...out.values()];
 }
+
+function visibleDetailTiles(bounds, minZoom = 15, maxZoom = 17) {
+    const west = bounds.getWest(), east = bounds.getEast();
+    const south = Math.max(-85.05112878, bounds.getSouth());
+    const north = Math.min(85.05112878, bounds.getNorth());
+    const tileX = (lon, z) => Math.floor((lon + 180) / 360 * Math.pow(2, z));
+    const tileY = (lat, z) => Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z));
+    const tiles = new Map();
+    for (let z = minZoom; z <= maxZoom; z++) {
+        const n = Math.pow(2, z);
+        const x1 = Math.max(0, Math.min(n - 1, tileX(west, z)));
+        const x2 = Math.max(0, Math.min(n - 1, tileX(east, z)));
+        const y1 = Math.max(0, Math.min(n - 1, tileY(north, z)));
+        const y2 = Math.max(0, Math.min(n - 1, tileY(south, z)));
+        const candidateCount = (x2 - x1 + 1) * (y2 - y1 + 1);
+        if (tiles.size + candidateCount > MAX_TILES_PER_DOWNLOAD) {
+            throw new Error(`La vista actual supera el límite de ${MAX_TILES_PER_DOWNLOAD.toLocaleString('es-ES')} teselas. Acércate al área que quieres guardar.`);
+        }
+        for (let x = x1; x <= x2; x++) {
+            for (let y = y1; y <= y2; y++) tiles.set(`${z}/${x}/${y}`, { z, x, y });
+        }
+    }
+    return [...tiles.values()];
+}
+
 function setOfflineProgress(done, total, errors) {
     const pct = total ? Math.round(done / total * 100) : 0;
     $('offline-progress-fill').style.width = pct + '%';
@@ -564,7 +604,25 @@ async function downloadRegionOffline() {
     const region = regionSelect.value;
     const regionName = regionSelect.options[regionSelect.selectedIndex].text;
     const maxZoom = Number($('offline-detail').value) || 13;
-    const tiles = regionTiles(region, maxZoom);
+    let tiles;
+    try { tiles = regionTiles(region, maxZoom); }
+    catch (error) { toast(error.message, 7000); return; }
+    const detailName = maxZoom === 14 ? 'alto (zoom 7–14)' : 'estándar (zoom 7–13)';
+    return downloadTileSetOffline(tiles, regionName, detailName, $('btn-download-region'));
+}
+
+async function downloadVisibleDetailOffline() {
+    if (offlineDownloadRunning) return;
+    if (!map) { toast('El mapa todavía no está listo.'); return; }
+    let tiles;
+    try { tiles = visibleDetailTiles(map.getBounds()); }
+    catch (error) { toast(error.message, 7000); return; }
+    return downloadTileSetOffline(tiles, 'zona visible del mapa', 'detalle alto (zoom 15–17)', $('btn-download-visible-detail'));
+}
+
+async function downloadTileSetOffline(tiles, regionName, detailName, downloadButton) {
+    if (offlineDownloadRunning) return;
+    if (!tiles.length) { toast('No hay teselas en el área seleccionada.'); return; }
     if (tiles.length > MAX_TILES_PER_DOWNLOAD) {
         toast(`La selección supera el límite de ${MAX_TILES_PER_DOWNLOAD.toLocaleString('es-ES')} teselas por descarga. Elige menos detalle o una región más pequeña.`, 7000);
         return;
@@ -596,7 +654,6 @@ async function downloadRegionOffline() {
             console.warn('No se pudo estimar el espacio de mapas offline:', error);
         }
     }
-    const detailName = maxZoom === 14 ? 'alto (zoom 7–14)' : 'estándar (zoom 7–13)';
     const confirmed = await modal({
         message: `Se incorporarán hasta ${newTiles.toLocaleString('es-ES')} teselas IGN al mapa descargado de ${regionName} con detalle ${detailName}.${storageNote} Usa Wi-Fi y mantén la aplicación abierta. Las teselas descargadas se omiten y las de caché se reutilizan.`,
         ok: 'Descargar'
@@ -604,8 +661,8 @@ async function downloadRegionOffline() {
     if (!confirmed) return;
     offlineDownloadRunning = true; stopOfflineDownload = false;
     let done = 0, errors = 0, cursor = 0;
-    $('btn-download-region').disabled = true;
-    $('offline-storage-note').textContent = `Descargando ${regionName}. Mantén la app abierta y conectada a Wi-Fi. Si la paras, selecciona la misma comunidad y detalle para reanudar; las teselas ya guardadas se conservan.`;
+    downloadButton.disabled = true;
+    $('offline-storage-note').textContent = `Descargando ${regionName}. Mantén la app abierta y conectada a Wi-Fi. Si la paras, repite la descarga para la misma región o vuelve a encuadrar la misma zona; las teselas ya guardadas se conservan.`;
     setOfflineProgress(0, tiles.length, 0);
     try {
         await openOfflineDb();
@@ -636,7 +693,7 @@ async function downloadRegionOffline() {
         toast('No se pudo iniciar la descarga de mapas', 5000);
     } finally {
         offlineDownloadRunning = false;
-        $('btn-download-region').disabled = false;
+        downloadButton.disabled = false;
     }
 }
 async function openOfflineMaps() {
@@ -659,6 +716,7 @@ async function openOfflineMaps() {
     }
 }
 $('btn-download-region').addEventListener('click', downloadRegionOffline);
+$('btn-download-visible-detail').addEventListener('click', downloadVisibleDetailOffline);
 $('btn-cancel-download').addEventListener('click', () => { stopOfflineDownload = true; $('offline-storage-note').textContent = 'Parando la descarga…'; });
 
 async function clearOfflineTiles() {
