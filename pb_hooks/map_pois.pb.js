@@ -1,8 +1,7 @@
 // Limita la creación de puntos compartidos en instalaciones PocketBase.
 // Las reglas y límites de campos siguen definidos en map_pois.json.
-const MAX_SHARED_POIS_PER_USER = 500;
-
 onRecordCreateRequest((e) => {
+    const MAX_SHARED_POIS_PER_USER = 500;
     if (e.hasSuperuserAuth()) return e.next();
     if (!e.auth) throw new BadRequestError("Inicia sesión para compartir puntos del mapa.");
 
