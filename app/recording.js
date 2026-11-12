@@ -4,6 +4,8 @@
 // ============================================================
 let wakeLock = null;
 let recordingPois = [];
+let draftSavedPointCount = 0, draftSaveQueue = Promise.resolve();
+let draftPhotoRevision = 0, draftPhotoSavedRevision = 0;
 let routePhotoCapturePosition = null;
 let routePhotoProcessing = null;
 
@@ -395,6 +397,10 @@ function resetRecordingState() {
     segStart = null;
     startedAt = null;
     recordingPois = [];
+    draftSavedPointCount = 0;
+    draftSaveQueue = Promise.resolve();
+    draftPhotoRevision = 0;
+    draftPhotoSavedRevision = 0;
     showRoutePoisOnMap(followedRoute ? followedRoute.pois : []);
 }
 
@@ -447,6 +453,7 @@ $('route-photo-input').addEventListener('change', async event => {
             createdAt: capturedAt.toISOString(),
             savedCopyPath
         });
+        draftPhotoRevision++;
         showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
         saveDraft();
         toast(savedCopyPath
@@ -609,7 +616,8 @@ async function finishRecording() {
     removeMyLiveLocation();
     setBtnState('idle');
     $('m-speed').textContent = '0.0';
-    DB.kvDel('draft').catch(() => {});
+    await draftSaveQueue;
+    await DB.clearDraft().catch(error => console.warn('No se pudo borrar el borrador guardado:', error));
 }
 
 async function saveRoute(r) {
@@ -640,16 +648,29 @@ async function saveRoute(r) {
 
 // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
 function saveDraft() {
-    if (!isRecording) return;
-    DB.kvSet('draft', {
-        startedAt,
-        activityType: recordingActivityType,
-        movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
-        totalDistance,
-        points,
-        pois: recordingPois,
-        savedAt: Date.now()
-    }).catch(() => {});
+    if (!isRecording) return draftSaveQueue;
+    draftSaveQueue = draftSaveQueue.catch(() => {}).then(async () => {
+        if (!isRecording) return;
+        const startIndex = draftSavedPointCount;
+        const pointBatch = points.slice(startIndex);
+        const nextSavedPointCount = startIndex + pointBatch.length;
+        const photoRevision = draftPhotoRevision;
+        const photos = photoRevision > draftPhotoSavedRevision
+            ? recordingPois.flatMap((poi, index) => poi && poi.photo instanceof Blob ? [{ index, photo: poi.photo }] : [])
+            : null;
+        const meta = {
+            startedAt,
+            activityType: recordingActivityType,
+            movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
+            totalDistance,
+            pois: recordingPois.map(({ photo, ...poi }) => poi),
+            savedAt: Date.now()
+        };
+        await DB.saveDraft(meta, pointBatch, startIndex, photos);
+        draftSavedPointCount = nextSavedPointCount;
+        if (photos !== null) draftPhotoSavedRevision = photoRevision;
+    }).catch(error => console.warn('No se pudo guardar el borrador de la ruta:', error));
+    return draftSaveQueue;
 }
 
 function buildSegments(pts) {
@@ -664,7 +685,10 @@ function buildSegments(pts) {
 function restoreDraft(d) {
     resetRecordingState();
     points = d.points;
+    draftSavedPointCount = d.legacyDraft ? 0 : points.length;
     recordingPois = Array.isArray(d.pois) ? d.pois.filter(routePoiCoordinatesValid) : [];
+    draftPhotoRevision = d.legacyDraft && recordingPois.some(poi => poi.photo instanceof Blob) ? 1 : 0;
+    draftPhotoSavedRevision = 0;
     showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
     startedAt = d.startedAt || new Date().toISOString();
     recordingActivityType = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, d.activityType)
@@ -698,7 +722,7 @@ function restoreDraft(d) {
 
 async function maybeRestoreDraft() {
     let d = null;
-    try { d = await DB.kvGet('draft'); } catch (e) {}
+    try { d = await DB.loadDraft(); } catch (e) {}
     if (!d) return;
     const recoverable = d && Array.isArray(d.points) && d.points.length > 0
         && d.points.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
@@ -710,7 +734,7 @@ async function maybeRestoreDraft() {
         });
         if (ok) { restoreDraft(d); return; }
     }
-    DB.kvDel('draft').catch(() => {});
+    await DB.clearDraft().catch(error => console.warn('No se pudo descartar el borrador anterior:', error));
 }
 
 document.addEventListener('visibilitychange', () => {

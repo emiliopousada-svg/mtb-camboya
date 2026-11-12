@@ -7,11 +7,12 @@ const DB = {
     open() {
         return new Promise((res, rej) => {
             if (!window.indexedDB) return rej(new Error('no-idb'));
-            const r = indexedDB.open('mtb_app', 2);
+            const r = indexedDB.open('mtb_app', 3);
             r.onupgradeneeded = event => {
                 const d = r.result;
                 if (!d.objectStoreNames.contains('routes')) d.createObjectStore('routes', { keyPath: 'id' });
                 if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+                if (!d.objectStoreNames.contains('draftPoints')) d.createObjectStore('draftPoints', { keyPath: 'startIndex' });
                 const photos = d.objectStoreNames.contains('routePhotos')
                     ? event.target.transaction.objectStore('routePhotos')
                     : d.createObjectStore('routePhotos', { keyPath: 'routeId' });
@@ -130,7 +131,71 @@ const DB = {
     kvGet(k)    { return this.run('kv', 'readonly',  s => s.get(k)); },
     kvSet(k, v) { return this.run('kv', 'readwrite', s => s.put(v, k)); },
     kvDel(k)    { return this.run('kv', 'readwrite', s => s.delete(k)); },
-    kvKeys()    { return this.run('kv', 'readonly',  s => s.getAllKeys()); }
+    kvKeys()    { return this.run('kv', 'readonly',  s => s.getAllKeys()); },
+    saveDraft(meta, pointBatch, startIndex, photos) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['kv', 'draftPoints', 'routePhotos'], 'readwrite');
+                if (pointBatch.length) tx.objectStore('draftPoints').put({ startIndex, points: pointBatch });
+                tx.objectStore('kv').put({ ...meta, chunked: true, savedPointCount: startIndex + pointBatch.length }, 'draft');
+                if (photos !== null) {
+                    const photoStore = tx.objectStore('routePhotos');
+                    if (photos.length) photoStore.put({ routeId: 'active-draft', photos });
+                    else photoStore.delete('active-draft');
+                }
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('draft-save-failed'));
+                tx.onabort = () => reject(tx.error || new Error('draft-save-aborted'));
+            } catch (error) { reject(error); }
+        });
+    },
+    loadDraft() {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['kv', 'draftPoints', 'routePhotos'], 'readonly');
+                const metaRequest = tx.objectStore('kv').get('draft');
+                const batchesRequest = tx.objectStore('draftPoints').getAll();
+                const photosRequest = tx.objectStore('routePhotos').get('active-draft');
+                tx.oncomplete = () => {
+                    const draft = metaRequest.result;
+                    if (!draft) { resolve(null); return; }
+                    if (!draft.chunked) { resolve({ ...draft, legacyDraft: true }); return; }
+                    const points = [];
+                    batchesRequest.result
+                        .sort((a, b) => a.startIndex - b.startIndex)
+                        .forEach(batch => points.push(...batch.points));
+                    const pois = Array.isArray(draft.pois) ? draft.pois.slice() : [];
+                    const storedPhotos = photosRequest.result;
+                    if (storedPhotos && Array.isArray(storedPhotos.photos)) {
+                        storedPhotos.photos.forEach(item => {
+                            if (Number.isInteger(item.index) && item.index >= 0 && item.photo instanceof Blob) {
+                                pois[item.index] = { ...(pois[item.index] || {}), photo: item.photo };
+                            }
+                        });
+                    }
+                    resolve({ ...draft, points, pois, legacyDraft: false });
+                };
+                tx.onerror = () => reject(tx.error || new Error('draft-load-failed'));
+                tx.onabort = () => reject(tx.error || new Error('draft-load-aborted'));
+            } catch (error) { reject(error); }
+        });
+    },
+    clearDraft() {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            try {
+                const tx = this.db.transaction(['kv', 'draftPoints', 'routePhotos'], 'readwrite');
+                tx.objectStore('kv').delete('draft');
+                tx.objectStore('draftPoints').clear();
+                tx.objectStore('routePhotos').delete('active-draft');
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error('draft-clear-failed'));
+                tx.onabort = () => reject(tx.error || new Error('draft-clear-aborted'));
+            } catch (error) { reject(error); }
+        });
+    }
 };
 
 /*
