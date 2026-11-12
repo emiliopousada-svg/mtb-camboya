@@ -361,7 +361,7 @@ async function communityLoadFavorite(route, container, isCurrent) {
 async function communityLoadComments(route, container, form, isCurrent) {
     try {
         const filter = `route = "${route.id}"`;
-        const response = await cloudApi(`/api/collections/community_route_comments/records?page=1&perPage=100&sort=-created&fields=id,owner,alias,comment,created&filter=${encodeURIComponent(filter)}`);
+        const response = await cloudApi(`/api/collections/community_route_comments/records?page=1&perPage=100&sort=-id&fields=id,owner,alias,comment&filter=${encodeURIComponent(filter)}`);
         if (!isCurrent()) return;
         container.replaceChildren();
         const records = Array.isArray(response.items) ? response.items : [];
@@ -1297,7 +1297,7 @@ async function communityLoadSegments(record) {
     try {
         const filter = `route = "${record.id}"`;
         const result = await cloudApi(communityRecordCollectionUrl(
-            'community_segments', filter, 'id,owner,route,title,trackJson,distanceKm', 'created'
+            'community_segments', filter, 'id,owner,route,title,trackJson,distanceKm', '-id'
         ));
         if (!communityDetailRecord || communityDetailRecord.id !== record.id) return;
         const segments = Array.isArray(result.items) ? result.items : [];
@@ -1427,7 +1427,7 @@ async function loadCommunityRoutes() {
         const indexedIds = new Set(metadata.map(record => record.id));
         const legacyFilter = ['published = true', '(minLat = null || maxLat = null || minLng = null || maxLng = null)'];
         if (activity) legacyFilter.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
-        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-created&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
+        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-id&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
         const legacyRoutes = (legacyResult.items || []).filter(record => !indexedIds.has(record.id));
         const legacyTruncated = Number(legacyResult.totalItems) > legacyRoutes.length;
 
