@@ -216,7 +216,6 @@ async function startBgWatcher() {
     const bg = bgPlugin();
     if (!bg || bgActive) return false;
     const my = ++bgToken;
-    bgActive = true; // desde ya, las posiciones llegan por el plugin y no por el GPS web
     try {
         await ensureNotifPermission();
         const id = await bg.addWatcher({
@@ -246,11 +245,12 @@ async function startBgWatcher() {
             return false;
         }
         bgWatcherId = id;
+        bgActive = true; // solo ahora el plugin ha confirmado el watcher
         clearGpsWatch();
         return true;
     } catch (e) {
         console.warn('No se pudo iniciar el GPS en segundo plano:', e);
-        if (my === bgToken) { bgActive = false; bgWatcherId = null; }
+        if (my === bgToken) bgWatcherId = null;
         return false;
     }
 }
