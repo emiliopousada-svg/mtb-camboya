@@ -1,26 +1,4 @@
-// Grupos globales para MTB Camboya. Cada ruta es autocontenida para PocketBase JSVM.
-const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/;
-const SAFE_INVITE_RE = /^[A-Z0-9]{12}$/;
-
-function requireSafeValue(value, label, pattern = SAFE_ID_RE) {
-    const str = String(value ?? "").trim();
-    if (!str || !pattern.test(str)) {
-        throw new Error(`${label} inválido`);
-    }
-    return str;
-}
-
-function requireNickname(value) {
-    const nickname = String(value || "").trim().slice(0, 32);
-    if (!nickname) throw new Error("Escribe un apodo para que los miembros del grupo puedan identificarte.");
-    return nickname;
-}
-
-function safeMembership(groupId, userId) {
-    const safeGroupId = requireSafeValue(groupId, "groupId");
-    const safeUserId = requireSafeValue(userId, "userId");
-    return $app.findRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '" && user = "' + safeUserId + '"', "", 1, 0);
-}
+// Grupos globales para MTB Camboya. Los helpers viven en groups_utils.js (cada handler se ejecuta aislado).
 
 function findAllRecordsByFilter(collection, filter, sort) {
     const records = [];
@@ -48,6 +26,7 @@ function deleteAllRecordsByFilter(collection, filter) {
 }
 
 routerAdd("POST", "/api/mtb/groups/create", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     let group = null;
     try {
         const body = new DynamicModel({ name: "", nickname: "" });
@@ -82,6 +61,7 @@ routerAdd("POST", "/api/mtb/groups/create", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/join", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const body = new DynamicModel({ code: "", nickname: "" });
         e.bindBody(body);
@@ -113,6 +93,7 @@ routerAdd("POST", "/api/mtb/groups/join", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/select", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const body = new DynamicModel({ groupId: "", nickname: "" });
         e.bindBody(body);
@@ -136,6 +117,7 @@ routerAdd("POST", "/api/mtb/groups/select", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/my", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const safeUserId = requireSafeValue(user.id, "userId");
@@ -157,6 +139,7 @@ routerAdd("GET", "/api/mtb/groups/my", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/members", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -177,6 +160,7 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/live", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -214,6 +198,7 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -230,6 +215,7 @@ routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const body = new DynamicModel({ userId: "" });
         e.bindBody(body);
@@ -257,6 +243,7 @@ routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/leave", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -272,6 +259,7 @@ routerAdd("POST", "/api/mtb/groups/leave", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/delete", (e) => {
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
