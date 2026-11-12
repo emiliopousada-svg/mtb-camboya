@@ -8,6 +8,27 @@ const CSC_SERVICE = '00001816-0000-1000-8000-00805f9b34fb';
 const CSC_CHAR = '00002a5b-0000-1000-8000-00805f9b34fb';
 const CYCLING_POWER_SERVICE = '00001818-0000-1000-8000-00805f9b34fb';
 const CYCLING_POWER_CHAR = '00002a63-0000-1000-8000-00805f9b34fb';
+const deviceSessions = new Map();
+
+function channelKey(service, characteristic) {
+  return `${service}|${characteristic}`;
+}
+
+function notifyDisconnected(deviceId, session) {
+  session.connected = false;
+  session.connecting = null;
+  for (const channel of session.channels.values()) {
+    channel.started = false;
+    channel.starting = null;
+    for (const subscription of channel.subscriptions) {
+      if (!subscription.active) continue;
+      subscription.active = false;
+      subscription.onDisconnect && subscription.onDisconnect(deviceId);
+    }
+    channel.subscriptions.clear();
+  }
+  deviceSessions.delete(deviceId);
+}
 
 // Formato estándar "Heart Rate Measurement": el bit 0 de las flags indica si el valor es de 8 o 16 bits
 function parseHr(value) {
@@ -57,11 +78,48 @@ window.MtbBle = {
   },
 
   async connectCharacteristic(deviceId, service, characteristic, onValue, onDisconnect) {
-    await BleClient.connect(deviceId, id => onDisconnect && onDisconnect(id), { timeout: 8000 });
+    let session = deviceSessions.get(deviceId);
+    if (!session) {
+      session = { connected: false, connecting: null, channels: new Map() };
+      deviceSessions.set(deviceId, session);
+    }
+    const key = channelKey(service, characteristic);
+    let channel = session.channels.get(key);
+    if (!channel) {
+      channel = { service, characteristic, started: false, starting: null, subscriptions: new Set() };
+      session.channels.set(key, channel);
+    }
+    const subscription = { active: true, onValue, onDisconnect };
+    channel.subscriptions.add(subscription);
     try {
-      await BleClient.startNotifications(deviceId, service, characteristic, onValue);
+      if (!session.connected) {
+        if (!session.connecting) {
+          session.connecting = BleClient.connect(deviceId, id => notifyDisconnected(id, session), { timeout: 8000 })
+            .then(() => { session.connected = true; })
+            .finally(() => { session.connecting = null; });
+        }
+        await session.connecting;
+      }
+      if (!channel.started) {
+        if (!channel.starting) {
+          channel.starting = BleClient.startNotifications(deviceId, service, characteristic, value => {
+            for (const listener of channel.subscriptions) {
+              if (listener.active) listener.onValue(value);
+            }
+          }).then(() => { channel.started = true; })
+            .finally(() => { channel.starting = null; });
+        }
+        await channel.starting;
+      }
+      return subscription;
     } catch (e) {
-      try { await BleClient.disconnect(deviceId); } catch (e2) {}
+      subscription.active = false;
+      channel.subscriptions.delete(subscription);
+      if (!channel.subscriptions.size) session.channels.delete(key);
+      if (!session.channels.size) {
+        deviceSessions.delete(deviceId);
+        try { await BleClient.disconnect(deviceId); } catch (e2) {}
+      }
       throw e;
     }
   },
@@ -80,11 +138,33 @@ window.MtbBle = {
 
   async disconnect(deviceId) {
     try { await BleClient.stopNotifications(deviceId, HR_SERVICE, HR_CHAR); } catch (e) {}
+    const session = deviceSessions.get(deviceId);
+    if (session) notifyDisconnected(deviceId, session);
     await BleClient.disconnect(deviceId);
   },
 
-  async disconnectCharacteristic(deviceId, service, characteristic) {
-    try { await BleClient.stopNotifications(deviceId, service, characteristic); } catch (e) {}
-    await BleClient.disconnect(deviceId);
+  async disconnectCharacteristic(deviceId, service, characteristic, subscription) {
+    const session = deviceSessions.get(deviceId);
+    const key = channelKey(service, characteristic);
+    const channel = session && session.channels.get(key);
+    if (!session || !channel) return;
+
+    if (subscription) {
+      subscription.active = false;
+      channel.subscriptions.delete(subscription);
+    } else {
+      for (const listener of channel.subscriptions) listener.active = false;
+      channel.subscriptions.clear();
+    }
+    if (channel.subscriptions.size) return;
+
+    if (channel.started) {
+      try { await BleClient.stopNotifications(deviceId, service, characteristic); } catch (e) {}
+    }
+    session.channels.delete(key);
+    if (!session.channels.size) {
+      deviceSessions.delete(deviceId);
+      try { await BleClient.disconnect(deviceId); } catch (e) {}
+    }
   }
 };

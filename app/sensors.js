@@ -127,9 +127,10 @@ async function connectExtraSensor(type, savedDevice) {
         const onDisconnected = () => {
             state.connected = false;
             state.deviceId = null;
+            state.subscription = null;
             if (type === 'cadence') { updateCadence(null); state.previous = null; }
             if (type === 'power') updatePower(null);
-            if (type === 'speed') { currentBleSpeed = null; state.previous = null; }
+            if (type === 'speed') { currentBleSpeed = null; currentBleSpeedAt = 0; state.previous = null; }
             if (state.manual) return;
             setSensorStatus(type, false, 'Desconectado');
             toast(`⚠️ ${config.name} desconectado.`);
@@ -137,13 +138,15 @@ async function connectExtraSensor(type, savedDevice) {
         const onValue = type === 'power'
             ? value => { state.lastReadingAt = Date.now(); updatePower(value); }
             : reading => applyCscReading(type, reading);
-        if (type === 'power') await ble.connectPower(deviceId, onValue, onDisconnected);
-        else await ble.connectCsc(deviceId, onValue, onDisconnected);
+        const subscription = type === 'power'
+            ? await ble.connectPower(deviceId, onValue, onDisconnected)
+            : await ble.connectCsc(deviceId, onValue, onDisconnected);
         if (generation !== state.generation) {
-            await ble.disconnectCharacteristic(deviceId, config.service, config.characteristic);
+            await ble.disconnectCharacteristic(deviceId, config.service, config.characteristic, subscription);
             return;
         }
         state.deviceId = deviceId;
+        state.subscription = subscription;
         state.deviceName = device.name || config.name;
         state.lastReadingAt = Date.now();
         state.previous = null;
@@ -167,7 +170,9 @@ async function disconnectExtraSensor(type) {
     state.generation++;
     state.manual = true;
     const deviceId = state.deviceId;
+    const subscription = state.subscription;
     state.deviceId = null;
+    state.subscription = null;
     state.previous = null;
     if (type === 'cadence') updateCadence(null);
     if (type === 'power') updatePower(null);
@@ -177,10 +182,11 @@ async function disconnectExtraSensor(type) {
         $('sensor-speed-status').textContent = 'Desconectado';
     }
     setSensorStatus(type, false, 'Desconectado');
-    if (!deviceId) return;
+    // Si aún está conectando, connectExtraSensor hará la limpieza cuando termine.
+    if (!deviceId || !subscription) return;
     try {
         const ble = await loadNativeBle();
-        await ble.disconnectCharacteristic(deviceId, sensorConfigs[type].service, sensorConfigs[type].characteristic);
+        await ble.disconnectCharacteristic(deviceId, sensorConfigs[type].service, sensorConfigs[type].characteristic, subscription);
     } catch (error) {
         console.warn(`No se pudo desconectar ${sensorConfigs[type].name}:`, error);
         toast(`No se pudo desconectar ${sensorConfigs[type].name}.`, 5000);

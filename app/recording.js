@@ -559,7 +559,7 @@ async function finishRecording() {
         $('m-speed').textContent = '0.0';
     }
     if (hasRoute) {
-        const hrs = points.map(p => p[4]).filter(h => h != null);
+        const hrs = points.map(p => p[4]).filter(h => Number.isFinite(h) && h > 0);
         const route = {
             id: Date.now(),
             kind: 'recorded',
