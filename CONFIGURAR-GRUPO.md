@@ -39,7 +39,7 @@ El archivo del servidor está en [pb_hooks/groups.pb.js](pb_hooks/groups.pb.js).
 3. Recrea o reinicia el contenedor para que PocketBase cargue el hook.
 4. Revisa el registro del contenedor. Si hay errores al arrancar, el hook no se habrá instalado.
 
-`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
+`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. También devuelve las posiciones en vivo de los miembros autorizados junto con el nombre de archivo de su avatar para mostrarlo en el mapa. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
 
 ## 4. Reglas de `live_locations`
 

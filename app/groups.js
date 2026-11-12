@@ -5,6 +5,7 @@
 let groupJoined = false, groupSyncAvailable = false, friendsTimer = null, restoreGroupPending = false;
 let friendsRefreshPending = false, lastLivePush = 0, lastFriendsRefreshAt = 0, livePushPending = false;
 let myLiveRecordId = null;
+let groupLiveEndpointUnsupportedFor = '';
 const friendMarkers = new Map();
 const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
 const FRIENDS_IDLE_REFRESH_MS = 30000;
@@ -238,14 +239,34 @@ function renderFriends(items = []) {
         const ll = [Number(rec.lat), Number(rec.lon)];
         let marker = friendMarkers.get(rec.id);
         if (map) {
+            const avatarName = String(rec.avatar || '').trim();
+            const avatarUrl = avatarName && rec.owner
+                ? `${Cloud.server}/api/files/users/${encodeURIComponent(rec.owner)}/${encodeURIComponent(avatarName)}?thumb=96x96`
+                : '';
+            const initials = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toLocaleUpperCase('es-ES') || '•';
+            const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+            const icon = L.divIcon({
+                className: 'friend-map-avatar-icon',
+                html: avatarUrl
+                    ? `<img class="friend-map-avatar" src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer"><span class="friend-map-initials" aria-hidden="true">${escapeHtml(initials)}</span>`
+                    : `<span class="friend-map-initials">${escapeHtml(initials)}</span>`,
+                iconSize: [42, 42], iconAnchor: [21, 21]
+            });
             if (!marker) {
-                marker = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 2, fillColor: '#ab47bc', fillOpacity: 1 }).addTo(map);
+                marker = L.marker(ll, { icon, title: name, alt: name, keyboard: true }).addTo(map);
                 friendMarkers.set(rec.id, marker);
-            } else marker.setLatLng(ll);
+            } else {
+                marker.setLatLng(ll);
+                marker.setIcon(icon);
+                marker.options.title = name;
+            }
             const popup = document.createElement('div');
+            popup.className = 'friend-map-popup';
             const popupName = document.createElement('strong');
+            popupName.className = 'friend-map-popup-name';
             popupName.textContent = name;
             const popupTime = document.createElement('div');
+            popupTime.className = 'friend-map-popup-time';
             popupTime.textContent = `Actualizado ${new Date(rec.updated).toLocaleTimeString('es-ES')}`;
             popup.append(popupName, popupTime);
             marker.bindPopup(popup);
@@ -297,7 +318,17 @@ async function refreshFriends(retryAuth = true, ownsPending = false) {
             return;
         }
         const f = encodeURIComponent('groupCode = "' + expectedGroup + '"');
-        const res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
+        let res;
+        if (groupLiveEndpointUnsupportedFor !== Cloud.server) {
+            try {
+                res = await cloudApi('/api/mtb/groups/live');
+                groupLiveEndpointUnsupportedFor = '';
+            } catch (e) {
+                if (e.status !== 404) throw e;
+                groupLiveEndpointUnsupportedFor = Cloud.server;
+            }
+        }
+        if (!res) res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
         groupSyncAvailable = true;
         const own = res.items.find(x => x.owner === Cloud.uid);
         myLiveRecordId = own ? own.id : null;

@@ -151,6 +151,37 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
     }
 }, $apis.requireAuth("users"));
 
+routerAdd("GET", "/api/mtb/groups/live", (e) => {
+    try {
+        const user = $app.findRecordById("users", e.auth.id);
+        const groupId = user.getString("groupCode");
+        if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
+        const safeGroupId = requireSafeValue(groupId, "groupId");
+        if (!safeMembership(safeGroupId, user.id).length) {
+            return e.json(403, { message: "Ya no tienes autorización para consultar este grupo." });
+        }
+        const locations = $app.findRecordsByFilter("live_locations", 'groupCode = "' + safeGroupId + '"', "-updated", 200, 0);
+        const items = locations.map((location) => {
+            const owner = location.getString("owner");
+            const item = {
+                id: location.id,
+                owner,
+                groupCode: location.getString("groupCode"),
+                name: location.getString("name"),
+                lat: location.getFloat("lat"),
+                lon: location.getFloat("lon"),
+                accuracy: location.getFloat("accuracy"),
+                updated: location.getString("updated")
+            };
+            try { item.avatar = $app.findRecordById("users", owner).getString("avatar"); } catch (_) {}
+            return item;
+        });
+        return e.json(200, { items });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudieron cargar las posiciones del grupo." });
+    }
+}, $apis.requireAuth("users"));
+
 routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
     try {
         const user = $app.findRecordById("users", e.auth.id);
