@@ -28,7 +28,8 @@ function routeCoverPhoto(route) {
 }
 
 function createRouteCardMap(route) {
-    const points = Array.isArray(route.points) ? route.points : [];
+    const points = Array.isArray(route.previewPoints) ? route.previewPoints
+        : Array.isArray(route.points) ? route.points : [];
     const segments = [];
     let segment = [];
     const finishSegment = () => {
@@ -120,7 +121,8 @@ function createRouteCardMap(route) {
 
 function showRouteCardMap(container, route) {
     if (typeof L === 'undefined' || typeof communityRawSegments !== 'function') return;
-    const lines = communityRawSegments(route.points);
+    const points = Array.isArray(route.previewPoints) ? route.previewPoints : route.points;
+    const lines = communityRawSegments(points);
     if (!lines.length) return;
     let previewMap = null;
     try {
@@ -220,7 +222,7 @@ function routeMovingTime(route) {
 
 function routeSaveEditedMetadata(route) {
     if (route.remoteId) route.dirty = true;
-    return DB.put(route).then(() => {
+    return DB.putMetadata(route).then(() => {
         renderSavedRoutes();
         syncRoutes();
     }).catch(error => {
@@ -259,6 +261,7 @@ async function shareSavedRoute(route) {
             await navigator.clipboard.writeText(summary);
             toast('Resumen de la actividad copiado.');
         } else {
+            await DB.loadRoutePoints(route);
             await download(`${String(route.name || 'ruta').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_')}.gpx`,
                 routeToGpx(route), 'application/gpx+xml');
         }
@@ -478,6 +481,8 @@ $('routes-show-all').addEventListener('click', () => {
 
 async function openSavedRouteDetail(route) {
     const returnRoutesTab = routesTab;
+    try { await DB.loadRoutePoints(route); }
+    catch (error) { console.warn('No se pudo cargar el track de la ruta:', error); toast('No se pudo cargar el trazado de esta ruta.'); return; }
     try { await DB.loadRoutePhotos(route); }
     catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
     const lines = communityRawSegments(route.points);
@@ -566,6 +571,8 @@ $('saved-routes-list').addEventListener('click', async e => {
     if (btn.dataset.act === 'view') {
         await openSavedRouteDetail(r);
     } else if (btn.dataset.act === 'follow') {
+        try { await DB.loadRoutePoints(r); }
+        catch (error) { console.warn('No se pudo cargar el track de la ruta:', error); toast('No se pudo cargar el trazado de esta ruta.'); return; }
         try { await DB.loadRoutePhotos(r); }
         catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
         followRoute(r);
@@ -584,7 +591,7 @@ $('saved-routes-list').addEventListener('click', async e => {
         r.activityType = activityType;
         r.name = `${routeActivityPrefix(activityType)}${name}`;
         if (r.remoteId) r.dirty = true;
-        try { await DB.put(r); }
+        try { await DB.putMetadata(r); }
         catch (err) { toast('No se pudo guardar la actividad de la ruta'); return; }
         renderSavedRoutes();
         syncRoutes();
@@ -595,17 +602,23 @@ $('saved-routes-list').addEventListener('click', async e => {
         if (activityType) r.activityType = activityType;
         r.name = (activityType ? routeActivityPrefix(activityType) : '') + name;
         if (r.remoteId) r.dirty = true;
-        try { await DB.put(r); } catch (err) { toast('No se pudo guardar el cambio'); }
+        try { await DB.putMetadata(r); } catch (err) { toast('No se pudo guardar el cambio'); }
         renderSavedRoutes();
         syncRoutes();
     } else if (btn.dataset.act === 'gpx') {
         const safe = r.name.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim() || 'ruta';
+        try { await DB.loadRoutePoints(r); }
+        catch (error) { toast('No se pudo cargar el track para exportarlo.'); return; }
         download(`${safe}.gpx`, routeToGpx(r), 'application/gpx+xml');
     } else if (btn.dataset.act === 'community') {
+        try { await DB.loadRoutePoints(r); }
+        catch (error) { toast('No se pudo cargar el trazado de esta ruta.'); return; }
         try { await DB.loadRoutePhotos(r); }
         catch (error) { console.warn('No se pudieron cargar las fotos de la ruta:', error); }
         openCommunityPublish(r);
     } else if (btn.dataset.act === 'group-ranking') {
+        try { await DB.loadRoutePoints(r); }
+        catch (error) { toast('No se pudo cargar el track para analizarlo.'); return; }
         await shareRouteToGroupRanking(r, btn);
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });

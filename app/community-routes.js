@@ -730,8 +730,8 @@ async function saveCommunityOffline(record, lines) {
         }
     }
     try {
-        await DB.put(route);
-        savedRoutes.unshift(route);
+        const storedRoute = await DB.put(route);
+        savedRoutes.unshift(storedRoute);
         renderSavedRoutes();
         toast(unavailablePhotos
             ? `Ruta guardada sin conexión. ${unavailablePhotos} foto(s) necesitarán internet para mostrarse.`
@@ -1076,7 +1076,8 @@ function communityRenderEffortWidget(container, record, lines, collection, relat
     select.setAttribute('aria-label', 'Actividad para comparar con la ruta');
     select.add(new Option('Selecciona una actividad', ''));
     (Array.isArray(savedRoutes) ? savedRoutes : [])
-        .filter(route => route && route.kind !== 'imported' && Array.isArray(route.points) && route.points.length > 1)
+        .filter(route => route && route.kind !== 'imported'
+            && (Number(route.pointCount) > 1 || (Array.isArray(route.points) && route.points.length > 1)))
         .forEach(route => {
             const date = route.startedAt ? ` · ${fmtDate(route.startedAt)}` : '';
             select.add(new Option(`${route.name || 'Actividad'}${date}`, String(route.id)));
@@ -1092,15 +1093,25 @@ function communityRenderEffortWidget(container, record, lines, collection, relat
     submit.textContent = 'Publicar mejor tiempo';
     submit.disabled = true;
     let matched = null;
-    select.addEventListener('change', () => {
+    select.addEventListener('change', async () => {
         matched = null;
         status.classList.remove('error');
-        const activity = savedRoutes.find(route => String(route.id) === select.value);
+        const selectedId = select.value;
+        const activity = savedRoutes.find(route => String(route.id) === selectedId);
         if (!activity) {
             status.textContent = 'Selecciona una actividad GPS.';
             submit.disabled = true;
             return;
         }
+        status.textContent = 'Cargando la actividad guardada…';
+        submit.disabled = true;
+        try { await DB.loadRoutePoints(activity); }
+        catch (error) {
+            status.textContent = 'No se pudo cargar el track de la actividad.';
+            status.classList.add('error');
+            return;
+        }
+        if (select.value !== selectedId) return;
         matched = MTBCommunityPerformance.matchActivity(activity, lines);
         if (!matched) {
             status.textContent = 'No se encontró un recorrido completo con tiempos GPS válidos que coincida con esta ruta.';

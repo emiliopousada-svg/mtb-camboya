@@ -353,7 +353,7 @@ async function logoutCloudAccount() {
     toast('Sesión cerrada. Tus rutas siguen en este móvil.');
 }
 
-async function putLocal(r) { await DB.put(r); }
+async function putLocal(r) { await DB.putMetadata(r); }
 
 async function queueRemoteDelete(remoteId) {
     try {
@@ -535,7 +535,10 @@ async function syncRoutes(manual = false) {
                     name: r.name,
                     ...(r.createdBy ? { createdBy: String(r.createdBy).slice(0, ROUTE_NICKNAME_LIMIT) } : {})
                 });
-                else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
+                else {
+                    await DB.loadRoutePoints(r);
+                    rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
+                }
                 r.remoteId = rec.id;
                 r.dirty = false;
                 await putLocal(r);
@@ -590,8 +593,8 @@ async function syncRoutes(manual = false) {
                         movingTimeSec: rec.movingTimeSec || 0, distanceKm: rec.distanceKm || 0,
                         elevationGain: rec.elevationGain || 0, hrAvg: rec.hrAvg || null, points
                     };
-                    await putLocal(r);
-                    savedRoutes.push(r);
+                    const storedRoute = await DB.put(r);
+                    savedRoutes.push(storedRoute);
                     pulled++;
                 } catch (e) {
                     noteSyncFailure(`No se pudo descargar «${rec.name || 'una ruta'}»: ${e.message}`);
@@ -718,8 +721,9 @@ async function migrateOldRoutes() {
         points: (r.coords || []).map(c => [c[0], c[1], null, null, null])
     }));
     try {
-        for (const r of migrated) await DB.put(r);
-        savedRoutes = savedRoutes.concat(migrated).sort((a, b) => b.id - a.id);
+        const storedRoutes = [];
+        for (const r of migrated) storedRoutes.push(await DB.put(r));
+        savedRoutes = savedRoutes.concat(storedRoutes).sort((a, b) => b.id - a.id);
         localStorage.removeItem('mtb_saved_routes'); // solo se borra si todo se copió bien
     } catch (e) { console.warn('Migración incompleta', e); }
 }

@@ -2,39 +2,62 @@
 
 //  ALMACENAMIENTO (IndexedDB)
 // ============================================================
+const ROUTE_PREVIEW_MAX_POINTS = 600;
+
+function routePreviewPoints(points) {
+    if (!Array.isArray(points) || !points.length) return [];
+    const stride = Math.max(1, Math.ceil(points.length / ROUTE_PREVIEW_MAX_POINTS));
+    const preview = [];
+    points.forEach((point, index) => {
+        if (!Array.isArray(point) || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return;
+        if (index !== 0 && index !== points.length - 1 && index % stride !== 0 && point[5] !== 1) return;
+        preview.push([point[0], point[1], null, null, null, point[5] === 1 ? 1 : null]);
+    });
+    return preview;
+}
+
 const DB = {
     db: null,
     open() {
         return new Promise((res, rej) => {
             if (!window.indexedDB) return rej(new Error('no-idb'));
-            const r = indexedDB.open('mtb_app', 3);
+            const r = indexedDB.open('mtb_app', 4);
             r.onupgradeneeded = event => {
                 const d = r.result;
                 if (!d.objectStoreNames.contains('routes')) d.createObjectStore('routes', { keyPath: 'id' });
                 if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+                const routeTracks = d.objectStoreNames.contains('routeTracks')
+                    ? event.target.transaction.objectStore('routeTracks')
+                    : d.createObjectStore('routeTracks', { keyPath: 'routeId' });
                 if (!d.objectStoreNames.contains('draftPoints')) d.createObjectStore('draftPoints', { keyPath: 'startIndex' });
                 const photos = d.objectStoreNames.contains('routePhotos')
                     ? event.target.transaction.objectStore('routePhotos')
                     : d.createObjectStore('routePhotos', { keyPath: 'routeId' });
 
-                // Move photo blobs out of route records so startup doesn't retain every image in RAM.
-                if (event.oldVersion > 0 && event.oldVersion < 2) {
+                // Move long tracks and photo blobs out of route summaries during migration.
+                if (event.oldVersion > 0 && event.oldVersion < 4) {
                     const routes = event.target.transaction.objectStore('routes');
                     const cursorRequest = routes.openCursor();
                     cursorRequest.onsuccess = cursorEvent => {
                         const cursor = cursorEvent.target.result;
                         if (!cursor) return;
                         const route = cursor.value;
-                        const savedPhotos = [];
-                        if (Array.isArray(route.pois)) {
+                        if (event.oldVersion < 2 && Array.isArray(route.pois)) {
+                            const savedPhotos = [];
                             route.pois = route.pois.map((poi, index) => {
                                 if (!poi || !(poi.photo instanceof Blob)) return poi;
                                 savedPhotos.push({ index, photo: poi.photo });
                                 const { photo, ...metadata } = poi;
                                 return metadata;
                             });
+                            if (savedPhotos.length) photos.put({ routeId: route.id, photos: savedPhotos });
                         }
-                        if (savedPhotos.length) photos.put({ routeId: route.id, photos: savedPhotos });
+                        if (Array.isArray(route.points)) {
+                            routeTracks.put({ routeId: route.id, points: route.points });
+                            route.pointCount = route.points.length;
+                            route.previewPoints = routePreviewPoints(route.points);
+                            delete route.points;
+                        }
                         cursor.update(route);
                         cursor.continue();
                     };
@@ -57,13 +80,59 @@ const DB = {
         });
     },
     all()       { return this.run('routes', 'readonly',  s => s.getAll()); },
+    async loadRoutePoints(route) {
+        if (!route || Array.isArray(route.points)) return route;
+        const track = await this.run('routeTracks', 'readonly', store => store.get(route.id));
+        route.points = track && Array.isArray(track.points) ? track.points : [];
+        if (typeof statsAnalysisCache !== 'undefined') statsAnalysisCache.delete(route);
+        return route;
+    },
+    loadRoutePointsFor(routes) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject(new Error('no-db'));
+            const byId = new Map((Array.isArray(routes) ? routes : [])
+                .filter(route => route && !Array.isArray(route.points))
+                .map(route => [route.id, route]));
+            if (!byId.size) { resolve(); return; }
+            try {
+                const tx = this.db.transaction('routeTracks', 'readonly');
+                const request = tx.objectStore('routeTracks').openCursor();
+                request.onsuccess = event => {
+                    const cursor = event.target.result;
+                    if (!cursor) return;
+                    const route = byId.get(cursor.value.routeId);
+                    if (route) {
+                        route.points = Array.isArray(cursor.value.points) ? cursor.value.points : [];
+                        if (typeof statsAnalysisCache !== 'undefined') statsAnalysisCache.delete(route);
+                        byId.delete(cursor.value.routeId);
+                    }
+                    cursor.continue();
+                };
+                tx.oncomplete = () => {
+                    byId.forEach(route => {
+                        route.points = [];
+                        if (typeof statsAnalysisCache !== 'undefined') statsAnalysisCache.delete(route);
+                    });
+                    resolve();
+                };
+                tx.onerror = () => reject(tx.error || new Error('track-load-failed'));
+                tx.onabort = () => reject(tx.error || new Error('track-load-aborted'));
+            } catch (error) { reject(error); }
+        });
+    },
     put(route)  {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject(new Error('no-db'));
             try {
-                const tx = this.db.transaction(['routes', 'routePhotos'], 'readwrite');
+                const tx = this.db.transaction(['routes', 'routeTracks', 'routePhotos'], 'readwrite');
                 const record = { ...route };
                 const photos = [];
+                if (Array.isArray(route.points)) {
+                    record.pointCount = route.points.length;
+                    record.previewPoints = routePreviewPoints(route.points);
+                    tx.objectStore('routeTracks').put({ routeId: route.id, points: route.points });
+                }
+                delete record.points;
                 if (Array.isArray(route.pois)) {
                     record.pois = route.pois.map((poi, index) => {
                         if (!poi || !(poi.photo instanceof Blob)) return poi;
@@ -74,18 +143,31 @@ const DB = {
                 }
                 tx.objectStore('routes').put(record);
                 if (photos.length) tx.objectStore('routePhotos').put({ routeId: route.id, photos });
-                tx.oncomplete = () => resolve();
+                tx.oncomplete = () => resolve(record);
                 tx.onerror = () => reject(tx.error || new Error('save-failed'));
                 tx.onabort = () => reject(tx.error || new Error('save-aborted'));
             } catch (e) { reject(e); }
         });
     },
+    putMetadata(route) {
+        const metadata = { ...route };
+        delete metadata.points;
+        if (Array.isArray(metadata.pois)) {
+            metadata.pois = metadata.pois.map(poi => {
+                if (!poi || !(poi.photo instanceof Blob)) return poi;
+                const { photo, ...withoutPhoto } = poi;
+                return withoutPhoto;
+            });
+        }
+        return this.put(metadata);
+    },
     del(id) {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject(new Error('no-db'));
             try {
-                const tx = this.db.transaction(['routes', 'routePhotos'], 'readwrite');
+                const tx = this.db.transaction(['routes', 'routeTracks', 'routePhotos'], 'readwrite');
                 tx.objectStore('routes').delete(id);
+                tx.objectStore('routeTracks').delete(id);
                 tx.objectStore('routePhotos').delete(id);
                 tx.oncomplete = () => resolve();
                 tx.onerror = () => reject(tx.error || new Error('delete-failed'));
@@ -109,8 +191,9 @@ const DB = {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject(new Error('no-db'));
             try {
-                const tx = this.db.transaction(['routes', 'kv', 'routePhotos'], 'readwrite');
+                const tx = this.db.transaction(['routes', 'routeTracks', 'kv', 'routePhotos'], 'readwrite');
                 tx.objectStore('routes').delete(id);
+                tx.objectStore('routeTracks').delete(id);
                 tx.objectStore('routePhotos').delete(id);
                 if (remoteId) {
                     const kv = tx.objectStore('kv');

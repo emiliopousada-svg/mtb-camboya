@@ -774,11 +774,24 @@ function statsRenderRecords() {
 }
 
 let statsNeedsRefresh = true;
+let statsTrackHydration = null;
 
-function refreshStats() {
+async function refreshStats() {
     if (currentPage !== 1) {
         statsNeedsRefresh = true;
         return;
+    }
+    if (savedRoutes.some(route => route && route.kind !== 'imported' && !Array.isArray(route.points))) {
+        if (!statsTrackHydration) {
+            statsTrackHydration = DB.loadRoutePointsFor(savedRoutes.filter(route => route && route.kind !== 'imported'))
+                .finally(() => { statsTrackHydration = null; });
+        }
+        try { await statsTrackHydration; }
+        catch (error) { console.warn('No se pudieron cargar todos los tracks para las estadísticas:', error); }
+        if (currentPage !== 1) {
+            statsNeedsRefresh = true;
+            return;
+        }
     }
     statsNeedsRefresh = false;
     const rides = statsRangeRides(statsPeriod);

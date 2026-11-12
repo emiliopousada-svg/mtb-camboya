@@ -626,7 +626,8 @@ async function saveRoute(r) {
         return false;
     }
     try {
-        await DB.put(r);
+        const storedRoute = await DB.put(r);
+        savedRoutes.unshift(storedRoute);
     } catch (e) {
         console.warn('Error guardando:', e);
         toast('⚠️ No se pudo guardar la ruta en el dispositivo (¿almacenamiento lleno?). Se intentará exportar como GPX.', 7000);
@@ -639,7 +640,6 @@ async function saveRoute(r) {
         }
         return false;
     }
-    savedRoutes.unshift(r);
     renderSavedRoutes();
     refreshStats();
     syncRoutes();
