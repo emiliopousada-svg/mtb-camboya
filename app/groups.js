@@ -134,8 +134,10 @@ async function loadMyGroup() {
         localStorage.setItem('mtb_group_name', groupInfo.nickname);
         $('group-display-name').value = groupInfo.nickname;
     }
-    groupJoined = Boolean(groupInfo && groupInfo.nickname && groupInfo.nickname.trim() &&
-        localStorage.getItem('mtb_group_joined') === activeId);
+    // PocketBase es la fuente de verdad. La marca local solo era una caché y
+    // puede desaparecer al actualizar/reinstalar la app aunque siga la membresía.
+    groupJoined = Boolean(groupInfo && groupInfo.nickname && groupInfo.nickname.trim());
+    if (groupJoined) localStorage.setItem('mtb_group_joined', activeId);
     groupSyncAvailable = true;
     if (activeId) localStorage.setItem('mtb_group_code', activeId);
     else localStorage.removeItem('mtb_group_code');
@@ -266,8 +268,10 @@ async function restoreGroup() {
             if (groupJoined) renderGroupState(true);
             console.warn('No se pudo restaurar el grupo:', e);
             $('group-status').textContent = e.status === 404
-                ? 'Falta configurar la gestión global de grupos en PocketBase.'
-                : 'Esperando conexión para cargar tu grupo…';
+                ? 'PocketBase no tiene instaladas las rutas de gestión de grupos (groups.pb.js).'
+                : e.status !== undefined
+                    ? `No se pudo restaurar el grupo desde PocketBase: ${e.message}`
+                    : 'Sin conexión con PocketBase; se reintentará restaurar tus grupos al recuperar la red.';
         }
     } finally { restoreGroupPending = false; }
 }

@@ -1422,20 +1422,47 @@ async function loadCommunityRoutes() {
         const filter = filters.join(' && ');
         const metadata = [];
         let page = 1, totalPages = 1;
-        do {
-            const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
-                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec,minLat,maxLat,minLng,maxLng&filter=' + encodeURIComponent(filter));
-            if (Array.isArray(result.items)) {
-                metadata.push(...result.items.slice(0, COMMUNITY_MAX_METADATA_CANDIDATES - metadata.length));
-            }
-            totalPages = Number(result.totalPages) || 1;
-            page++;
-        } while (page <= totalPages && metadata.length < COMMUNITY_MAX_METADATA_CANDIDATES);
+        let metadataWithoutBounds = false;
+        try {
+            do {
+                const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
+                    COMMUNITY_PAGE_SIZE + '&sort=-id&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec,minLat,maxLat,minLng,maxLng&filter=' + encodeURIComponent(filter));
+                if (Array.isArray(result.items)) {
+                    metadata.push(...result.items.slice(0, COMMUNITY_MAX_METADATA_CANDIDATES - metadata.length));
+                }
+                totalPages = Number(result.totalPages) || 1;
+                page++;
+            } while (page <= totalPages && metadata.length < COMMUNITY_MAX_METADATA_CANDIDATES);
+        } catch (error) {
+            // Esquemas de PocketBase antiguos pueden no tener los campos de índice geográfico.
+            // Reintenta sin esos campos; la distancia exacta se valida luego contra el GPX.
+            if (error.status !== 400 || !searchPosition) throw error;
+            metadata.length = 0;
+            page = 1;
+            totalPages = 1;
+            metadataWithoutBounds = true;
+            const compatibleFilters = filters.filter(item => !/^(minLat|maxLat|minLng|maxLng)\s*[<>=]/.test(item));
+            const compatibleFilter = compatibleFilters.join(' && ');
+            do {
+                const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
+                    COMMUNITY_PAGE_SIZE + '&sort=-id&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(compatibleFilter));
+                if (Array.isArray(result.items)) {
+                    metadata.push(...result.items.slice(0, COMMUNITY_MAX_METADATA_CANDIDATES - metadata.length));
+                }
+                totalPages = Number(result.totalPages) || 1;
+                page++;
+            } while (page <= totalPages && metadata.length < COMMUNITY_MAX_METADATA_CANDIDATES);
+            console.warn('El catálogo no tiene índices geográficos; se comprobará el radio leyendo los trazados.');
+        }
 
         // Incluye un conjunto acotado de rutas anteriores a los campos espaciales nuevos.
         const indexedIds = new Set(metadata.map(record => record.id));
         const legacyFilter = ['published = true'];
-        if (searchPosition) legacyFilter.push('(minLat = null || maxLat = null || minLng = null || maxLng = null)');
+        if (searchPosition && !metadataWithoutBounds) {
+            // Las rutas ya publicadas antes de instalar el hook pueden tener la caja a 0,0,0,0.
+            // Trátalas como antiguas sin índice y decide por distancia leyendo su trazado.
+            legacyFilter.push('(minLat = null || maxLat = null || minLng = null || maxLng = null || (minLat = 0 && maxLat = 0 && minLng = 0 && maxLng = 0))');
+        }
         if (activity) legacyFilter.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
         if (locality) {
             const escapedLocality = locality.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -1443,7 +1470,7 @@ async function loadCommunityRoutes() {
         }
         if (difficulty) legacyFilter.push(`difficulty = "${difficulty}"`);
         if (minAscent) legacyFilter.push(`elevationGain >= ${minAscent}`);
-        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-id&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
+        const legacyResult = metadataWithoutBounds ? { items: [], totalItems: 0 } : await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-id&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
         const legacyRoutes = (legacyResult.items || []).filter(record => !indexedIds.has(record.id));
         const legacyTruncated = Number(legacyResult.totalItems) > legacyRoutes.length;
 
