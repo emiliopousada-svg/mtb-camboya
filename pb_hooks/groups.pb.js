@@ -1,30 +1,5 @@
 // Grupos globales para MTB Camboya. Los helpers viven en groups_utils.js (cada handler se ejecuta aislado).
 
-function findAllRecordsByFilter(collection, filter, sort) {
-    const records = [];
-    const pageSize = 200;
-    let offset = 0;
-    while (true) {
-        const page = $app.findRecordsByFilter(collection, filter, sort, pageSize, offset);
-        records.push(...page);
-        if (page.length < pageSize) return records;
-        offset += page.length;
-    }
-}
-
-function deleteAllRecordsByFilter(collection, filter) {
-    const batchSize = 200;
-    let deleted = 0;
-    while (true) {
-        const batch = $app.findRecordsByFilter(collection, filter, "", batchSize, 0);
-        if (!batch.length) return deleted;
-        for (const record of batch) {
-            $app.delete(record);
-            deleted++;
-        }
-    }
-}
-
 routerAdd("POST", "/api/mtb/groups/create", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     let group = null;
@@ -117,7 +92,7 @@ routerAdd("POST", "/api/mtb/groups/select", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/my", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const safeUserId = requireSafeValue(user.id, "userId");
@@ -139,7 +114,7 @@ routerAdd("GET", "/api/mtb/groups/my", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/members", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -160,7 +135,7 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("GET", "/api/mtb/groups/live", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -215,7 +190,7 @@ routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, deleteAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const body = new DynamicModel({ userId: "" });
         e.bindBody(body);
@@ -243,7 +218,7 @@ routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/leave", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, deleteAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -259,7 +234,7 @@ routerAdd("POST", "/api/mtb/groups/leave", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/delete", (e) => {
-    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
+    const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, deleteAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");

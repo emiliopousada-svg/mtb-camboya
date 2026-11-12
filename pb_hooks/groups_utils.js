@@ -22,4 +22,37 @@ function safeMembership(groupId, userId) {
     return $app.findRecordsByFilter("mtb_group_members", "group = {:group} && user = {:user}", "", 1, 0, { group: safeGroupId, user: safeUserId });
 }
 
-module.exports = { SAFE_ID_RE, SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership };
+function findAllRecordsByFilter(collection, filter, sort) {
+    const records = [];
+    const pageSize = 200;
+    let offset = 0;
+    while (true) {
+        const page = $app.findRecordsByFilter(collection, filter, sort, pageSize, offset);
+        records.push(...page);
+        if (page.length < pageSize) return records;
+        offset += page.length;
+    }
+}
+
+function deleteAllRecordsByFilter(collection, filter) {
+    const batchSize = 200;
+    let deleted = 0;
+    while (true) {
+        const batch = $app.findRecordsByFilter(collection, filter, "", batchSize, 0);
+        if (!batch.length) return deleted;
+        for (const record of batch) {
+            $app.delete(record);
+            deleted++;
+        }
+    }
+}
+
+module.exports = {
+    SAFE_ID_RE,
+    SAFE_INVITE_RE,
+    requireSafeValue,
+    requireNickname,
+    safeMembership,
+    findAllRecordsByFilter,
+    deleteAllRecordsByFilter
+};
