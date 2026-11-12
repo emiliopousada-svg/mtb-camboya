@@ -37,6 +37,7 @@ Aplicación para registrar, seguir y analizar actividades al aire libre, con esp
 ### Almacenamiento y sincronización
 - Almacenamiento local mediante IndexedDB.
 - Sincronización de cuenta y datos en la nube mediante una API basada en PocketBase.
+- Las rutas grabadas sin conexión quedan pendientes de sincronizar al recuperar la conexión; consulta [CONFIGURAR-SINCRONIZACION.md](CONFIGURAR-SINCRONIZACION.md) para habilitar el apodo de autor en PocketBase.
 - Peso y edad sincronizados con la cuenta para estimar calorías y frecuencia cardíaca máxima; consulta [CONFIGURAR-PERFIL.md](CONFIGURAR-PERFIL.md) para añadir los campos de PocketBase.
 - Aplicación web progresiva (PWA), con recursos preparados para uso sin conexión.
 

@@ -33,6 +33,34 @@ const Cloud = {
 };
 
 const CLOUD_TIMEOUT_MS = 10000;
+const ROUTE_NICKNAME_LIMIT = 32;
+
+function routeNicknameStorageKey() {
+    return Cloud.uid ? `mtb_route_nickname_${Cloud.uid}` : '';
+}
+
+function getRouteNickname() {
+    const key = routeNicknameStorageKey();
+    return key ? String(localStorage.getItem(key) || '').trim().slice(0, ROUTE_NICKNAME_LIMIT) : '';
+}
+
+async function ensureRouteNickname() {
+    const current = getRouteNickname();
+    if (current) return current;
+    const value = await modal({
+        message: 'Elige el apodo que aparecerá como autor de tus rutas sincronizadas:',
+        input: String(localStorage.getItem('mtb_group_name') || '').trim().slice(0, ROUTE_NICKNAME_LIMIT),
+        ok: 'Guardar apodo'
+    });
+    if (value === null) return null;
+    const nickname = String(value).trim().slice(0, ROUTE_NICKNAME_LIMIT);
+    if (!nickname) {
+        toast('Escribe un apodo para sincronizar tus rutas.');
+        return null;
+    }
+    localStorage.setItem(routeNicknameStorageKey(), nickname);
+    return nickname;
+}
 
 // body: objeto (JSON), FormData (archivos) o null
 async function cloudApi(path, method = 'GET', body = null, options = {}) {
@@ -158,6 +186,7 @@ function routeForm(r) {
     fd.append('owner', Cloud.uid);
     fd.append('clientId', String(route.id ?? Date.now()));
     fd.append('name', String(route.name ?? 'Ruta sin nombre'));
+    if (route.createdBy) fd.append('createdBy', String(route.createdBy).slice(0, ROUTE_NICKNAME_LIMIT));
     fd.append('kind', route.kind || 'recorded');
     fd.append('startedAt', route.startedAt || new Date().toISOString());
     fd.append('movingTimeSec', String(route.movingTimeSec || 0));
@@ -168,7 +197,7 @@ function routeForm(r) {
     return fd;
 }
 
-let syncing = false;
+let syncing = false, syncRetryQueued = false;
 async function syncRoutes(manual = false) {
     if (!Cloud.loggedIn() || syncing) return;
     if (!navigator.onLine) { if (manual) toast('Sin conexión: se sincronizará cuando vuelva internet'); return; }
@@ -195,6 +224,12 @@ async function syncRoutes(manual = false) {
             const r = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=clientId`);
             remote.push(...r.items);
             if (page >= r.totalPages) break;
+        }
+
+        const hasRecordedRoutes = savedRoutes.some(route => route.kind !== 'imported');
+        const nickname = hasRecordedRoutes ? await ensureRouteNickname() : '';
+        if (hasRecordedRoutes && !nickname) {
+            toast('Sin apodo, las rutas quedan guardadas en este móvil y pendientes de sincronizar.');
         }
 
         // 2) borrados pendientes
@@ -224,6 +259,9 @@ async function syncRoutes(manual = false) {
         const byRemoteId = new Map(remote.map(x => [x.id, x]));
         const blockedIds = new Set();
         for (const r of [...savedRoutes]) {
+            if (r.kind !== 'imported' && !nickname) { syncFailures++; continue; }
+            const previousCreator = r.createdBy || '';
+            if (r.kind !== 'imported' && nickname) r.createdBy = nickname;
             const found = byClient.get(r.id);
             const remoteRecord = r.remoteId && !skip.has(r.remoteId) ? byRemoteId.get(r.remoteId) : null;
             const matched = remoteRecord || (found && !skip.has(found.id) ? found : null);
@@ -246,9 +284,20 @@ async function syncRoutes(manual = false) {
                 r.remoteId = matched.id;
                 const remoteName = matched.name || r.name;
                 const remoteActivity = activityTypeFromName(remoteName) || r.activityType || 'mtb';
-                const changed = remoteIdChanged || r.name !== remoteName || r.activityType !== remoteActivity;
+                const remoteCreator = r.kind !== 'imported' && nickname ? nickname : (r.createdBy || matched.createdBy || '');
+                if (remoteCreator && matched.createdBy !== remoteCreator) {
+                    try {
+                        await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { createdBy: remoteCreator });
+                        matched.createdBy = remoteCreator;
+                    } catch (e) {
+                        syncFailures++;
+                        console.warn(`No se pudo actualizar el apodo de la ruta ${r.id}:`, e);
+                    }
+                }
+                const changed = remoteIdChanged || r.name !== remoteName || r.activityType !== remoteActivity || previousCreator !== remoteCreator;
                 r.name = remoteName;
                 r.activityType = remoteActivity;
+                if (remoteCreator) r.createdBy = remoteCreator;
                 r.dirty = false;
                 if (changed) {
                     try { await putLocal(r); }
@@ -261,7 +310,10 @@ async function syncRoutes(manual = false) {
             if (r.remoteId && !r.dirty) continue;
             try {
                 let rec;
-                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { name: r.name });
+                if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', {
+                    name: r.name,
+                    ...(r.createdBy ? { createdBy: String(r.createdBy).slice(0, ROUTE_NICKNAME_LIMIT) } : {})
+                });
                 else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
                 r.remoteId = rec.id;
                 r.dirty = false;
@@ -304,6 +356,7 @@ async function syncRoutes(manual = false) {
                     const r = {
                         id, remoteId: rec.id, dirty: false,
                         kind: rec.kind || 'recorded', name: rec.name, startedAt: rec.startedAt,
+                        createdBy: rec.createdBy || 'Usuario local',
                         activityType: Object.prototype.hasOwnProperty.call(ACTIVITY_TYPES, rec.activityType)
                             ? rec.activityType
                             : activityTypeFromName(rec.name),
@@ -334,8 +387,11 @@ async function syncRoutes(manual = false) {
             toast(e.status === undefined ? 'No se pudo conectar con el servidor' : 'Error al sincronizar: ' + e.message, 6000);
         }
     } finally {
+        const retryQueued = syncRetryQueued;
+        syncRetryQueued = false;
         syncing = false;
         renderAccount();
+        if (retryQueued && navigator.onLine && Cloud.loggedIn()) setTimeout(() => syncRoutes(), 250);
     }
 }
 
@@ -399,7 +455,15 @@ function initAccount() {
         renderAccount();
         toast('Sesión cerrada. Tus rutas siguen en este móvil.');
     });
-    window.addEventListener('online', () => { syncRoutes(); syncSharedPois(); });
+    const syncWhenOnline = () => {
+        if (syncing) syncRetryQueued = true;
+        else syncRoutes();
+        syncSharedPois();
+    };
+    window.addEventListener('online', syncWhenOnline);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && navigator.onLine) syncWhenOnline();
+    });
     renderAccount();
 }
 

@@ -565,7 +565,7 @@ async function finishRecording() {
             kind: 'recorded',
             activityType: recordingActivityType,
             name: `${routeActivityPrefix(recordingActivityType)}${routeName}`,
-            createdBy: Cloud.email || 'Usuario local',
+            createdBy: (typeof getRouteNickname === 'function' && getRouteNickname()) || 'Usuario local',
             startedAt,
             movingTimeSec: sec,
             distanceKm: +totalDistance.toFixed(3),
