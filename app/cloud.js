@@ -38,6 +38,37 @@ const Cloud = {
 
 const CLOUD_TIMEOUT_MS = 10000;
 const ROUTE_NICKNAME_LIMIT = 32;
+const ROUTE_FULL_AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const ROUTE_SYNC_CURSOR_OVERLAP_MS = 5000;
+
+function cloudSyncStorageKey(name) {
+    return `mtb_${name}_${encodeURIComponent(Cloud.server)}_${Cloud.uid}`;
+}
+
+async function fetchRemoteRoutes(fullAudit, cursor) {
+    const remote = [];
+    let since = '';
+    if (!fullAudit && cursor) {
+        const cursorMs = Date.parse(cursor);
+        if (Number.isFinite(cursorMs)) since = new Date(Math.max(0, cursorMs - ROUTE_SYNC_CURSOR_OVERLAP_MS)).toISOString();
+    }
+    const filter = since ? `&filter=${encodeURIComponent(`updated >= "${since}"`)}` : '';
+    for (let page = 1; ; page++) {
+        const sort = fullAudit ? 'clientId' : 'updated,clientId';
+        const result = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=${sort}${filter}`);
+        remote.push(...result.items);
+        if (page >= result.totalPages) break;
+    }
+    return remote;
+}
+
+function newestRemoteUpdate(records, fallbackMs) {
+    const latest = records.reduce((value, record) => {
+        const updated = Date.parse(record.updated || record.created || '');
+        return Number.isFinite(updated) ? Math.max(value, updated) : value;
+    }, 0);
+    return new Date(Math.max(0, (latest || fallbackMs) - ROUTE_SYNC_CURSOR_OVERLAP_MS)).toISOString();
+}
 
 function routeNicknameStorageKey() {
     return Cloud.uid ? `mtb_route_nickname_${Cloud.uid}` : '';
@@ -225,6 +256,15 @@ async function syncRoutes(manual = false) {
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
     let pushed = 0, pulled = 0, syncFailures = 0;
+    const cursorKey = cloudSyncStorageKey('routes_sync_cursor');
+    const auditKey = cloudSyncStorageKey('routes_full_audit_at');
+    let cursor = '', lastFullAudit = 0;
+    try {
+        cursor = localStorage.getItem(cursorKey) || '';
+        lastFullAudit = Number(localStorage.getItem(auditKey) || 0);
+    } catch (e) { console.warn('No se pudo leer el estado incremental de rutas; se hará una reconciliación completa:', e); }
+    const fullAudit = manual || !cursor || !lastFullAudit || Date.now() - lastFullAudit >= ROUTE_FULL_AUDIT_INTERVAL_MS;
+    const syncStartedAt = Date.now();
     try {
         // 0) renovar la sesión (si ha caducado, se cierra)
         try {
@@ -243,11 +283,22 @@ async function syncRoutes(manual = false) {
         }
 
         // 1) rutas que ya hay en el servidor
-        const remote = [];
-        for (let page = 1; ; page++) {
-            const r = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=clientId`);
-            remote.push(...r.items);
-            if (page >= r.totalPages) break;
+        const remote = await fetchRemoteRoutes(fullAudit, cursor);
+        const pendingRemoteByClient = new Map();
+        if (!fullAudit) {
+            const pendingClientIds = savedRoutes.filter(route => !route.remoteId)
+                .map(route => Number(route.id)).filter(Number.isSafeInteger);
+            for (let offset = 0; offset < pendingClientIds.length; offset += 50) {
+                const ids = pendingClientIds.slice(offset, offset + 50);
+                const filter = encodeURIComponent(`(${ids.map(id => `clientId = ${id}`).join(' || ')})`);
+                try {
+                    const result = await cloudApi(`/api/collections/routes/records?filter=${filter}&perPage=200`);
+                    (result.items || []).forEach(record => pendingRemoteByClient.set(Number(record.clientId), record));
+                } catch (error) {
+                    // No impide subir rutas nuevas; el índice único owner/clientId protege frente a duplicados.
+                    console.warn('No se pudieron buscar rutas locales pendientes por clientId:', error);
+                }
+            }
         }
 
         const hasRecordedRoutes = savedRoutes.some(route => route.kind !== 'imported');
@@ -288,10 +339,11 @@ async function syncRoutes(manual = false) {
             if (r.kind !== 'imported' && nickname) r.createdBy = nickname;
             const found = byClient.get(r.id);
             const remoteRecord = r.remoteId && !skip.has(r.remoteId) ? byRemoteId.get(r.remoteId) : null;
-            const matched = remoteRecord || (found && !skip.has(found.id) ? found : null);
+            const matched = remoteRecord || (found && !skip.has(found.id) ? found : null)
+                || (!fullAudit ? pendingRemoteByClient.get(Number(r.id)) : null);
 
             // Una ruta borrada desde otro dispositivo ya no existe en el inventario remoto.
-            if (r.remoteId && (skip.has(r.remoteId) || !matched)) {
+            if (r.remoteId && (skip.has(r.remoteId) || (fullAudit && !matched))) {
                 try {
                     await DB.del(r.id);
                     savedRoutes = savedRoutes.filter(x => x.id !== r.id);
@@ -400,6 +452,14 @@ async function syncRoutes(manual = false) {
 
         localStorage.setItem('mtb_lastsync', String(Date.now()));
         localStorage.setItem('mtb_sync_failures', String(syncFailures));
+        if (syncFailures === 0) {
+            try {
+                if (remote.length || fullAudit) {
+                    localStorage.setItem(cursorKey, newestRemoteUpdate(remote, remote.length ? syncStartedAt : 0));
+                }
+                if (fullAudit) localStorage.setItem(auditKey, String(Date.now()));
+            } catch (e) { console.warn('No se pudo guardar el cursor de sincronización de rutas:', e); }
+        }
         renderSavedRoutes();
         refreshStats();
         if (manual) toast(syncFailures
@@ -561,7 +621,6 @@ async function init() {
     // 2) Sincronizaciones con la nube en segundo plano (no bloquean el inicio de la app ni el GPS)
     syncRoutes();
     syncSharedPois();
-    setInterval(syncSharedPois, 60000);
     restoreGroup();
 }
 

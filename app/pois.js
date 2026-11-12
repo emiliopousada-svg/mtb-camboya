@@ -22,8 +22,14 @@ function persistFountains() {
 }
 
 let poiSyncRunning = false, poiSyncRetryAfter = 0;
+const POI_FULL_AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const POI_SYNC_CURSOR_OVERLAP_MS = 5000;
 function newPoiClientId(id) {
     return `${id}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function poiSyncStorageKey(name) {
+    return `mtb_${name}_${encodeURIComponent(Cloud.server)}_${Cloud.uid}`;
 }
 
 const POI_TYPES = {
@@ -54,6 +60,12 @@ async function syncSharedPois() {
     if (!Cloud.server || !Cloud.loggedIn() || !navigator.onLine || poiSyncRunning || Date.now() < poiSyncRetryAfter) return false;
     poiSyncRunning = true;
     try {
+        const cursorKey = poiSyncStorageKey('shared_pois_cursor');
+        const auditKey = poiSyncStorageKey('shared_pois_full_audit_at');
+        const cursor = localStorage.getItem(cursorKey) || '';
+        const lastFullAudit = Number(localStorage.getItem(auditKey) || 0);
+        const fullAudit = !cursor || !lastFullAudit || Date.now() - lastFullAudit >= POI_FULL_AUDIT_INTERVAL_MS;
+        const syncStartedAt = Date.now();
         if (Cloud.loggedIn()) {
             let migrated = false;
             for (const f of savedFountains) {
@@ -100,17 +112,26 @@ async function syncSharedPois() {
         }
 
         const remote = [];
+        let since = '';
+        const cursorMs = Date.parse(cursor);
+        if (!fullAudit && Number.isFinite(cursorMs)) {
+            since = new Date(Math.max(0, cursorMs - POI_SYNC_CURSOR_OVERLAP_MS)).toISOString();
+        }
+        const filter = since ? `&filter=${encodeURIComponent(`updated >= "${since}"`)}` : '';
         for (let page = 1; ; page++) {
-            const result = await cloudApi(`/api/collections/map_pois/records?page=${page}&perPage=200&sort=created`);
+            const sort = fullAudit ? 'created' : 'updated,created';
+            const result = await cloudApi(`/api/collections/map_pois/records?page=${page}&perPage=200&sort=${sort}${filter}`);
             remote.push(...result.items);
             if (page >= result.totalPages) break;
         }
 
-        const remoteIds = new Set(remote.map(x => x.id));
         const localOnly = savedFountains.filter(f => !f.remoteId);
-        const shared = remote
-            .filter(f => Number.isFinite(Number(f.lat)) && Number.isFinite(Number(f.lng)))
-            .map(f => ({
+        const sharedById = new Map();
+        if (!fullAudit) {
+            savedFountains.filter(f => f.remoteId).forEach(f => sharedById.set(f.remoteId, f));
+        }
+        remote.filter(f => Number.isFinite(Number(f.lat)) && Number.isFinite(Number(f.lng))).forEach(f => {
+            sharedById.set(f.id, {
                 id: f.id,
                 remoteId: f.id,
                 clientId: String(f.clientId || ''),
@@ -119,11 +140,22 @@ async function syncSharedPois() {
                 name: f.name || POI_TYPES[POI_TYPES[f.type] ? f.type : 'fountain'].defaultName,
                 lat: Number(f.lat),
                 lng: Number(f.lng),
-                date: f.created ? new Date(f.created).toLocaleDateString('es-ES') : ''
-            }));
-        savedFountains = localOnly.concat(shared);
-        persistFountains();
+                date: f.created ? new Date(f.created).toLocaleDateString('es-ES') : '',
+                updated: f.updated || ''
+            });
+        });
+        savedFountains = localOnly.concat([...sharedById.values()]);
+        if (!persistFountains()) throw new Error('No se pudieron guardar localmente los puntos compartidos.');
         loadSavedFountains();
+        if (remote.length || fullAudit) {
+            const latest = remote.reduce((value, record) => {
+                const updated = Date.parse(record.updated || record.created || '');
+                return Number.isFinite(updated) ? Math.max(value, updated) : value;
+            }, 0);
+            const cursorBase = latest || (fullAudit ? 0 : syncStartedAt);
+            localStorage.setItem(cursorKey, new Date(Math.max(0, cursorBase - POI_SYNC_CURSOR_OVERLAP_MS)).toISOString());
+        }
+        if (fullAudit) localStorage.setItem(auditKey, String(Date.now()));
         poiSyncRetryAfter = 0;
         return true;
     } catch (e) {
@@ -271,4 +303,7 @@ window.addEventListener('online', syncSharedPois);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') syncSharedPois();
 });
+setInterval(() => {
+    if (document.visibilityState === 'visible') syncSharedPois();
+}, 5 * 60 * 1000);
 

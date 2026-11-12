@@ -3,10 +3,11 @@
 //  POSICIONES DEL GRUPO (PocketBase)
 // ============================================================
 let groupJoined = false, groupSyncAvailable = false, friendsTimer = null, restoreGroupPending = false;
-let friendsRefreshPending = false, lastLivePush = 0, livePushPending = false;
+let friendsRefreshPending = false, lastLivePush = 0, lastFriendsRefreshAt = 0, livePushPending = false;
 let myLiveRecordId = null;
 const friendMarkers = new Map();
 const LIVE_INTERVAL_MS = 10000, FRIEND_STALE_MS = 120000;
+const FRIENDS_IDLE_REFRESH_MS = 30000;
 
 let groupInfo = null, groupChoices = [], liveFriendCount = 0;
 
@@ -78,7 +79,13 @@ async function stopGroup() {
 
 function startFriendsTimer() {
     if (friendsTimer) clearInterval(friendsTimer);
-    friendsTimer = setInterval(refreshFriends, LIVE_INTERVAL_MS);
+    friendsTimer = setInterval(() => {
+        if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+        // Durante la grabación, las publicaciones de posición ya refrescan la lista de amigos.
+        const minimumInterval = isRecording && !isPaused ? LIVE_INTERVAL_MS : FRIENDS_IDLE_REFRESH_MS;
+        if (Date.now() - lastFriendsRefreshAt < minimumInterval) return;
+        refreshFriends();
+    }, FRIENDS_IDLE_REFRESH_MS);
 }
 
 async function loadMyGroup() {
@@ -270,8 +277,10 @@ function renderFriends(items = []) {
 }
 
 async function refreshFriends(retryAuth = true, ownsPending = false) {
-    if (!groupJoined || !Cloud.loggedIn() || (friendsRefreshPending && !ownsPending)) return;
+    if (!groupJoined || !Cloud.loggedIn() || !navigator.onLine || document.visibilityState !== 'visible'
+        || (friendsRefreshPending && !ownsPending)) return;
     if (!ownsPending) friendsRefreshPending = true;
+    lastFriendsRefreshAt = Date.now();
     const wasSyncAvailable = groupSyncAvailable;
     try {
         const expectedGroup = groupName();
@@ -448,3 +457,6 @@ $('btn-leave').addEventListener('click', async () => {
 // ============================================================
 
 window.addEventListener('online', restoreGroup);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && navigator.onLine && groupJoined) refreshFriends();
+});
