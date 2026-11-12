@@ -649,6 +649,38 @@ async function submitCommunityRoute() {
     }
 }
 
+async function loadCommunityFavorites() {
+    if (!Cloud.loggedIn()) {
+        communitySetStatus('Inicia sesión para consultar tus rutas favoritas.', true);
+        return;
+    }
+    if (!navigator.onLine) {
+        communitySetStatus('Conéctate para cargar tus rutas favoritas.', true);
+        return;
+    }
+    const button = $('community-favorites-show');
+    button.disabled = true;
+    communitySetStatus('Cargando tus favoritas…');
+    try {
+        const filter = `owner = "${Cloud.uid}"`;
+        const response = await cloudApi(`/api/collections/community_route_favorites/records?page=1&perPage=100&expand=route&fields=id,route,expand.route.id,expand.route.owner,expand.route.title,expand.route.province,expand.route.locality,expand.route.description,expand.route.difficulty,expand.route.activityType,expand.route.distanceKm,expand.route.elevationGain,expand.route.movingTimeSec,expand.route.trackJson,expand.route.poisJson,expand.route.poiPhotos&filter=${encodeURIComponent(filter)}`);
+        communityCatalogRoutes = (Array.isArray(response.items) ? response.items : [])
+            .map(item => item.expand && item.expand.route)
+            .filter(record => record && communityRecordLines(record));
+        communityCatalogRoutes.forEach(record => { record.proximityKm = null; });
+        renderCommunityRoutes(communityCatalogRoutes);
+        communityUpdateStatsRouteSelect();
+        communitySetStatus(communityCatalogRoutes.length
+            ? `${communityCatalogRoutes.length} ruta(s) guardadas en favoritos.`
+            : 'Aún no tienes rutas comunitarias favoritas.');
+    } catch (error) {
+        console.warn('No se pudieron cargar las rutas favoritas:', error);
+        communitySetStatus(communitySocialError(error, 'community_route_favorites'), true);
+    } finally {
+        button.disabled = false;
+    }
+}
+
 function communityPointsForApp(lines) {
     const points = [];
     lines.forEach(line => line.forEach((coord, index) => {

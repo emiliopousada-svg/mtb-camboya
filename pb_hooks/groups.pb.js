@@ -219,7 +219,7 @@ routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
 routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
     const { requireSafeValue, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
-        const body = new DynamicModel({ distanceKm: 0, movingTimeSec: 0, maxSpeedKmh: 0 });
+        const body = new DynamicModel({ distanceKm: 0.1, movingTimeSec: 0.1, maxSpeedKmh: 0.1 });
         e.bindBody(body);
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
