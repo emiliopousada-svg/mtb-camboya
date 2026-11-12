@@ -120,9 +120,13 @@ async function loadAdminMembers() {
                 revoke.addEventListener('click', async () => {
                     if (!confirm('Esta persona perderá el acceso y necesitará una nueva invitación para volver. ¿Revocar?')) return;
                     try {
-                        await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                        const res = await cloudApi('/api/mtb/groups/revoke', 'POST', { userId: member.userId });
+                        if (res && res.inviteCode && groupInfo) {
+                            groupInfo.inviteCode = res.inviteCode;
+                            $('group-invite-code').textContent = res.inviteCode;
+                        }
                         await loadAdminMembers();
-                        toast('Acceso revocado.');
+                        toast('Acceso revocado y código de invitación renovado.');
                     } catch (e) { toast('No se pudo revocar el acceso: ' + e.message, 6000); }
                 });
                 row.appendChild(revoke);

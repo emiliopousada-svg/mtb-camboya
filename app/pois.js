@@ -51,7 +51,7 @@ const IMPORTED_POI_CATEGORIES = {
 const poiType = f => (POI_TYPES[f.type] ? f.type : 'fountain'); // las fuentes antiguas no tienen tipo
 
 async function syncSharedPois() {
-    if (!Cloud.server || !navigator.onLine || poiSyncRunning || Date.now() < poiSyncRetryAfter) return false;
+    if (!Cloud.server || !Cloud.loggedIn() || !navigator.onLine || poiSyncRunning || Date.now() < poiSyncRetryAfter) return false;
     poiSyncRunning = true;
     try {
         if (Cloud.loggedIn()) {

@@ -1,7 +1,8 @@
 // Service Worker de MTB CAMBOYA
 // - Guarda la app y las librerías para que abra sin conexión.
 // - Los mapas offline (teselas del IGN) se guardan en IndexedDB desde la propia aplicación.
-const SHELL = 'mtb-shell-v24';
+// prepare-web.js sustituye el marcador con la versión de package.json.
+const SHELL = 'mtb-shell-v__APP_VERSION__';
 
 const SHELL_URLS = [
   './',
@@ -57,10 +58,23 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin === location.origin || url.hostname === 'unpkg.com' || url.hostname === 'cdn.jsdelivr.net') {
+  if (url.origin === location.origin) {
+    e.respondWith(networkFirst(req));
+  } else if (url.hostname === 'unpkg.com' || url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(staleWhileRevalidate(req));
   }
 });
+
+async function networkFirst(req) {
+  const cache = await caches.open(SHELL);
+  try {
+    const response = await fetch(req);
+    if (response && response.ok) await cache.put(req, response.clone());
+    return response;
+  } catch (error) {
+    return (await cache.match(req)) || Response.error();
+  }
+}
 
 async function staleWhileRevalidate(req) {
   const cache = await caches.open(SHELL);

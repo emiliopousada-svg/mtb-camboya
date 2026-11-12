@@ -30,8 +30,6 @@ const versionedConfig = configText.replace(
   `const APP_VERSION = '${appVersion}';`
 );
 fs.writeFileSync(appConfig, versionedConfig);
-// sw.js no se copia: dentro del APK los archivos ya van empaquetados.
-
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/leaflet/leaflet.css'));
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.js'), path.join(www, 'lib/leaflet/leaflet.js'));
 fs.copyFileSync(path.join(root, 'vendor/leaflet-rotate.umd.min.js'), path.join(www, 'lib/leaflet/leaflet-rotate.umd.min.js'));
@@ -61,8 +59,26 @@ for (const [from, to] of swaps) {
   html = html.split(from).join(to);
 }
 fs.writeFileSync(file, html);
-console.log('www listo');
-fs.copyFileSync(
-  path.join(__dirname, '..', 'sw.js'),
-  path.join(__dirname, '..', 'www', 'sw.js')
+
+// Comprueba que el HTML que se empaquetará no referencia scripts o CSS locales ausentes.
+const localAssets = [
+  ...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi),
+  ...html.matchAll(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi)
+].map(match => match[1]);
+for (const asset of localAssets) {
+  if (/^(?:[a-z]+:|\/\/|#|data:)/i.test(asset)) continue;
+  const assetPath = decodeURIComponent(asset.split(/[?#]/, 1)[0]);
+  if (!fs.existsSync(path.join(www, assetPath))) {
+    throw new Error(`index.html referencia un recurso local que no existe en www/: ${asset}`);
+  }
+}
+
+const swSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+if (!swSource.includes('__APP_VERSION__')) {
+  throw new Error('No se encontró el marcador de versión de caché en sw.js');
+}
+fs.writeFileSync(
+  path.join(www, 'sw.js'),
+  swSource.replace('__APP_VERSION__', appVersion)
 );
+console.log(`www listo (service worker ${appVersion})`);

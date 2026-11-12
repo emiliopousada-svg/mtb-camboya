@@ -19,6 +19,7 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private static final long SPLASH_DURATION_MS = 4000;
+    private boolean backCheckPending = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -30,6 +31,21 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onBackPressed() {
+        if (backCheckPending) return;
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            backCheckPending = true;
+            getBridge().getWebView().evaluateJavascript(
+                    "(function(){return !!(window.mtbHandleHardwareBack && window.mtbHandleHardwareBack());})()",
+                    result -> {
+                        backCheckPending = false;
+                        if (!"true".equals(result)) showExitDialog();
+                    });
+            return;
+        }
+        showExitDialog();
+    }
+
+    private void showExitDialog() {
         int padding = (int) (24 * getResources().getDisplayMetrics().density);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);

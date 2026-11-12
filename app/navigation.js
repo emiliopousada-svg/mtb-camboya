@@ -14,6 +14,20 @@ function goToPage(index) {
     if (index === 4) openOfflineMaps();
 }
 
+// Android delega aquí el botón Atrás para navegar por las páginas antes de salir.
+// Devolver true significa que la pulsación quedó atendida por la aplicación.
+window.mtbHandleHardwareBack = function () {
+    if (currentPage > 0) {
+        goToPage(currentPage - 1);
+        return true;
+    }
+    if (isRecording) {
+        toast('La grabación sigue activa. Finalízala antes de salir de la aplicación.', 5000);
+        return true;
+    }
+    return false;
+};
+
 // Deslizamiento táctil horizontal (no actúa sobre el mapa, gráficas ni diálogos)
 let touchStartX = 0, touchStartY = 0, swipeBlocked = false, statsSwipeStart = false;
 

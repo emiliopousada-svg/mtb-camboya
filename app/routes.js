@@ -225,13 +225,13 @@ $('saved-routes-list').addEventListener('click', async e => {
     } else if (btn.dataset.act === 'del') {
         const ok = await modal({ message: `¿Eliminar «${r.name}»? No se puede deshacer.`, ok: 'Eliminar' });
         if (!ok) return;
-        try { await DB.del(id); } catch (err) { toast('No se pudo eliminar del dispositivo'); }
-        if (r.remoteId) await queueRemoteDelete(r.remoteId);
+        try { await DB.deleteRoute(id, r.remoteId); }
+        catch (err) { toast('No se pudo eliminar la ruta ni programar su borrado'); return; }
         savedRoutes = savedRoutes.filter(x => x.id !== id);
         if (followedRoute && followedRoute.id === id) unfollowRoute();
         renderSavedRoutes();
         refreshStats();
-            syncRoutes();
+        syncRoutes();
     }
 });
 

@@ -32,8 +32,11 @@ const Cloud = {
     }
 };
 
+const CLOUD_TIMEOUT_MS = 10000;
+
 // body: objeto (JSON), FormData (archivos) o null
-async function cloudApi(path, method = 'GET', body = null) {
+async function cloudApi(path, method = 'GET', body = null, options = {}) {
+    const timeoutMs = typeof options === 'number' ? options : (options?.timeoutMs || CLOUD_TIMEOUT_MS);
     const headers = {};
     if (Cloud.token) headers.Authorization = Cloud.token;
     let payload;
@@ -43,20 +46,42 @@ async function cloudApi(path, method = 'GET', body = null) {
     if (url.protocol !== 'https:' || url.username || url.password) {
         throw new Error('El servidor debe usar una dirección HTTPS válida.');
     }
-    const res = await fetch(url.href, { method, headers, body: payload });
-    if (!res.ok) {
-        let msg = '';
-        try {
-            const j = await res.json();
-            msg = j.message || '';
-            const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
-            if (f) msg += ` (${f})`;
-        } catch (e) {}
-        const err = new Error(msg || ('Error ' + res.status));
-        err.status = res.status; // sin status = no se pudo conectar
-        throw err;
+
+    const controller = new AbortController();
+    if (options?.signal) {
+        if (options.signal.aborted) controller.abort(options.signal.reason);
+        else options.signal.addEventListener('abort', () => controller.abort(options.signal.reason), { once: true });
     }
-    return res.status === 204 ? null : res.json();
+    const timer = setTimeout(() => {
+        const timeoutErr = new Error('Tiempo de espera agotado al conectar con el servidor');
+        timeoutErr.name = 'TimeoutError';
+        controller.abort(timeoutErr);
+    }, timeoutMs);
+
+    try {
+        const res = await fetch(url.href, { method, headers, body: payload, signal: controller.signal });
+        if (!res.ok) {
+            let msg = '';
+            try {
+                const j = await res.json();
+                msg = j.message || '';
+                const f = j.data ? Object.entries(j.data).map(([k, v]) => `${k}: ${v.message}`).join('; ') : '';
+                if (f) msg += ` (${f})`;
+            } catch (e) {}
+            const err = new Error(msg || ('Error ' + res.status));
+            err.status = res.status; // sin status = no se pudo conectar
+            throw err;
+        }
+        return res.status === 204 ? null : await res.json();
+    } catch (e) {
+        if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+            const timeoutErr = new Error('Tiempo de espera agotado al conectar con el servidor');
+            throw timeoutErr;
+        }
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function normalizeServer(v) {
@@ -119,14 +144,6 @@ async function accAuth(register) {
 
 async function putLocal(r) { await DB.put(r); }
 
-async function queueRemoteDelete(remoteId) {
-    try {
-        const p = (await DB.kvGet('pendingDeletes')) || [];
-        p.push(remoteId);
-        await DB.kvSet('pendingDeletes', p);
-    } catch (e) {}
-}
-
 function routeForm(r) {
     const route = r && typeof r === 'object' ? r : {};
     const fd = new FormData();
@@ -174,7 +191,9 @@ async function syncRoutes(manual = false) {
 
         // 2) borrados pendientes
         let pend = [];
-        try { pend = (await DB.kvGet('pendingDeletes')) || []; } catch (e) {}
+        let pendingDeletesAvailable = true;
+        try { pend = (await DB.kvGet('pendingDeletes')) || []; }
+        catch (e) { pendingDeletesAvailable = false; syncFailures++; console.warn('No se pudo leer la cola de borrados:', e); }
         const rest = [];
         for (const rid of pend) {
             try { await cloudApi(`/api/collections/routes/records/${rid}`, 'DELETE'); }
@@ -186,14 +205,51 @@ async function syncRoutes(manual = false) {
                 }
             }
         }
-        try { await DB.kvSet('pendingDeletes', rest); } catch (e) {}
+        if (pendingDeletesAvailable) {
+            try { await DB.kvSet('pendingDeletes', rest); }
+            catch (e) { syncFailures++; console.warn('No se pudo guardar la cola de borrados:', e); }
+        }
         const skip = new Set(pend);
 
-        // 3) subir lo nuevo y los cambios de nombre
+        // 3) reconciliar lo remoto y subir cambios locales sin bloquear otras rutas
         const byClient = new Map(remote.map(x => [Number(x.clientId), x]));
-        for (const r of savedRoutes) {
+        const byRemoteId = new Map(remote.map(x => [x.id, x]));
+        const blockedIds = new Set();
+        for (const r of [...savedRoutes]) {
             const found = byClient.get(r.id);
-            if (!r.remoteId && found && !skip.has(found.id)) { r.remoteId = found.id; r.dirty = false; await putLocal(r); }
+            const remoteRecord = r.remoteId && !skip.has(r.remoteId) ? byRemoteId.get(r.remoteId) : null;
+            const matched = remoteRecord || (found && !skip.has(found.id) ? found : null);
+
+            // Una ruta borrada desde otro dispositivo ya no existe en el inventario remoto.
+            if (r.remoteId && (skip.has(r.remoteId) || !matched)) {
+                try {
+                    await DB.del(r.id);
+                    savedRoutes = savedRoutes.filter(x => x.id !== r.id);
+                } catch (e) {
+                    blockedIds.add(r.id);
+                    syncFailures++;
+                    console.warn(`No se pudo aplicar el borrado remoto de la ruta ${r.id}:`, e);
+                }
+                continue;
+            }
+
+            if (matched && !r.dirty) {
+                const remoteIdChanged = r.remoteId !== matched.id;
+                r.remoteId = matched.id;
+                const remoteName = matched.name || r.name;
+                const remoteActivity = activityTypeFromName(remoteName) || r.activityType || 'mtb';
+                const changed = remoteIdChanged || r.name !== remoteName || r.activityType !== remoteActivity;
+                r.name = remoteName;
+                r.activityType = remoteActivity;
+                r.dirty = false;
+                if (changed) {
+                    try { await putLocal(r); }
+                    catch (e) { blockedIds.add(r.id); syncFailures++; console.warn(`No se pudo actualizar localmente la ruta ${r.id}:`, e); }
+                }
+                continue;
+            }
+            if (blockedIds.has(r.id)) continue;
+            if (matched) r.remoteId = matched.id;
             if (r.remoteId && !r.dirty) continue;
             try {
                 let rec;
@@ -204,8 +260,13 @@ async function syncRoutes(manual = false) {
                 await putLocal(r);
                 pushed++;
             } catch (e) {
-                if (e.status === 404 && r.remoteId) { r.remoteId = null; await putLocal(r); } // desaparecida del servidor: se subirá de nuevo
-                else throw e;
+                syncFailures++;
+                console.warn(`No se pudo sincronizar la ruta ${r.id}:`, e);
+                if (e.status === 404 && r.remoteId) {
+                    r.remoteId = null;
+                    try { await putLocal(r); }
+                    catch (localError) { console.warn(`No se pudo actualizar la ruta local ${r.id}:`, localError); }
+                }
             }
         }
 
@@ -216,7 +277,14 @@ async function syncRoutes(manual = false) {
             const ft = (await cloudApi('/api/files/token', 'POST')).token;
             for (const rec of missing) {
                 try {
-                    const res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`);
+                    const dlController = new AbortController();
+                    const dlTimer = setTimeout(() => dlController.abort(), 15000);
+                    let res;
+                    try {
+                        res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`, { signal: dlController.signal });
+                    } finally {
+                        clearTimeout(dlTimer);
+                    }
                     if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
                     const points = await res.json();
                     if (!Array.isArray(points) || points.length < 2 ||
@@ -386,13 +454,17 @@ async function init() {
     renderSavedRoutes();
     refreshStats();
     initAccount();
-    syncRoutes();
     initSettings();
-    await syncSharedPois();
-    setInterval(syncSharedPois, 60000);
-    await restoreGroup();
+
+    // 1) Arrancar GPS y recuperar borrador de inmediato (offline-first, no depende de la red)
     startGps();
     await maybeRestoreDraft();
+
+    // 2) Sincronizaciones con la nube en segundo plano (no bloquean el inicio de la app ni el GPS)
+    syncRoutes();
+    syncSharedPois();
+    setInterval(syncSharedPois, 60000);
+    restoreGroup();
 }
 
 init();

@@ -6,7 +6,7 @@
     "listRule": "owner = @request.auth.id",
     "viewRule": "owner = @request.auth.id",
     "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id",
-    "updateRule": "owner = @request.auth.id",
+    "updateRule": "owner = @request.auth.id && @request.body.owner:changed = false",
     "deleteRule": "owner = @request.auth.id",
     "fields": [
       {

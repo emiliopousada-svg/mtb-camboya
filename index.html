@@ -261,7 +261,7 @@
                         </div>
                         <div class="card" id="stats-community-ranking">
                             <h3>Clasificación de rutas comunitarias</h3>
-                            <p class="hint">Consulta las mejores marcas públicas y revisa tus tiempos calculados con el GPS de tus actividades. Solo se envían el apodo y el tiempo si confirmas.</p>
+                            <p class="hint">Consulta marcas públicas y revisa tus tiempos calculados con el GPS. El alias se asigna desde tu cuenta; el tiempo es autodeclarado y no se verifica de forma independiente.</p>
                             <button id="stats-community-browse" class="btn secondary" type="button">Buscar rutas comunitarias</button>
                             <label for="stats-community-route">Ruta</label>
                             <select id="stats-community-route">
@@ -500,10 +500,9 @@
 
             <section id="offline-panel" class="card" aria-label="Mapas sin conexión">
     <h2>🗺️ Mapas sin conexión</h2>
-                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular o de Portugal. El mapa online que elijas en Ajustes guarda automáticamente las zonas que vas viendo.</p>
+                <p>Descarga el mapa topográfico IGN de una comunidad autónoma peninsular. El mapa online que elijas en Ajustes guarda automáticamente las zonas que vas viendo.</p>
     <label for="offline-region" style="font-size:.8rem;color:#ddd;">Región</label>
     <select id="offline-region">
-        <option value="portugal">Portugal</option>
         <option value="andalucia">Andalucía</option>
         <option value="aragon">Aragón</option>
         <option value="asturias">Principado de Asturias</option>
@@ -526,11 +525,13 @@
         <option value="14">Alto (zoom 7–14, ocupa bastante más)</option>
     </select>
     <p class="hint">La descarga cubre el área geográfica aproximada de la comunidad y puede incluir zonas limítrofes. Se muestra el número de teselas antes de iniciar.</p>
+    <p class="hint">Para más detalle, descarga la zona visible del mapa en zoom 15–17. Esta opción cubre solo el área que tienes encuadrada.</p>
     <div id="offline-progress"><div id="offline-progress-fill"></div></div>
     <div id="offline-progress-text">Preparado para descargar</div>
     <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga. Las descargas de mapas tienen límites de espacio; las cachés automáticas se depuran por antigüedad.</p>
     <div class="offline-actions">
         <button class="btn" id="btn-download-region" type="button">Descargar / reanudar</button>
+        <button class="btn secondary" id="btn-download-visible-detail" type="button">Descargar detalle de la vista (15–17)</button>
         <button class="btn secondary" id="btn-cancel-download" type="button">Parar</button>
     </div>
     <button class="btn danger" id="btn-clear-offline" type="button">Borrar mapas guardados</button>
@@ -622,7 +623,7 @@
                 <div id="community-detail-stats" class="community-detail-stats"></div>
                 <section id="community-route-ranking-section" class="community-detail-section" aria-labelledby="community-route-ranking-title">
                     <h3 id="community-route-ranking-title">Clasificación de la ruta</h3>
-                    <p class="community-privacy">Se comparte solo el apodo y el mejor tiempo. No se publica el track de tu actividad, tu correo ni los datos de sensores.</p>
+                    <p class="community-privacy">Se comparte solo un alias asignado a tu cuenta y el mejor tiempo. La marca no se verifica de forma independiente. No se publica el track de tu actividad, tu correo ni los datos de sensores.</p>
                     <div id="community-route-leaderboard" class="community-ranking-list" aria-live="polite"></div>
                     <div id="community-route-attempt"></div>
                 </section>

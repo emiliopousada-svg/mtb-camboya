@@ -186,7 +186,10 @@ routerAdd("POST", "/api/mtb/groups/revoke", (e) => {
         const locations = $app.findRecordsByFilter("live_locations", 'owner = "' + targetId + '" && groupCode = "' + safeGroupId + '"', "", 500, 0);
         for (const location of locations) $app.delete(location);
         $app.delete(memberships[0]);
-        return e.json(200, { ok: true });
+        const newInviteCode = $security.randomString(12).toUpperCase();
+        group.set("inviteCode", newInviteCode);
+        $app.save(group);
+        return e.json(200, { ok: true, inviteCode: newInviteCode });
     } catch (err) {
         return e.json(400, { message: err.message || "No se pudo revocar el acceso." });
     }
