@@ -294,7 +294,7 @@ function onPos(pos) {
     if (!isRecording || isPaused) return;
 
     if (followedMatch) checkOffRoute(lat, lon, followedMatch);
-    if (accuracy > MAX_ACC_M) return; // señal pobre: no se graba
+    if (!Number.isFinite(accuracy) || accuracy > MAX_ACC_M) return; // precisión ausente, inválida o señal pobre: no se graba
     publishMyLocation();
 
     const t = pos.timestamp;
