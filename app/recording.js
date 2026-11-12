@@ -430,16 +430,30 @@ $('route-photo-input').addEventListener('change', async event => {
             toast(`Cada ruta puede tener hasta ${ROUTE_POI_MAX_PHOTOS} fotos.`);
             return;
         }
+        const capturedAt = new Date();
+        let savedCopyPath = '';
+        let copyFailed = false;
+        try {
+            savedCopyPath = await saveRoutePhotoToPhone(file, startedAt, capturedAt) || '';
+        } catch (error) {
+            console.warn('No se pudo guardar una copia de la foto en Documentos:', error);
+            copyFailed = true;
+        }
         recordingPois.push({
             lat: position.lat,
             lng: position.lng,
             caption: 'Foto de ruta',
             photo,
-            createdAt: new Date().toISOString()
+            createdAt: capturedAt.toISOString(),
+            savedCopyPath
         });
         showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
         saveDraft();
-        toast('Foto añadida como punto de interés de la ruta.');
+        toast(savedCopyPath
+            ? 'Foto añadida y guardada en Documentos/MTB CAMBOYA/Rutas.'
+            : copyFailed
+                ? 'Foto añadida a la ruta, pero no se pudo copiar a Documentos.'
+                : 'Foto añadida como punto de interés de la ruta.');
     } catch (error) {
         console.warn('No se pudo añadir la foto a la ruta:', error);
         toast(`No se pudo añadir la foto: ${error.message || 'error al procesarla'}`);

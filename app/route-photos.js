@@ -71,6 +71,46 @@ async function prepareRoutePoiPhoto(file) {
     }
 }
 
+async function saveRoutePhotoToPhone(file, routeStartedAt, capturedAt = new Date()) {
+    const capacitor = window.Capacitor;
+    const filesystem = capacitor && capacitor.isNativePlatform && capacitor.isNativePlatform()
+        ? capacitor.Plugins?.Filesystem
+        : null;
+    if (!filesystem) return null;
+
+    if (filesystem.checkPermissions && filesystem.requestPermissions) {
+        let permissions = await filesystem.checkPermissions();
+        if (permissions.publicStorage !== 'granted') permissions = await filesystem.requestPermissions();
+        if (permissions.publicStorage !== 'granted') {
+            throw new Error('No se concedió permiso para guardar fotos en Documentos.');
+        }
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('No se pudo leer la foto original.'));
+        reader.readAsDataURL(file);
+    });
+    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    if (!base64) throw new Error('No se pudo preparar la copia de la foto.');
+
+    const routeDate = new Date(routeStartedAt);
+    const folderDate = Number.isFinite(routeDate.getTime()) ? routeDate : capturedAt;
+    const folder = [folderDate.getFullYear(), String(folderDate.getMonth() + 1).padStart(2, '0'), String(folderDate.getDate()).padStart(2, '0')].join('-');
+    const timestamp = capturedAt.toISOString().replace(/[:.]/g, '-');
+    const knownExtensions = {
+        'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+        'image/heic': 'heic', 'image/heif': 'heif', 'image/gif': 'gif'
+    };
+    const fileExtension = String(file.name || '').split('.').pop().toLowerCase();
+    const extension = knownExtensions[file.type] || (/^[a-z0-9]{2,5}$/.test(fileExtension) ? fileExtension : 'img');
+    const suffix = Math.random().toString(36).slice(2, 7);
+    const path = `MTB CAMBOYA/Rutas/${folder}/foto-${timestamp}-${suffix}.${extension}`;
+    await filesystem.writeFile({ path, data: base64, directory: 'DOCUMENTS', recursive: true });
+    return path;
+}
+
 function routePoiPopupContent(poi, imageUrl) {
     const content = document.createElement('div');
     content.className = 'route-photo-popup';

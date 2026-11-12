@@ -399,7 +399,9 @@
                         <span style="display:flex;align-items:center;gap:9px;font-weight:700;"><span class="group-led" aria-hidden="true"></span><span id="group-connected-label">Grupo activo</span></span>
                         <button class="btn-small secondary" id="btn-leave" type="button">Salir y conservar acceso</button>
                     </div>
-                    <div id="group-admin-panel" class="group-admin-panel" style="display:none;">
+                    <details id="group-admin-panel" class="group-admin-panel" style="display:none;">
+                        <summary class="group-admin-summary">Administrar grupo</summary>
+                        <div class="group-admin-content">
                         <p class="hint" style="margin-top:0;">Comparte el código para autorizar a nuevos miembros:</p>
                         <strong id="group-invite-code" class="group-invite-code"></strong>
                         <div class="group-actions">
@@ -408,7 +410,8 @@
                             <button class="btn-small danger" id="btn-delete-group" type="button">Eliminar grupo</button>
                         </div>
                         <p class="hint">Miembros autorizados (pueden salir y volver a entrar):</p><div id="group-members-list"></div>
-                    </div>
+                        </div>
+                    </details>
                 </div>
                 <p class="hint" id="group-status">Inicia sesión para crear un grupo o aceptar una invitación.</p>
             </div>

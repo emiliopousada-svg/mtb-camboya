@@ -771,6 +771,9 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
     margin-top: 12px; padding: 12px; border-radius: 12px;
     background: #121212; border: 1px solid rgba(129,199,132,.3);
 }
+.group-admin-summary { color: #68edc4; font-weight: 800; cursor: pointer; }
+.group-admin-summary::marker { color: #68edc4; }
+.group-admin-content { padding-top: 10px; }
 .group-invite-code {
     display: block; margin: 7px 0; color: #81c784;
     font: 800 1.15rem ui-monospace, SFMono-Regular, Consolas, monospace;
