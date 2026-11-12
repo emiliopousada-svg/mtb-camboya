@@ -636,7 +636,10 @@ function initAccount() {
 
     $('acc-login').addEventListener('click', () => accAuth(false));
     $('acc-register').addEventListener('click', () => accAuth(true));
-    $('acc-sync').addEventListener('click', () => syncRoutes(true));
+    $('acc-sync').addEventListener('click', async () => {
+        await syncRoutes(true);
+        await restoreGroup();
+    });
     $('acc-logout').addEventListener('click', async () => {
         await stopGroup();
         Cloud.clearSession();

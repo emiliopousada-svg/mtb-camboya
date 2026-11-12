@@ -20,6 +20,14 @@ function hasPendingGroupLeave() {
     const key = pendingGroupLeaveKey();
     return Boolean(key && localStorage.getItem(key));
 }
+function clearPendingGroupLeave(groupId) {
+    const key = pendingGroupLeaveKey();
+    if (!key) return;
+    try {
+        const pending = JSON.parse(localStorage.getItem(key) || 'null');
+        if (pending && pending.groupId === groupId) localStorage.removeItem(key);
+    } catch (_) { localStorage.removeItem(key); }
+}
 
 async function syncPendingGroupLeave() {
     const key = pendingGroupLeaveKey();
@@ -203,6 +211,7 @@ async function selectGroup(groupId) {
         await cloudApi('/api/mtb/groups/select', 'POST', { groupId, nickname });
         const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
         Cloud.setSession(auth.token, auth.record);
+        clearPendingGroupLeave(groupId);
         localStorage.setItem('mtb_group_joined', groupId);
         groupJoined = true;
         groupSyncAvailable = true;
@@ -484,6 +493,7 @@ async function connectGroup(action) {
         const fresh = await cloudApi('/api/collections/users/auth-refresh', 'POST');
         Cloud.setSession(fresh.token, fresh.record);
         groupInfo = result.group;
+        clearPendingGroupLeave(result.group.id);
         groupJoined = true;
         groupSyncAvailable = true;
         localStorage.setItem('mtb_group_joined', result.group.id);
