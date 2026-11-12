@@ -251,12 +251,16 @@ function onPos(pos) {
         } else {
             userMarker.setLatLng(ll);
         }
-        const shouldRecenter = !firstFix ||
-            (gpsRecenterPending && Number.isFinite(accuracy) && accuracy <= GPS_RECENTER_ACCURACY_M);
+        const point = map.latLngToContainerPoint(ll);
+        const mapSize = map.getSize();
+        const outsideCenterZone = Math.abs(point.x - mapSize.x / 2) > mapSize.x * 0.22
+            || Math.abs(point.y - mapSize.y / 2) > mapSize.y * 0.22;
+        const shouldRecenter = !firstFix || outsideCenterZone || gpsRecenterPending;
+        if (outsideCenterZone || gpsRecenterPending) following = true;
         if (!firstFix) firstFix = true;
         if (shouldRecenter) {
             map.setView(ll, Math.max(map.getZoom(), 16));
-            if (Number.isFinite(accuracy) && accuracy <= GPS_RECENTER_ACCURACY_M) gpsRecenterPending = false;
+            gpsRecenterPending = false;
         }
         updateCenterBtn();
         if (following && (typeof currentPage === 'undefined' || currentPage === 0)) {

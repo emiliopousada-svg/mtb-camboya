@@ -84,13 +84,6 @@
                     <span id="map-battery-icon" aria-hidden="true"><i></i></span>
                     <span id="map-battery-text">--%</span>
                 </div>
-                <button class="btn-icon-only active" id="btn-center" title="Centrar y seguir mi posición" aria-label="Centrar y seguir mi posición">
-                    <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="8.5"></circle>
-                        <circle cx="12" cy="12" r="2.5"></circle>
-                        <path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"></path>
-                    </svg>
-                </button>
             </div>
 
             <div id="big-metric" role="button" aria-label="Volver a la vista normal">
@@ -113,6 +106,13 @@
                     <img src="estrella-galicia.svg" alt="Parada en un bar" class="btn-logo">
                 </button>
                 <button class="btn-icon-only" id="btn-poi-food" title="Marcar un sitio de comida">🍽️</button>
+                <button class="btn-icon-only active" id="btn-center" type="button" title="Centrar y seguir mi posición" aria-label="Centrar y seguir mi posición">
+                    <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="8.5"></circle>
+                        <circle cx="12" cy="12" r="2.5"></circle>
+                        <path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"></path>
+                    </svg>
+                </button>
             </div>
             <div class="controls-overlay">
                 <button class="btn-main-action" id="btn-start">
@@ -824,6 +824,7 @@
     <script src="app/offline-maps.js"></script>
     <script src="app/map.js"></script>
     <script src="app/route-photos.js"></script>
+    <script src="app/account-avatar.js"></script>
     <script src="app/gps.js"></script>
     <script src="app/recording.js"></script>
     <script src="app/route-following.js"></script>

@@ -24,11 +24,15 @@ const Cloud = {
     setSession(token, rec) {
         localStorage.setItem('mtb_token', token);
         localStorage.setItem('mtb_uid', rec.id);
+        localStorage.setItem('mtb_avatar_last_uid', rec.id);
         localStorage.setItem('mtb_email', rec.email || '');
         localStorage.setItem('mtb_group_code', rec.groupCode || '');
+        if (typeof renderAccountAvatar === 'function') renderAccountAvatar();
     },
     clearSession() {
         ['mtb_token', 'mtb_uid', 'mtb_email', 'mtb_group_code'].forEach(k => localStorage.removeItem(k));
+        if (typeof resetAccountProfileCache === 'function') resetAccountProfileCache();
+        if (typeof renderAccountAvatar === 'function') renderAccountAvatar();
     }
 };
 
@@ -150,12 +154,24 @@ async function accAuth(register) {
     const pass = $('acc-pass').value;
     if (!email || !pass) { toast('Rellena correo y contraseña'); return; }
     if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
+    const weightKg = $('acc-weight').value.trim();
+    const age = $('acc-age').value.trim();
+    if (register && weightKg && (!Number.isFinite(Number(weightKg)) || Number(weightKg) < 25 || Number(weightKg) > 250)) { toast('El peso debe estar entre 25 y 250 kg.'); return; }
+    if (register && age && (!Number.isInteger(Number(age)) || Number(age) < 10 || Number(age) > 100)) { toast('La edad debe estar entre 10 y 100 años.'); return; }
     localStorage.setItem('mtb_server', server);
     Cloud.clearSession();
     try {
-        if (register) await cloudApi('/api/collections/users/records', 'POST', { email, password: pass, passwordConfirm: pass });
+        if (register) {
+            const profile = { email, password: pass, passwordConfirm: pass };
+            if (weightKg) profile.weightKg = Number(weightKg);
+            if (age) profile.age = Number(age);
+            await cloudApi('/api/collections/users/records', 'POST', profile);
+        }
         const r = await cloudApi('/api/collections/users/auth-with-password', 'POST', { identity: email, password: pass });
         Cloud.setSession(r.token, r.record);
+        renderAccountProfile(r.record);
+        try { await syncPendingAccountAvatar(r.record); }
+        catch (avatarError) { console.warn('No se pudo sincronizar el avatar pendiente:', avatarError); }
         $('acc-pass').value = '';
         renderAccount();
         await restoreGroup();
@@ -209,6 +225,9 @@ async function syncRoutes(manual = false) {
         try {
             const ar = await cloudApi('/api/collections/users/auth-refresh', 'POST');
             Cloud.setSession(ar.token, ar.record);
+            renderAccountProfile(ar.record);
+            try { await syncPendingAccountAvatar(ar.record); }
+            catch (avatarError) { console.warn('No se pudo sincronizar el avatar pendiente:', avatarError); }
         } catch (e) {
             if (e.status !== undefined) {
                 Cloud.clearSession();
@@ -414,6 +433,7 @@ function initSettings() {
 }
 
 function initAccount() {
+    initAccountAvatar();
     const savedServer = localStorage.getItem('mtb_server');
     try {
         localStorage.setItem('mtb_server', normalizeServer(savedServer || DEFAULT_CLOUD_SERVER));
