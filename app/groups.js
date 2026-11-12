@@ -13,6 +13,42 @@ const FRIENDS_IDLE_REFRESH_MS = 30000;
 let groupInfo = null, groupChoices = [], liveFriendCount = 0;
 
 function groupName() { return Cloud.groupCode || ''; }
+function pendingGroupLeaveKey() {
+    return Cloud.uid ? `mtb_pending_group_leave_${encodeURIComponent(Cloud.server)}_${Cloud.uid}` : '';
+}
+function hasPendingGroupLeave() {
+    const key = pendingGroupLeaveKey();
+    return Boolean(key && localStorage.getItem(key));
+}
+
+async function syncPendingGroupLeave() {
+    const key = pendingGroupLeaveKey();
+    if (!key || !Cloud.loggedIn() || !navigator.onLine) return false;
+    let pending;
+    try { pending = JSON.parse(localStorage.getItem(key) || 'null'); }
+    catch (_) { pending = null; }
+    if (!pending || !pending.groupId) {
+        localStorage.removeItem(key);
+        return true;
+    }
+
+    const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+    Cloud.setSession(auth.token, auth.record);
+    if (auth.record.groupCode === pending.groupId) {
+        await cloudApi('/api/mtb/groups/leave', 'POST');
+    }
+    const fresh = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+    Cloud.setSession(fresh.token, fresh.record);
+    localStorage.removeItem(key);
+    groupJoined = false;
+    groupSyncAvailable = false;
+    myLiveRecordId = null;
+    localStorage.removeItem('mtb_group_joined');
+    await loadMyGroup();
+    renderFriends();
+    renderAccount();
+    return true;
+}
 
 function renderFriendsGroupStatus() {
     const status = $('friends-group-status');
@@ -182,38 +218,58 @@ async function selectGroup(groupId) {
 async function restoreGroup() {
     if (!Cloud.loggedIn() || restoreGroupPending) return;
     restoreGroupPending = true;
-    const savedGroupId = localStorage.getItem('mtb_group_joined');
-    const savedNickname = localStorage.getItem('mtb_group_name');
-    if (!groupJoined && savedGroupId && savedGroupId === groupName() && savedNickname && savedNickname.trim()) {
-        groupJoined = true;
-        groupSyncAvailable = false;
-        groupInfo = groupInfo || { id: savedGroupId, nickname: savedNickname };
-        renderGroupState(true);
-        renderFriends();
-        startFriendsTimer();
-    }
     try {
-        const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
-        Cloud.setSession(auth.token, auth.record);
-        await loadMyGroup();
-        if (!groupJoined) {
+        if (hasPendingGroupLeave()) {
+            groupJoined = false;
+            groupSyncAvailable = false;
+            localStorage.removeItem('mtb_group_joined');
+            localStorage.removeItem('mtb_group_code');
             if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+            renderGroupState(false);
             renderFriends();
+            if (navigator.onLine) {
+                try { await syncPendingGroupLeave(); }
+                catch (e) {
+                    localStorage.removeItem('mtb_group_code');
+                    $('group-status').textContent = 'Has salido en este dispositivo; se completará la salida del servidor al recuperar conexión.';
+                    console.warn('Salida del grupo pendiente:', e);
+                }
+            } else {
+                $('group-status').textContent = 'Has salido en este dispositivo; la salida del servidor está pendiente de conexión.';
+            }
             return;
         }
-        await refreshFriends();
-        startFriendsTimer();
-        if (isRecording && !isPaused) publishMyLocation(true);
-    } catch (e) {
-        groupSyncAvailable = false;
-        if (groupJoined) renderGroupState(true);
-        console.warn('No se pudo restaurar el grupo:', e);
-        $('group-status').textContent = e.status === 404
-            ? 'Falta configurar la gestión global de grupos en PocketBase.'
-            : 'Esperando conexión para cargar tu grupo…';
-    } finally {
-        restoreGroupPending = false;
-    }
+        const savedGroupId = localStorage.getItem('mtb_group_joined');
+        const savedNickname = localStorage.getItem('mtb_group_name');
+        if (!groupJoined && savedGroupId && savedGroupId === groupName() && savedNickname && savedNickname.trim()) {
+            groupJoined = true;
+            groupSyncAvailable = false;
+            groupInfo = groupInfo || { id: savedGroupId, nickname: savedNickname };
+            renderGroupState(true);
+            renderFriends();
+            startFriendsTimer();
+        }
+        try {
+            const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
+            Cloud.setSession(auth.token, auth.record);
+            await loadMyGroup();
+            if (!groupJoined) {
+                if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+                renderFriends();
+                return;
+            }
+            await refreshFriends();
+            startFriendsTimer();
+            if (isRecording && !isPaused) publishMyLocation(true);
+        } catch (e) {
+            groupSyncAvailable = false;
+            if (groupJoined) renderGroupState(true);
+            console.warn('No se pudo restaurar el grupo:', e);
+            $('group-status').textContent = e.status === 404
+                ? 'Falta configurar la gestión global de grupos en PocketBase.'
+                : 'Esperando conexión para cargar tu grupo…';
+        }
+    } finally { restoreGroupPending = false; }
 }
 
 function renderFriends(items = []) {
@@ -468,20 +524,39 @@ $('btn-delete-group').addEventListener('click', async () => {
         toast('Grupo eliminado; se han revocado las autorizaciones.');
     } catch (e) { toast('No se pudo eliminar el grupo: ' + e.message, 6000); }
 });
-$('btn-leave').addEventListener('click', async () => {
+async function leaveGroupLocally() {
+    const groupId = groupName() || localStorage.getItem('mtb_group_joined') || '';
+    const key = pendingGroupLeaveKey();
+    if (!groupId || !key) { toast('No hay un grupo activo que cerrar.'); return; }
+    localStorage.setItem(key, JSON.stringify({ groupId, uid: Cloud.uid, queuedAt: Date.now() }));
+    if (groupInfo && !groupChoices.some(group => group.id === groupId)) groupChoices.push(groupInfo);
+    groupJoined = false;
+    groupSyncAvailable = false;
+    groupInfo = null;
+    myLiveRecordId = null;
+    localStorage.removeItem('mtb_group_joined');
+    localStorage.removeItem('mtb_group_code');
+    if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
+    renderGroupState(false);
+    renderFriends();
+    renderAccount();
+    if (!navigator.onLine) {
+        $('group-status').textContent = 'Has salido en este dispositivo; la salida del servidor está pendiente de conexión.';
+        toast('Has salido en este dispositivo. La salida del servidor se completará al recuperar conexión.', 6000);
+        return;
+    }
     try {
-        await cloudApi('/api/mtb/groups/leave', 'POST');
-        const auth = await cloudApi('/api/collections/users/auth-refresh', 'POST');
-        Cloud.setSession(auth.token, auth.record);
-        myLiveRecordId = null;
-        groupJoined = false;
-        localStorage.removeItem('mtb_group_joined');
-        await loadMyGroup();
-        renderFriends();
-        renderAccount();
+        await syncPendingGroupLeave();
         toast('Has salido del grupo. Conservas el acceso para volver a entrar.');
-    } catch (e) { toast('No se pudo salir del grupo: ' + e.message, 6000); }
-});
+    } catch (e) {
+        localStorage.removeItem('mtb_group_code');
+        renderAccount();
+        $('group-status').textContent = 'Has salido en este dispositivo; se completará la salida del servidor al recuperar conexión.';
+        console.warn('No se pudo confirmar la salida del grupo:', e);
+        toast('Has salido en este dispositivo; la salida del servidor queda pendiente de conexión.', 6000);
+    }
+}
+$('btn-leave').addEventListener('click', leaveGroupLocally);
 
 // ============================================================
 
@@ -489,5 +564,7 @@ $('btn-leave').addEventListener('click', async () => {
 
 window.addEventListener('online', restoreGroup);
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && navigator.onLine && groupJoined) refreshFriends();
+    if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+    if (hasPendingGroupLeave()) restoreGroup();
+    else if (groupJoined) refreshFriends();
 });

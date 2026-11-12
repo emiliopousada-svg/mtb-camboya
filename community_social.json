@@ -1,0 +1,126 @@
+[
+  {
+    "id": "commrateroute01",
+    "name": "community_route_ratings",
+    "type": "base",
+    "system": false,
+    "listRule": "route.published = true",
+    "viewRule": "route.published = true",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && route.published = true",
+    "updateRule": "owner = @request.auth.id && @request.body.owner:changed = false && @request.body.route:changed = false",
+    "deleteRule": "owner = @request.auth.id",
+    "fields": [
+      {
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "name": "route",
+        "type": "relation",
+        "required": true,
+        "collectionId": "commroute9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "name": "rating",
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 5
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_community_route_ratings_route` ON `community_route_ratings` (`route`)",
+      "CREATE UNIQUE INDEX `idx_community_route_ratings_user_route` ON `community_route_ratings` (`route`, `owner`)"
+    ]
+  },
+  {
+    "id": "commroutecmt001",
+    "name": "community_route_comments",
+    "type": "base",
+    "system": false,
+    "listRule": "route.published = true",
+    "viewRule": "route.published = true",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && route.published = true",
+    "updateRule": "owner = @request.auth.id && @request.body.owner:changed = false && @request.body.route:changed = false",
+    "deleteRule": "owner = @request.auth.id",
+    "fields": [
+      {
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "name": "route",
+        "type": "relation",
+        "required": true,
+        "collectionId": "commroute9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "name": "alias",
+        "type": "text",
+        "required": true,
+        "min": 1,
+        "max": 32
+      },
+      {
+        "name": "comment",
+        "type": "text",
+        "required": true,
+        "min": 1,
+        "max": 500
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_community_route_comments_route` ON `community_route_comments` (`route`)"
+    ]
+  },
+  {
+    "id": "commroutefav001",
+    "name": "community_route_favorites",
+    "type": "base",
+    "system": false,
+    "listRule": "owner = @request.auth.id",
+    "viewRule": "owner = @request.auth.id",
+    "createRule": "@request.auth.id != '' && @request.body.owner = @request.auth.id && route.published = true",
+    "updateRule": null,
+    "deleteRule": "owner = @request.auth.id",
+    "fields": [
+      {
+        "name": "owner",
+        "type": "relation",
+        "required": true,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "minSelect": 0,
+        "maxSelect": 1
+      },
+      {
+        "name": "route",
+        "type": "relation",
+        "required": true,
+        "collectionId": "commroute9x2k7q",
+        "cascadeDelete": true,
+        "minSelect": 0,
+        "maxSelect": 1
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_community_route_favorites_user_route` ON `community_route_favorites` (`route`, `owner`)"
+    ]
+  }
+]

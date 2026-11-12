@@ -18,7 +18,7 @@ const COMMUNITY_MAX_RESULTS = 15;
 const COMMUNITY_TRACK_BATCH_SIZE = 5;
 const COMMUNITY_MAX_TRACKS_TO_CHECK = 40;
 const COMMUNITY_MAX_METADATA_CANDIDATES = 2000;
-const COMMUNITY_SEARCH_CACHE_KEY = 'community-nearby-search-v1';
+const COMMUNITY_SEARCH_CACHE_KEY = 'community-nearby-search-v2';
 const COMMUNITY_SEARCH_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const COMMUNITY_DIFFICULTIES = {
     easy: 'Fácil',
@@ -819,7 +819,7 @@ function renderCommunityRoutes(records) {
     if (!records.length) {
         const empty = document.createElement('p');
         empty.className = 'community-empty';
-        empty.textContent = 'No hay rutas publicadas cerca con estos filtros.';
+        empty.textContent = 'No hay rutas publicadas con estos filtros.';
         list.append(empty);
         return;
     }
@@ -1346,16 +1346,18 @@ async function communityLoadSegments(record) {
     }
 }
 
-async function readCommunitySearchCache(activity, radiusKm, searchPosition) {
+async function readCommunitySearchCache(activity, radiusKm, searchPosition, locality, difficulty, minAscent) {
     try {
         const cache = await DB.kvGet(COMMUNITY_SEARCH_CACHE_KEY);
         if (!cache || cache.activity !== activity || cache.radiusKm !== radiusKm
+            || cache.locality !== locality || cache.difficulty !== difficulty || cache.minAscent !== minAscent
             || Date.now() - cache.savedAt > COMMUNITY_SEARCH_CACHE_MAX_AGE_MS
-            || !Array.isArray(cache.position) || !Array.isArray(cache.routes)) return null;
-        if (communityDistanceToBounds(searchPosition, {
+            || !Array.isArray(cache.routes)) return null;
+        if (searchPosition && (!Array.isArray(cache.position) || communityDistanceToBounds(searchPosition, {
             minLat: cache.position[0], maxLat: cache.position[0],
             minLng: cache.position[1], maxLng: cache.position[1]
-        }) > 5) return null;
+        }) > 5)) return null;
+        if (!searchPosition) return { routes: cache.routes.slice(0, COMMUNITY_MAX_RESULTS), savedAt: cache.savedAt };
         const routes = cache.routes.map(route => {
             const lines = communityRecordLines(route);
             if (!lines) return null;
@@ -1370,16 +1372,19 @@ async function readCommunitySearchCache(activity, radiusKm, searchPosition) {
 }
 
 async function loadCommunityRoutes() {
-    if (lastLat === null || lastLon === null) {
-        communitySetStatus('Esperando una ubicación GPS para buscar rutas cercanas. Comprueba el permiso de ubicación e inténtalo de nuevo.', true);
+    const searchPosition = lastLat === null || lastLon === null ? null : [lastLat, lastLon];
+    const locality = $('community-locality-search').value.trim().slice(0, 80);
+    const difficulty = $('community-difficulty').value;
+    const minAscent = Number($('community-ascent').value) || 0;
+    if (!searchPosition && !locality) {
+        communitySetStatus('Activa el GPS o escribe una localidad/provincia para buscar rutas.', true);
         if (typeof requestCurrentGpsFix === 'function') requestCurrentGpsFix();
         return;
     }
-    const searchPosition = [lastLat, lastLon];
     const button = $('community-search');
     const activity = $('community-activity').value;
     const radiusKm = Number($('community-radius').value) || 25;
-    const cached = await readCommunitySearchCache(activity, radiusKm, searchPosition);
+    const cached = await readCommunitySearchCache(activity, radiusKm, searchPosition, locality, difficulty, minAscent);
     let displayedCache = false;
     if (cached) {
         communityCatalogRoutes = cached.routes;
@@ -1396,26 +1401,30 @@ async function loadCommunityRoutes() {
     button.disabled = true;
     communitySetStatus(displayedCache ? 'Mostrando resultados guardados mientras se actualiza la búsqueda…' : 'Buscando rutas cercanas…');
     try {
-        const latDelta = radiusKm / 110.574;
-        const lonDelta = Math.min(180, radiusKm / (111.32 * Math.max(0.05, Math.cos(searchPosition[0] * Math.PI / 180))));
-        const south = Math.max(-90, searchPosition[0] - latDelta);
-        const north = Math.min(90, searchPosition[0] + latDelta);
-        const west = Math.max(-180, searchPosition[1] - lonDelta);
-        const east = Math.min(180, searchPosition[1] + lonDelta);
-        const filters = [
-            'published = true',
-            `minLat <= ${north.toFixed(6)}`,
-            `maxLat >= ${south.toFixed(6)}`,
-            `minLng <= ${east.toFixed(6)}`,
-            `maxLng >= ${west.toFixed(6)}`
-        ];
+        const filters = ['published = true'];
+        if (searchPosition) {
+            const latDelta = radiusKm / 110.574;
+            const lonDelta = Math.min(180, radiusKm / (111.32 * Math.max(0.05, Math.cos(searchPosition[0] * Math.PI / 180))));
+            const south = Math.max(-90, searchPosition[0] - latDelta);
+            const north = Math.min(90, searchPosition[0] + latDelta);
+            const west = Math.max(-180, searchPosition[1] - lonDelta);
+            const east = Math.min(180, searchPosition[1] + lonDelta);
+            filters.push(`minLat <= ${north.toFixed(6)}`, `maxLat >= ${south.toFixed(6)}`,
+                `minLng <= ${east.toFixed(6)}`, `maxLng >= ${west.toFixed(6)}`);
+        }
         if (activity) filters.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
+        if (locality) {
+            const escapedLocality = locality.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            filters.push(`(locality ~ "${escapedLocality}" || province ~ "${escapedLocality}")`);
+        }
+        if (difficulty) filters.push(`difficulty = "${difficulty}"`);
+        if (minAscent) filters.push(`elevationGain >= ${minAscent}`);
         const filter = filters.join(' && ');
         const metadata = [];
         let page = 1, totalPages = 1;
         do {
             const result = await cloudApi('/api/collections/community_routes/records?page=' + page + '&perPage=' +
-                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec,minLat,maxLat,minLng,maxLng&filter=' + encodeURIComponent(filter));
+                COMMUNITY_PAGE_SIZE + '&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec,minLat,maxLat,minLng,maxLng&filter=' + encodeURIComponent(filter));
             if (Array.isArray(result.items)) {
                 metadata.push(...result.items.slice(0, COMMUNITY_MAX_METADATA_CANDIDATES - metadata.length));
             }
@@ -1425,17 +1434,24 @@ async function loadCommunityRoutes() {
 
         // Incluye un conjunto acotado de rutas anteriores a los campos espaciales nuevos.
         const indexedIds = new Set(metadata.map(record => record.id));
-        const legacyFilter = ['published = true', '(minLat = null || maxLat = null || minLng = null || maxLng = null)'];
+        const legacyFilter = ['published = true'];
+        if (searchPosition) legacyFilter.push('(minLat = null || maxLat = null || minLng = null || maxLng = null)');
         if (activity) legacyFilter.push('activityType = "' + activity.replace(/"/g, '\\"') + '"');
-        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-id&fields=id,owner,title,province,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
+        if (locality) {
+            const escapedLocality = locality.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            legacyFilter.push(`(locality ~ "${escapedLocality}" || province ~ "${escapedLocality}")`);
+        }
+        if (difficulty) legacyFilter.push(`difficulty = "${difficulty}"`);
+        if (minAscent) legacyFilter.push(`elevationGain >= ${minAscent}`);
+        const legacyResult = await cloudApi('/api/collections/community_routes/records?page=1&perPage=100&sort=-id&fields=id,owner,title,province,locality,difficulty,activityType,distanceKm,elevationGain,movingTimeSec&filter=' + encodeURIComponent(legacyFilter.join(' && ')));
         const legacyRoutes = (legacyResult.items || []).filter(record => !indexedIds.has(record.id));
         const legacyTruncated = Number(legacyResult.totalItems) > legacyRoutes.length;
 
         const candidates = metadata.map(record => ({
             ...record,
-            boundsDistanceKm: communityDistanceToBounds(searchPosition, record),
+            boundsDistanceKm: searchPosition ? communityDistanceToBounds(searchPosition, record) : 0,
             indexed: true
-        })).filter(record => record.boundsDistanceKm <= radiusKm)
+        })).filter(record => !searchPosition || record.boundsDistanceKm <= radiusKm)
             .concat(legacyRoutes.map(record => ({ ...record, boundsDistanceKm: 0, indexed: false })))
             .sort((a, b) => a.boundsDistanceKm - b.boundsDistanceKm);
 
@@ -1448,6 +1464,7 @@ async function loadCommunityRoutes() {
                 const fullRecord = { ...record, trackJson: detail.trackJson };
                 const lines = communityRecordLines(fullRecord);
                 if (!lines) return null;
+                if (!searchPosition) return fullRecord;
                 const proximityKm = communityDistanceToRoute(searchPosition, lines) / 1000;
                 return proximityKm <= radiusKm ? { ...fullRecord, proximityKm } : null;
             }));
@@ -1456,7 +1473,9 @@ async function loadCommunityRoutes() {
                 if (result.status === 'fulfilled' && result.value) nearbyRoutes.push(result.value);
                 else if (result.status === 'rejected') console.warn('No se pudo cargar un trazado candidato:', result.reason);
             });
-            nearbyRoutes.sort((a, b) => a.proximityKm - b.proximityKm);
+            nearbyRoutes.sort((a, b) => searchPosition
+                ? a.proximityKm - b.proximityKm
+                : String(a.title || '').localeCompare(String(b.title || ''), 'es'));
             const nextCandidate = candidates[checked];
             if (nearbyRoutes.length >= COMMUNITY_MAX_RESULTS
                 && (!nextCandidate || nextCandidate.boundsDistanceKm > nearbyRoutes[COMMUNITY_MAX_RESULTS - 1].proximityKm)) {
@@ -1471,16 +1490,22 @@ async function loadCommunityRoutes() {
         renderCommunityRoutes(communityCatalogRoutes);
         communityUpdateStatsRouteSelect();
         DB.kvSet(COMMUNITY_SEARCH_CACHE_KEY, {
-            activity, radiusKm, position: searchPosition, savedAt: Date.now(),
+            activity, radiusKm, position: searchPosition, locality, difficulty, minAscent, savedAt: Date.now(),
             routes: communityCatalogRoutes
         }).catch(error => console.warn('No se pudo guardar la búsqueda comunitaria:', error));
         communitySetStatus(searchLimited
-            ? `${communityCatalogRoutes.length} rutas encontradas en una búsqueda limitada a ${checked} trazados. Reduce el radio para afinar los resultados.`
+            ? `${communityCatalogRoutes.length} rutas encontradas en una búsqueda limitada a ${checked} trazados. Reduce los filtros para afinar los resultados.`
             : nearbyRoutes.length >= COMMUNITY_MAX_RESULTS
-                ? `Mostrando las ${COMMUNITY_MAX_RESULTS} rutas más cercanas dentro de ${radiusKm} km.`
+                ? searchPosition
+                    ? `Mostrando las ${COMMUNITY_MAX_RESULTS} rutas más cercanas dentro de ${radiusKm} km.`
+                    : `Mostrando ${COMMUNITY_MAX_RESULTS} rutas de ${locality}.`
                 : nearbyRoutes.length
-                ? `${nearbyRoutes.length} rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.`
-                : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con esta actividad.');
+                ? searchPosition
+                    ? `${nearbyRoutes.length} rutas cercanas. Puedes abrir el detalle, mostrarlas en el mapa, seguirlas o guardarlas.`
+                    : `${nearbyRoutes.length} rutas encontradas para ${locality}.`
+                : locality
+                    ? `No hay rutas publicadas para «${locality}» con estos filtros.`
+                    : 'No hay rutas publicadas dentro de ' + radiusKm + ' km con estos filtros.');
     } catch (error) {
         console.warn('No se pudo cargar el catálogo comunitario:', error);
         communitySetStatus(error.status === 404

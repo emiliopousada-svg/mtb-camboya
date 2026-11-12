@@ -64,7 +64,9 @@ async function syncSharedPois() {
         const auditKey = poiSyncStorageKey('shared_pois_full_audit_at');
         const cursor = localStorage.getItem(cursorKey) || '';
         const lastFullAudit = Number(localStorage.getItem(auditKey) || 0);
-        const fullAudit = !cursor || !lastFullAudit || Date.now() - lastFullAudit >= POI_FULL_AUDIT_INTERVAL_MS;
+        let fullAudit = !cursor || !lastFullAudit || Date.now() - lastFullAudit >= POI_FULL_AUDIT_INTERVAL_MS;
+        const incrementalUnsupportedKey = poiSyncStorageKey('incremental_unsupported');
+        if (localStorage.getItem(incrementalUnsupportedKey) === '1') fullAudit = true;
         const syncStartedAt = Date.now();
         if (Cloud.loggedIn()) {
             let migrated = false;
@@ -111,18 +113,33 @@ async function syncSharedPois() {
             }
         }
 
-        const remote = [];
+        let remote = [];
         let since = '';
         const cursorMs = Date.parse(cursor);
         if (!fullAudit && Number.isFinite(cursorMs)) {
             since = new Date(Math.max(0, cursorMs - POI_SYNC_CURSOR_OVERLAP_MS)).toISOString();
         }
-        const filter = since ? `&filter=${encodeURIComponent(`updated >= "${since}"`)}` : '';
-        for (let page = 1; ; page++) {
-            const sort = fullAudit ? 'created' : 'updated,created';
-            const result = await cloudApi(`/api/collections/map_pois/records?page=${page}&perPage=200&sort=${sort}${filter}`);
-            remote.push(...result.items);
-            if (page >= result.totalPages) break;
+        const fetchPages = async incremental => {
+            const records = [];
+            const filter = incremental && since ? `&filter=${encodeURIComponent(`updated >= "${since}"`)}` : '';
+            for (let page = 1; ; page++) {
+                const sort = incremental ? 'updated,created' : 'created';
+                const result = await cloudApi(`/api/collections/map_pois/records?page=${page}&perPage=200&sort=${sort}${filter}`);
+                records.push(...result.items);
+                if (page >= result.totalPages) break;
+            }
+            return records;
+        };
+        if (fullAudit) remote = await fetchPages(false);
+        else {
+            try { remote = await fetchPages(true); }
+            catch (error) {
+                if (error.status !== 400) throw error;
+                remote = await fetchPages(false);
+                localStorage.setItem(incrementalUnsupportedKey, '1');
+                fullAudit = true;
+                console.warn('La colección map_pois no admite sincronización incremental; se usará reconciliación completa.', error);
+            }
         }
 
         const localOnly = savedFountains.filter(f => !f.remoteId);

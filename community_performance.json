@@ -222,7 +222,7 @@
     ]
   },
   {
-    "id": "commcomment001",
+    "id": "commroutecmt001",
     "name": "community_route_comments",
     "type": "base",
     "system": false,
@@ -242,7 +242,7 @@
     ]
   },
   {
-    "id": "commfavoriteroute01",
+    "id": "commroutefav001",
     "name": "community_route_favorites",
     "type": "base",
     "system": false,

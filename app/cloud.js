@@ -46,20 +46,36 @@ function cloudSyncStorageKey(name) {
 }
 
 async function fetchRemoteRoutes(fullAudit, cursor) {
-    const remote = [];
+    const unsupportedKey = cloudSyncStorageKey('routes_incremental_unsupported');
+    const fetchPages = async (sort, filter = '') => {
+        const remote = [];
+        for (let page = 1; ; page++) {
+            const result = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=${sort}${filter}`);
+            remote.push(...result.items);
+            if (page >= result.totalPages) break;
+        }
+        return remote;
+    };
+    if (fullAudit || localStorage.getItem(unsupportedKey) === '1') {
+        return { records: await fetchPages('clientId'), fullAudit: true };
+    }
     let since = '';
-    if (!fullAudit && cursor) {
+    if (cursor) {
         const cursorMs = Date.parse(cursor);
         if (Number.isFinite(cursorMs)) since = new Date(Math.max(0, cursorMs - ROUTE_SYNC_CURSOR_OVERLAP_MS)).toISOString();
     }
     const filter = since ? `&filter=${encodeURIComponent(`updated >= "${since}"`)}` : '';
-    for (let page = 1; ; page++) {
-        const sort = fullAudit ? 'clientId' : 'updated,clientId';
-        const result = await cloudApi(`/api/collections/routes/records?page=${page}&perPage=200&sort=${sort}${filter}`);
-        remote.push(...result.items);
-        if (page >= result.totalPages) break;
+    try {
+        return { records: await fetchPages('updated,clientId', filter), fullAudit: false };
+    } catch (error) {
+        if (error.status !== 400) throw error;
+        // Algunas instalaciones antiguas no tienen el campo updated en routes.
+        // Reconciliar todo mantiene la sincronización funcional sin cambiar el esquema del servidor.
+        const remote = await fetchPages('clientId');
+        localStorage.setItem(unsupportedKey, '1');
+        console.warn('La colección routes no admite sincronización incremental; se usará reconciliación completa.', error);
+        return { records: remote, fullAudit: true };
     }
-    return remote;
 }
 
 function newestRemoteUpdate(records, fallbackMs) {
@@ -256,6 +272,11 @@ async function syncRoutes(manual = false) {
     syncing = true;
     $('acc-status').textContent = 'Sincronizando…';
     let pushed = 0, pulled = 0, syncFailures = 0;
+    const syncFailureDetails = [];
+    const noteSyncFailure = message => {
+        syncFailures++;
+        if (syncFailureDetails.length < 3 && message) syncFailureDetails.push(String(message).slice(0, 150));
+    };
     const cursorKey = cloudSyncStorageKey('routes_sync_cursor');
     const auditKey = cloudSyncStorageKey('routes_full_audit_at');
     let cursor = '', lastFullAudit = 0;
@@ -263,7 +284,7 @@ async function syncRoutes(manual = false) {
         cursor = localStorage.getItem(cursorKey) || '';
         lastFullAudit = Number(localStorage.getItem(auditKey) || 0);
     } catch (e) { console.warn('No se pudo leer el estado incremental de rutas; se hará una reconciliación completa:', e); }
-    const fullAudit = manual || !cursor || !lastFullAudit || Date.now() - lastFullAudit >= ROUTE_FULL_AUDIT_INTERVAL_MS;
+    let fullAudit = manual || !cursor || !lastFullAudit || Date.now() - lastFullAudit >= ROUTE_FULL_AUDIT_INTERVAL_MS;
     const syncStartedAt = Date.now();
     try {
         // 0) renovar la sesión (si ha caducado, se cierra)
@@ -283,7 +304,9 @@ async function syncRoutes(manual = false) {
         }
 
         // 1) rutas que ya hay en el servidor
-        const remote = await fetchRemoteRoutes(fullAudit, cursor);
+        const routeInventory = await fetchRemoteRoutes(fullAudit, cursor);
+        const remote = routeInventory.records;
+        fullAudit = routeInventory.fullAudit;
         const pendingRemoteByClient = new Map();
         if (!fullAudit) {
             const pendingClientIds = savedRoutes.filter(route => !route.remoteId)
@@ -311,21 +334,21 @@ async function syncRoutes(manual = false) {
         let pend = [];
         let pendingDeletesAvailable = true;
         try { pend = (await DB.kvGet('pendingDeletes')) || []; }
-        catch (e) { pendingDeletesAvailable = false; syncFailures++; console.warn('No se pudo leer la cola de borrados:', e); }
+        catch (e) { pendingDeletesAvailable = false; noteSyncFailure(`No se pudo leer la cola de borrados: ${e.message}`); console.warn('No se pudo leer la cola de borrados:', e); }
         const rest = [];
         for (const rid of pend) {
             try { await cloudApi(`/api/collections/routes/records/${rid}`, 'DELETE'); }
             catch (e) {
                 if (e.status !== 404) {
                     rest.push(rid);
-                    syncFailures++;
+                    noteSyncFailure(`No se pudo borrar una ruta del servidor: ${e.message}`);
                     console.warn(`No se pudo borrar la ruta remota ${rid}:`, e);
                 }
             }
         }
         if (pendingDeletesAvailable) {
             try { await DB.kvSet('pendingDeletes', rest); }
-            catch (e) { syncFailures++; console.warn('No se pudo guardar la cola de borrados:', e); }
+            catch (e) { noteSyncFailure(`No se pudo guardar la cola de borrados: ${e.message}`); console.warn('No se pudo guardar la cola de borrados:', e); }
         }
         const skip = new Set(pend);
 
@@ -334,7 +357,10 @@ async function syncRoutes(manual = false) {
         const byRemoteId = new Map(remote.map(x => [x.id, x]));
         const blockedIds = new Set();
         for (const r of [...savedRoutes]) {
-            if (r.kind !== 'imported' && !nickname) { syncFailures++; continue; }
+            if (r.kind !== 'imported' && !nickname) {
+                noteSyncFailure(`Ruta «${r.name || 'sin nombre'}» pendiente: falta elegir el apodo del autor.`);
+                continue;
+            }
             const previousCreator = r.createdBy || '';
             if (r.kind !== 'imported' && nickname) r.createdBy = nickname;
             const found = byClient.get(r.id);
@@ -349,7 +375,7 @@ async function syncRoutes(manual = false) {
                     savedRoutes = savedRoutes.filter(x => x.id !== r.id);
                 } catch (e) {
                     blockedIds.add(r.id);
-                    syncFailures++;
+                    noteSyncFailure(`No se pudo aplicar el cambio remoto a «${r.name || 'ruta'}»: ${e.message}`);
                     console.warn(`No se pudo aplicar el borrado remoto de la ruta ${r.id}:`, e);
                 }
                 continue;
@@ -366,7 +392,7 @@ async function syncRoutes(manual = false) {
                         await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', { createdBy: remoteCreator });
                         matched.createdBy = remoteCreator;
                     } catch (e) {
-                        syncFailures++;
+                        noteSyncFailure(`No se pudo actualizar el apodo de «${r.name || 'ruta'}»: ${e.message}`);
                         console.warn(`No se pudo actualizar el apodo de la ruta ${r.id}:`, e);
                     }
                 }
@@ -377,7 +403,7 @@ async function syncRoutes(manual = false) {
                 r.dirty = false;
                 if (changed) {
                     try { await putLocal(r); }
-                    catch (e) { blockedIds.add(r.id); syncFailures++; console.warn(`No se pudo actualizar localmente la ruta ${r.id}:`, e); }
+                    catch (e) { blockedIds.add(r.id); noteSyncFailure(`No se pudo guardar «${r.name || 'ruta'}» en este teléfono: ${e.message}`); console.warn(`No se pudo actualizar localmente la ruta ${r.id}:`, e); }
                 }
                 continue;
             }
@@ -396,7 +422,7 @@ async function syncRoutes(manual = false) {
                 await putLocal(r);
                 pushed++;
             } catch (e) {
-                syncFailures++;
+                noteSyncFailure(`No se pudo sincronizar «${r.name || 'ruta'}»: ${e.message}`);
                 console.warn(`No se pudo sincronizar la ruta ${r.id}:`, e);
                 if (e.status === 404 && r.remoteId) {
                     r.remoteId = null;
@@ -443,7 +469,7 @@ async function syncRoutes(manual = false) {
                     savedRoutes.push(r);
                     pulled++;
                 } catch (e) {
-                    syncFailures++;
+                    noteSyncFailure(`No se pudo descargar «${rec.name || 'una ruta'}»: ${e.message}`);
                     console.warn(`No se pudo descargar la ruta remota ${rec.id}:`, e);
                 }
             }
@@ -463,8 +489,8 @@ async function syncRoutes(manual = false) {
         renderSavedRoutes();
         refreshStats();
         if (manual) toast(syncFailures
-            ? `⚠️ Sincronización parcial: ${pushed} subidas, ${pulled} descargadas y ${syncFailures} pendiente(s).`
-            : `✅ Sincronizado: ${pushed} subidas, ${pulled} descargadas`);
+            ? `⚠️ Sincronización parcial: ${pushed} subidas, ${pulled} descargadas y ${syncFailures} pendiente(s). ${syncFailureDetails.join(' · ')}`
+            : `✅ Sincronizado: ${pushed} subidas, ${pulled} descargadas`, syncFailures ? 10000 : 3500);
     } catch (e) {
         console.warn('Sync:', e);
         if (manual || e.status !== undefined) {

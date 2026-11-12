@@ -43,12 +43,14 @@ La provincia se elige manualmente al publicar; el sistema aún no la deduce auto
 
 ## Segmentos personales y clasificaciones por tiempo
 
-La app puede preparar colecciones adicionales para guardar segmentos públicos dibujados sobre una ruta comunitaria, mejores marcas, valoraciones, comentarios y favoritos:
+La app puede usar colecciones adicionales para segmentos, mejores marcas, valoraciones, comentarios y favoritos. Si todavía no tienes las colecciones de segmentos y marcas, importa `community_performance.json` con **Merge with the existing collections** y revisa todos los cambios detectados antes de confirmar.
+
+Si ya tienes `community_segments`, `community_route_efforts` y `community_segment_efforts`, pero solo te faltan valoraciones, comentarios y favoritos, usa el archivo más pequeño `community_social.json` para no proponer cambios a esas colecciones existentes:
 
 1. Haz una copia de seguridad de PocketBase.
-2. En **Settings → Import collections**, importa `community_performance.json` y activa **Merge with the existing collections**.
-3. Antes de confirmar, comprueba que se añaden únicamente `community_route_ratings`, `community_route_comments` y `community_route_favorites`; si aún no existen las colecciones de rendimiento, acepta también `community_segments`, `community_route_efforts` y `community_segment_efforts`. Cancela si se proponen cambios a colecciones existentes distintas de esas.
-4. Comprueba en **Collections** que las reglas limitan cada modificación al propietario, las valoraciones y comentarios solo se leen para rutas publicadas y los favoritos solo los ve su propietario.
+2. En **Settings → Import collections**, importa `community_social.json` y activa **Merge with the existing collections**.
+3. Comprueba que PocketBase detecta solo tres colecciones nuevas: `community_route_ratings`, `community_route_comments` y `community_route_favorites`. Cancela si aparecen cambios en colecciones existentes.
+4. Tras importar, comprueba que las valoraciones y comentarios solo se leen para rutas publicadas y que cada usuario solo ve sus favoritos.
 
 La app usa el apodo que el usuario confirma para comentarios y marcas; no envía el correo ni adjunta la actividad GPS. Las valoraciones permiten una puntuación de 1 a 5 por usuario y ruta; los comentarios admiten hasta 500 caracteres y el autor puede borrarlos. Los favoritos son privados por cuenta. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
 
