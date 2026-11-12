@@ -177,7 +177,6 @@ function openCommunityDetail(record, lines, options = {}) {
     });
     const showCommunityTools = Boolean(communityDetailRecord);
     $('community-social').hidden = !showCommunityTools;
-    $('route-comparison').hidden = true;
     $('community-route-ranking-section').hidden = !showCommunityTools;
     $('community-segments-section').hidden = !showCommunityTools;
     $('community-create-segment').hidden = !showCommunityTools || !Cloud.loggedIn() || !navigator.onLine;
@@ -669,7 +668,6 @@ async function loadCommunityFavorites() {
             .filter(record => record && communityRecordLines(record));
         communityCatalogRoutes.forEach(record => { record.proximityKm = null; });
         renderCommunityRoutes(communityCatalogRoutes);
-        communityUpdateStatsRouteSelect();
         communitySetStatus(communityCatalogRoutes.length
             ? `${communityCatalogRoutes.length} ruta(s) guardadas en favoritos.`
             : 'Aún no tienes rutas comunitarias favoritas.');
@@ -959,9 +957,6 @@ function communityRenderRanking(records, container, totalItems = records.length)
 
 async function communityLoadRanking(record, collection, relationField, container) {
     const isCurrentTarget = () => {
-        if (container === $('stats-community-leaderboard')) {
-            return $('stats-community-route').value === record.id;
-        }
         if (container === $('community-route-leaderboard')) {
             return communityDetailRecord && communityDetailRecord.id === record.id;
         }
@@ -1055,10 +1050,8 @@ async function communityPublishEffort(record, relationField, collection, match, 
         }
         status.textContent = 'Mejor tiempo publicado en la comunidad.';
         toast('Tiempo publicado en la clasificación.');
-        const containers = relationField === 'route'
-            ? [$('community-route-leaderboard'), $('stats-community-leaderboard')]
-            : [];
-        containers.filter(Boolean).forEach(container => communityLoadRanking(record, collection, relationField, container));
+        const container = relationField === 'route' ? $('community-route-leaderboard') : null;
+        if (container) communityLoadRanking(record, collection, relationField, container);
         if (relationField === 'segment' && communityDetailRecord) {
             communityLoadSegments(communityDetailRecord);
         }
@@ -1122,40 +1115,6 @@ function communityRenderEffortWidget(container, record, lines, collection, relat
     });
     widget.append(heading, select, status, submit);
     container.append(widget);
-}
-
-function communityUpdateStatsRouteSelect() {
-    const select = $('stats-community-route');
-    if (!select) return;
-    const previous = select.value;
-    select.replaceChildren(new Option(
-        communityCatalogRoutes.length ? 'Selecciona una ruta comunitaria' : 'Busca rutas comunitarias para empezar',
-        ''
-    ));
-    communityCatalogRoutes.forEach(record => {
-        const distance = (Number(record.distanceKm) || 0).toFixed(1);
-        select.add(new Option(`${record.title || 'Ruta comunitaria'} · ${distance} km`, record.id));
-    });
-    select.value = communityCatalogRoutes.some(record => record.id === previous) ? previous : '';
-    if (!select.value) {
-        $('stats-community-leaderboard').replaceChildren();
-        $('stats-community-attempt').replaceChildren();
-    } else {
-        communityRenderStatsRoute(communityCatalogRoutes.find(record => record.id === select.value));
-    }
-}
-
-function communityRenderStatsRoute(record) {
-    const leaderboard = $('stats-community-leaderboard');
-    const attempt = $('stats-community-attempt');
-    if (!record) {
-        leaderboard.replaceChildren();
-        attempt.replaceChildren();
-        return;
-    }
-    communityLoadRanking(record, 'community_route_efforts', 'route', leaderboard);
-    communityRenderEffortWidget(attempt, record, communityRecordLines(record),
-        'community_route_efforts', 'route', 'la ruta');
 }
 
 function communityNearestRoutePoint(latlng, lines) {
@@ -1425,7 +1384,6 @@ async function loadCommunityRoutes() {
     if (cached) {
         communityCatalogRoutes = cached.routes;
         renderCommunityRoutes(communityCatalogRoutes);
-        communityUpdateStatsRouteSelect();
         displayedCache = true;
     }
     if (!navigator.onLine) {
@@ -1555,7 +1513,6 @@ async function loadCommunityRoutes() {
         const searchLimited = metadataTruncated || legacyTruncated || (!tracksComplete && checked < candidates.length);
         communityCatalogRoutes = nearbyRoutes.slice(0, COMMUNITY_MAX_RESULTS);
         renderCommunityRoutes(communityCatalogRoutes);
-        communityUpdateStatsRouteSelect();
         DB.kvSet(COMMUNITY_SEARCH_CACHE_KEY, {
             activity, radiusKm, position: searchPosition, locality, author, difficulty, minAscent, savedAt: Date.now(),
             routes: communityCatalogRoutes
@@ -1606,11 +1563,6 @@ function initCommunityRoutes() {
     $('community-create-segment').addEventListener('click', communityBeginSegmentCreation);
     $('community-segment-cancel').addEventListener('click', communityCancelSegmentCreation);
     $('community-segment-submit').addEventListener('click', communitySubmitSegment);
-    $('stats-community-browse').addEventListener('click', openCommunityCatalog);
-    $('stats-community-route').addEventListener('change', () => {
-        const record = communityCatalogRoutes.find(item => item.id === $('stats-community-route').value);
-        communityRenderStatsRoute(record || null);
-    });
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && !$('community-dialog').hidden) closeCommunityDialog();
     });

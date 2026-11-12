@@ -166,7 +166,6 @@ function buildImportedRoute(parsed, routeName) {
             ? Math.round(heartRates.reduce((sum, value) => sum + value, 0) / heartRates.length)
             : null,
         description: String(parsed.description || ''),
-        folder: '',
         points: stored
     };
 }

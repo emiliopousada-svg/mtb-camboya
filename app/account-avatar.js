@@ -102,6 +102,9 @@ function renderAccountProfile(record = {}, force = false) {
     const age = $('acc-profile-age');
     if (weight && document.activeElement !== weight) weight.value = record.weightKg ?? '';
     if (age && document.activeElement !== age) age.value = record.age ?? '';
+    if (typeof statsApplyAccountProfile === 'function') {
+        statsApplyAccountProfile(record.weightKg, record.age);
+    }
     accountProfileLoadedUid = uid;
 }
 
@@ -165,6 +168,9 @@ function initAccountAvatar() {
             if (dataUrl) localStorage.setItem(accountAvatarKey(uid), dataUrl);
             localStorage.setItem('mtb_avatar_last_uid', uid);
             localStorage.setItem(accountAvatarPendingKey(uid), JSON.stringify({ avatar: dataUrl, weightKg: weight, age }));
+            if (typeof statsApplyAccountProfile === 'function') {
+                statsApplyAccountProfile(weight, age);
+            }
             renderAccountAvatar();
             input.value = '';
             if (accountAvatarPreviewUrl) URL.revokeObjectURL(accountAvatarPreviewUrl);

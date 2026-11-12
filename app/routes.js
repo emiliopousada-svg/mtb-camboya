@@ -233,17 +233,10 @@ async function editRouteDetails(route) {
     const description = await modal({
         message: 'Descripción de la actividad (opcional):',
         input: route.description || '',
-        ok: 'Continuar'
-    });
-    if (description === null) return;
-    const folder = await modal({
-        message: 'Carpeta para organizar esta ruta (opcional):',
-        input: route.folder || '',
         ok: 'Guardar'
     });
-    if (folder === null) return;
+    if (description === null) return;
     route.description = String(description).trim().slice(0, 500);
-    route.folder = String(folder).trim().slice(0, 60);
     await routeSaveEditedMetadata(route);
 }
 
@@ -275,59 +268,6 @@ async function shareSavedRoute(route) {
         toast('No se pudo compartir la actividad.');
     }
 }
-
-function routeComparisonValues(route) {
-    const analysis = typeof statsAnalyzeRoute === 'function' ? statsAnalyzeRoute(route) : null;
-    const speed = routeAverageSpeed(route);
-    const altitudes = (Array.isArray(route.points) ? route.points : [])
-        .map(point => point && point[2]).filter(Number.isFinite);
-    const altitudeRange = altitudes.reduce((range, altitude) => [
-        Math.min(range[0], altitude), Math.max(range[1], altitude)
-    ], [Infinity, -Infinity]);
-    return [
-        ['Distancia', `${(Number(route.distanceKm) || 0).toFixed(1)} km`],
-        ['Desnivel positivo', `+${Math.round(Number(route.elevationGain) || 0)} m`],
-        ['Tiempo en movimiento', Number(route.movingTimeSec) > 0 ? fmtDur(Number(route.movingTimeSec)) : '—'],
-        ['Velocidad media', Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—'],
-        ['Velocidad máxima', analysis && Number.isFinite(analysis.maxSpeed) ? `${analysis.maxSpeed.toFixed(1)} km/h` : '—'],
-        ['Frecuencia cardiaca media', analysis && Number.isFinite(analysis.averageHr)
-            ? `${Math.round(analysis.averageHr)} bpm`
-            : Number(route.hrAvg) > 0 ? `${Math.round(Number(route.hrAvg))} bpm` : '—'],
-        ['Altitud mínima / máxima', altitudes.length
-            ? `${Math.round(altitudeRange[0])} / ${Math.round(altitudeRange[1])} m` : '—']
-    ];
-}
-
-function renderRouteComparison() {
-    const select = $('route-compare-select');
-    const current = savedRoutes.find(route => String(route.id) === select.value);
-    const container = $('route-compare-results');
-    container.replaceChildren();
-    if (!current || !routeComparisonSource) return;
-    const table = document.createElement('table');
-    table.className = 'route-compare-table';
-    const header = document.createElement('tr');
-    ['', routeComparisonSource.name, current.name].forEach(text => {
-        const cell = document.createElement('th');
-        cell.textContent = text;
-        header.appendChild(cell);
-    });
-    table.appendChild(header);
-    const left = routeComparisonValues(routeComparisonSource);
-    const right = routeComparisonValues(current);
-    left.forEach(([label, value], index) => {
-        const row = document.createElement('tr');
-        [label, value, right[index][1]].forEach(text => {
-            const cell = document.createElement('td');
-            cell.textContent = text;
-            row.appendChild(cell);
-        });
-        table.appendChild(row);
-    });
-    container.appendChild(table);
-}
-
-let routeComparisonSource = null;
 
 function setRoutesTab(tab) {
     routesTab = tab;
@@ -371,13 +311,6 @@ function renderSavedRoutes() {
     userFilter.replaceChildren(new Option('Todos los usuarios', ''));
     users.forEach(user => userFilter.add(new Option(user, user)));
     userFilter.value = users.includes(selectedUser) ? selectedUser : '';
-    const folderFilter = $('route-folder-filter');
-    const selectedFolder = folderFilter.value;
-    const folders = [...new Set(tabRoutes.map(route => String(route.folder || '').trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'es'));
-    folderFilter.replaceChildren(new Option('Todas las carpetas', ''));
-    folders.forEach(folder => folderFilter.add(new Option(folder, folder)));
-    folderFilter.value = folders.includes(selectedFolder) ? selectedFolder : '';
     if (tabRoutes.length === 0) {
         const e = document.createElement('div');
         e.className = 'routes-empty';
@@ -389,10 +322,8 @@ function renderSavedRoutes() {
     }
     const filter = routesShowAll || pendingTab ? $('route-activity-filter').value : 'all';
     const user = routesShowAll || pendingTab ? userFilter.value : '';
-    const folder = routesShowAll || pendingTab ? folderFilter.value : '';
     const visibleRoutes = tabRoutes.filter(route => {
         if (user && routeCreatorName(route) !== user) return false;
-        if (folder && String(route.folder || '').trim() !== folder) return false;
         if (filter === 'all') return true;
         const activityType = activityTypeForRoute(route);
         const groupKey = activityType || 'other';
@@ -514,8 +445,7 @@ function createRouteCard(route) {
         actions.className = 'route-actions';
         const routeActions = showFullActions ? [
             ['follow', 'Seguir', ''],
-            ['edit-details', 'Descripción/carpeta', 'secondary'],
-            ['compare', 'Comparar', 'secondary'],
+            ['edit-details', 'Descripción', 'secondary'],
             ['share', 'Compartir', 'secondary'],
             ['activity', '🏷️ Actividad', 'secondary'],
             ['rename', '✏️', 'secondary'],
@@ -569,22 +499,9 @@ async function openSavedRouteDetail(route) {
             ? `${Math.round(statsAnalyzeRoute(route).averageHr)} bpm`
             : Number(route.hrAvg) > 0 ? `${Math.round(Number(route.hrAvg))} bpm` : 'No disponible'],
         [route.kind === 'imported' ? 'Importada por' : 'Realizada por', creator],
-        ['Fecha', route.startedAt ? fmtDate(route.startedAt) : 'No disponible'],
-        ['Carpeta', route.folder || 'Sin carpeta']
+        ['Fecha', route.startedAt ? fmtDate(route.startedAt) : 'No disponible']
     ];
     if (route.description) values.push(['Descripción', route.description]);
-    routeComparisonSource = route;
-    const compareSection = $('route-comparison');
-    const compareSelect = $('route-compare-select');
-    compareSelect.replaceChildren(new Option('Selecciona una actividad', ''));
-    savedRoutes.filter(other => other.id !== route.id && other.kind !== 'imported')
-        .sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0))
-        .forEach(other => compareSelect.add(new Option(
-            `${other.name} · ${other.startedAt ? fmtDate(other.startedAt) : 'sin fecha'}`,
-            String(other.id)
-        )));
-    compareSection.hidden = true;
-    $('route-compare-results').replaceChildren();
     openCommunityDetail({ title: route.name }, lines, {
         backLabel: 'Volver a mis rutas',
         onBack: () => {
@@ -599,7 +516,6 @@ async function openSavedRouteDetail(route) {
         },
         values,
         actions: [
-            ['Comparar', () => { compareSection.hidden = !compareSection.hidden; }],
             ['Compartir', () => shareSavedRoute(route)],
             ['Exportar GPX', () => download(`${String(route.name || 'ruta').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_')}.gpx`,
                 routeToGpx(route), 'application/gpx+xml')]
@@ -609,8 +525,6 @@ async function openSavedRouteDetail(route) {
 
 $('route-activity-filter').addEventListener('change', renderSavedRoutes);
 $('route-user-filter').addEventListener('change', renderSavedRoutes);
-$('route-folder-filter').addEventListener('change', renderSavedRoutes);
-$('route-compare-select').addEventListener('change', renderRouteComparison);
 
 $('btn-import-route').addEventListener('click', async () => {
     const input = $('route-file-input');
@@ -657,12 +571,6 @@ $('saved-routes-list').addEventListener('click', async e => {
         followRoute(r);
     } else if (btn.dataset.act === 'edit-details') {
         await editRouteDetails(r);
-    } else if (btn.dataset.act === 'compare') {
-        await openSavedRouteDetail(r);
-        setTimeout(() => {
-            $('route-comparison').hidden = false;
-            $('route-compare-select').focus();
-        }, 0);
     } else if (btn.dataset.act === 'share') {
         await shareSavedRoute(r);
     } else if (btn.dataset.act === 'activity') {

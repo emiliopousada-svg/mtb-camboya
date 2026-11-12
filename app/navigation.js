@@ -60,7 +60,7 @@ document.addEventListener('touchstart', e => {
     const t = e.target;
     statsSwipeStart = !!(t.closest && t.closest('#stats-carousel'));
     swipeBlocked = statsSwipeStart
-        ? !!(t.closest && t.closest('button, input, select, canvas, .stats-route-map, .leaflet-container'))
+        ? !!(t.closest && t.closest('button, input, select, canvas, .leaflet-container'))
         : !!(t.closest && t.closest('#map, .leaflet-container, canvas, input, select, #modal, #activity-picker'));
     touchStartX = e.changedTouches[0].screenX;
     touchStartY = e.changedTouches[0].screenY;
@@ -72,7 +72,8 @@ document.addEventListener('touchend', e => {
     const diffY = touchStartY - e.changedTouches[0].screenY;
     if (Math.abs(diffX) > 70 && Math.abs(diffY) < 60) {
         if (statsSwipeStart && currentPage === 1) {
-            if (diffX > 0 && activeStatsSlide < 5) setStatsSlide(activeStatsSlide + 1);
+            const lastStatsSlide = document.querySelectorAll('[data-stats-slide]').length - 1;
+            if (diffX > 0 && activeStatsSlide < lastStatsSlide) setStatsSlide(activeStatsSlide + 1);
             else if (diffX < 0 && activeStatsSlide > 0) setStatsSlide(activeStatsSlide - 1);
             return;
         }

@@ -11,18 +11,12 @@ let statsMtbSpeedChart = null;
 let statsGradeChart = null;
 let statsClimbTimeChart = null;
 let statsVamChart = null;
-let statsRouteProfileChart = null;
 let activeStatsSlide = 0;
 let statsWeightKg = null;
 let statsAge = null;
 let statsHeartRateMax = null;
 let statsPowerFtp = null;
 let statsAnalysisCache = new WeakMap();
-let statsRouteMap = null;
-let statsRouteMapLayers = [];
-let statsRoutePointMarker = null;
-
-const STATS_ROUTE_COLORS = ['#ffad69', '#55dce7'];
 
 const STATS_PERIOD_LABELS = {
     today: 'hoy',
@@ -146,15 +140,13 @@ function statsLoadPreferences() {
         statsHeartRateMax = null;
         statsPowerFtp = null;
     }
-    $('stats-weight').value = statsWeightKg ?? '';
-    $('stats-age').value = statsAge ?? '';
+    $('stats-weight').textContent = statsWeightKg === null ? 'Sin configurar' : `${statsWeightKg} kg`;
+    $('stats-age').textContent = statsAge === null ? 'Sin configurar' : `${statsAge} años`;
     $('stats-hr-max-config').value = statsHeartRateMax ?? '';
     $('stats-power-ftp').value = statsPowerFtp ?? '';
 }
 
 function statsSavePreferences(ageChanged = false) {
-    statsWeightKg = statsConfiguredNumber('stats-weight', 25, 250);
-    statsAge = statsConfiguredNumber('stats-age', 10, 100);
     if (statsAge !== null) statsHeartRateMax = 220 - statsAge;
     else if (ageChanged) statsHeartRateMax = null;
     statsPowerFtp = statsConfiguredNumber('stats-power-ftp', 50, 800);
@@ -181,10 +173,11 @@ function statsApplyAccountProfile(weightKg, age) {
     const years = Number(age);
     const validWeight = Number.isFinite(weight) && weight >= 25 && weight <= 250;
     const validAge = Number.isFinite(years) && years >= 10 && years <= 100;
-    if ((!validWeight || $('stats-weight').value === String(weight)) &&
-        (!validAge || $('stats-age').value === String(years))) return;
-    if (validWeight) $('stats-weight').value = String(weight);
-    if (validAge) $('stats-age').value = String(years);
+    if ((!validWeight || statsWeightKg === weight) && (!validAge || statsAge === years)) return;
+    if (validWeight) statsWeightKg = weight;
+    if (validAge) statsAge = years;
+    $('stats-weight').textContent = statsWeightKg === null ? 'Sin configurar' : `${statsWeightKg} kg`;
+    $('stats-age').textContent = statsAge === null ? 'Sin configurar' : `${statsAge} años`;
     statsSavePreferences(validAge);
 }
 
@@ -375,230 +368,6 @@ function statsProfilePointText(point) {
         `Tiempo: ${Number.isFinite(point.timeSec) ? fmtDur(point.timeSec) : '--'}`
     ];
     statsSetText('stats-profile-point', values.join(' · '));
-}
-
-function statsRouteCandidates() {
-    return savedRoutes
-        .filter(route => route && route.id != null && route.kind !== 'imported' && route.kind !== 'community')
-        .sort((a, b) => (statsDate(b.startedAt) || 0) - (statsDate(a.startedAt) || 0));
-}
-
-function statsRouteOptionLabel(route) {
-    const analysis = statsAnalyzeRoute(route);
-    const date = statsDate(route.startedAt);
-    const dateLabel = Number.isFinite(date) ? new Date(date).toLocaleDateString('es-ES') : 'Fecha desconocida';
-    const distance = Number.isFinite(analysis.distanceKm) ? ` · ${analysis.distanceKm.toFixed(1)} km` : '';
-    return `${route.name || 'Salida'} · ${dateLabel}${distance}`;
-}
-
-function statsRouteMetricRows(analysis) {
-    if (!analysis) return [];
-    return [
-        ['Distancia', statsValue(analysis.distanceKm, 2, ' km')],
-        ['Tiempo en movimiento', Number.isFinite(analysis.movingTimeSec) ? fmtDur(analysis.movingTimeSec) : '--'],
-        ['Tiempo total', Number.isFinite(analysis.elapsedTimeSec) ? fmtDur(analysis.elapsedTimeSec) : '--'],
-        ['Velocidad media', statsValue(analysis.averageSpeed, 1, ' km/h')],
-        ['Velocidad máxima', statsValue(analysis.maxSpeed, 1, ' km/h')],
-        ['Desnivel positivo', analysis.ascentAvailable ? `+${Math.round(analysis.ascentM)} m` : '--'],
-        ['Desnivel negativo', analysis.descentAvailable ? statsDescentValue(analysis.descentM) : '--'],
-        ['VAM', statsValue(analysis.vam, 0, ' m/h')]
-    ];
-}
-
-function statsRenderRouteDetails(analysis) {
-    const container = $('stats-route-details');
-    container.replaceChildren();
-    if (!analysis) {
-        const empty = document.createElement('p');
-        empty.className = 'hint';
-        empty.textContent = 'Selecciona una actividad para ver sus métricas.';
-        container.appendChild(empty);
-        return;
-    }
-    statsRouteMetricRows(analysis).forEach(([label, value]) => {
-        const box = document.createElement('div');
-        box.className = 'stat-box';
-        const metric = document.createElement('div');
-        metric.className = 'v';
-        metric.textContent = value;
-        const caption = document.createElement('div');
-        caption.className = 'l';
-        caption.textContent = label;
-        box.append(metric, caption);
-        container.appendChild(box);
-    });
-}
-
-function statsRenderRouteComparison(primary, compared) {
-    const container = $('stats-route-comparison');
-    container.replaceChildren();
-    if (!primary || !compared) {
-        const hint = document.createElement('p');
-        hint.className = 'hint';
-        hint.textContent = 'Elige una segunda actividad para comparar las métricas disponibles.';
-        container.appendChild(hint);
-        return;
-    }
-
-    const grid = document.createElement('div');
-    grid.className = 'stats-route-compare-grid';
-    const headers = ['', primary.route.name || 'Actividad', compared.route.name || 'Comparación'];
-    headers.forEach(text => {
-        const cell = document.createElement('div');
-        cell.className = 'stats-route-compare-heading';
-        cell.textContent = text;
-        grid.appendChild(cell);
-    });
-    const primaryRows = statsRouteMetricRows(primary);
-    const comparedRows = statsRouteMetricRows(compared);
-    primaryRows.forEach(([label, firstValue], index) => {
-        [label, firstValue, comparedRows[index][1]].forEach(text => {
-            const cell = document.createElement('div');
-            cell.textContent = text;
-            grid.appendChild(cell);
-        });
-    });
-    container.appendChild(grid);
-}
-
-function statsEnsureRouteMap() {
-    if (statsRouteMap) return true;
-    if (typeof L === 'undefined') {
-        statsSetText('stats-route-map-status', 'Leaflet no está disponible; no se puede mostrar el mapa.');
-        return false;
-    }
-    try {
-        statsRouteMap = L.map('stats-route-map').setView([0, 0], 2);
-        const style = navigator.onLine ? selectedMapStyle() : 'ign';
-        const baseLayer = style === 'ign' ? createOfflineTileLayer() : createMapStyleLayer(style);
-        baseLayer.addTo(statsRouteMap);
-        return true;
-    } catch (error) {
-        console.error('No se pudo inicializar el mapa de análisis:', error);
-        if (statsRouteMap) statsRouteMap.remove();
-        statsRouteMap = null;
-        statsSetText('stats-route-map-status', 'No se pudo cargar el mapa de análisis.');
-        return false;
-    }
-}
-
-function statsRenderRouteMap(primary, compared) {
-    if (!statsRouteMap) return;
-    statsRouteMapLayers.forEach(layer => statsRouteMap.removeLayer(layer));
-    statsRouteMapLayers = [];
-    if (statsRoutePointMarker) {
-        statsRouteMap.removeLayer(statsRoutePointMarker);
-        statsRoutePointMarker = null;
-    }
-
-    const allPoints = [];
-    [primary, compared].forEach((analysis, routeIndex) => {
-        if (!analysis) return;
-        const color = STATS_ROUTE_COLORS[routeIndex];
-        (analysis.mapSegments || []).forEach(segment => {
-            if (!segment.length) return;
-            const latLngs = segment.map(point => [point.lat, point.lon]);
-            allPoints.push(...latLngs);
-            const line = L.polyline(latLngs, {
-                color,
-                weight: routeIndex === 0 ? 5 : 4,
-                opacity: 0.9,
-                dashArray: routeIndex === 0 ? null : '7 6'
-            }).addTo(statsRouteMap);
-            statsRouteMapLayers.push(line);
-        });
-    });
-
-    if (allPoints.length > 1) {
-        statsRouteMap.fitBounds(L.latLngBounds(allPoints), { padding: [20, 20], maxZoom: 16 });
-    } else if (allPoints.length === 1) {
-        statsRouteMap.setView(allPoints[0], 15);
-    }
-    statsRouteMap.invalidateSize({ pan: false });
-    statsSetText('stats-route-map-status', allPoints.length
-        ? 'Selecciona un punto del perfil para localizarlo en el mapa.'
-        : (primary
-            ? 'La actividad seleccionada no contiene coordenadas GPS utilizables.'
-            : 'Selecciona una actividad para mostrar su recorrido.'));
-}
-
-function statsRouteProfilePointSelected(point, route, color) {
-    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return;
-    if (!statsEnsureRouteMap()) return;
-    if (statsRoutePointMarker) statsRouteMap.removeLayer(statsRoutePointMarker);
-    statsRoutePointMarker = L.circleMarker([point.lat, point.lon], {
-        radius: 8, color, weight: 3, fillColor: '#ffffff', fillOpacity: 0.95
-    }).addTo(statsRouteMap);
-    statsRouteMap.panTo([point.lat, point.lon]);
-    statsSetText('stats-route-point', [
-        route && route.name ? route.name : 'Actividad',
-        `Distancia: ${Number.isFinite(point.x) ? point.x.toFixed(2) + ' km' : '--'}`,
-        `Altitud: ${Number.isFinite(point.altitude) ? Math.round(point.altitude) + ' m' : '--'}`,
-        `Pendiente: ${Number.isFinite(point.slope) ? point.slope.toFixed(1) + '%' : '--'}`,
-        `Velocidad: ${Number.isFinite(point.speed) ? point.speed.toFixed(1) + ' km/h' : '--'}`,
-        `Tiempo: ${Number.isFinite(point.timeSec) ? fmtDur(point.timeSec) : '--'}`
-    ].join(' · '));
-}
-
-function statsRenderRouteAnalysis() {
-    const primaryRoute = savedRoutes.find(route => String(route.id) === $('stats-route-select').value);
-    const comparedRoute = savedRoutes.find(route => String(route.id) === $('stats-route-compare-select').value);
-    const primary = primaryRoute ? statsAnalyzeRoute(primaryRoute) : null;
-    const compared = comparedRoute ? statsAnalyzeRoute(comparedRoute) : null;
-    statsRenderRouteDetails(primary);
-    statsRenderRouteComparison(primary, compared);
-
-    if (statsRouteProfileChart) {
-        const datasets = [];
-        [primary, compared].forEach((analysis, routeIndex) => {
-            if (!analysis || !analysis.profile.some(point => Number.isFinite(point.y))) return;
-            const color = STATS_ROUTE_COLORS[routeIndex];
-            datasets.push({
-                label: analysis.route.name || (routeIndex === 0 ? 'Actividad' : 'Comparación'),
-                data: analysis.profile,
-                route: analysis.route,
-                borderColor: color,
-                backgroundColor: `${color}26`,
-                borderDash: routeIndex === 0 ? [] : [6, 4],
-                showLine: true,
-                spanGaps: false,
-                pointRadius: 0,
-                pointHitRadius: 10,
-                borderWidth: 2,
-                fill: false
-            });
-        });
-        statsRouteProfileChart.data.datasets = datasets;
-        statsRouteProfileChart.update('none');
-    }
-    statsSetText('stats-route-point', primary
-        ? 'Selecciona un punto del perfil para localizarlo en el mapa y consultar sus datos.'
-        : 'Selecciona una actividad para analizar su perfil y recorrido.');
-    if (statsRouteMap) statsRenderRouteMap(primary, compared);
-}
-
-function statsRefreshRouteSelectors() {
-    const routeSelect = $('stats-route-select');
-    const compareSelect = $('stats-route-compare-select');
-    if (!routeSelect || !compareSelect) return;
-    const routes = statsRouteCandidates();
-    const previousRouteId = routeSelect.value;
-    const previousCompareId = compareSelect.value;
-
-    routeSelect.replaceChildren(new Option('Selecciona una actividad', ''));
-    routes.forEach(route => routeSelect.add(new Option(statsRouteOptionLabel(route), String(route.id))));
-    routeSelect.value = routes.some(route => String(route.id) === previousRouteId)
-        ? previousRouteId
-        : (routes.length ? String(routes[0].id) : '');
-
-    compareSelect.replaceChildren(new Option('Sin comparación', ''));
-    routes.filter(route => String(route.id) !== routeSelect.value)
-        .forEach(route => compareSelect.add(new Option(statsRouteOptionLabel(route), String(route.id))));
-    compareSelect.value = routes.some(route =>
-        String(route.id) === previousCompareId && String(route.id) !== routeSelect.value)
-        ? previousCompareId
-        : '';
-    statsRenderRouteAnalysis();
 }
 
 function statsPeriodBuckets(period, analyses) {
@@ -891,11 +660,6 @@ function statsRenderEvolutionChart() {
     statsEvolutionChart.update('none');
 }
 
-function statsRouteKey(route) {
-    return String(routeNameWithoutActivity(route) || route.name || '')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('es');
-}
-
 function statsRideDateKey(route) {
     const time = statsDate(route.startedAt);
     if (!Number.isFinite(time)) return '';
@@ -907,6 +671,12 @@ function statsRenderRecords() {
     const fullHistory = savedRoutes.filter(route => route && route.kind !== 'imported').map(statsAnalyzeRoute);
     const records = $('stats-records');
     records.replaceChildren();
+    const routeNamesSummary = items => {
+        const names = [...new Set(items.map(item => item.route.name || 'Salida'))];
+        if (!names.length) return '';
+        const visibleNames = names.slice(0, 3).join(', ');
+        return `Rutas: ${visibleNames}${names.length > 3 ? ` y ${names.length - 3} más` : ''}`;
+    };
     const renderRecord = (label, item = null, value = '', context = '') => {
         const row = document.createElement('div');
         row.className = 'stats-record';
@@ -924,7 +694,7 @@ function statsRenderRecords() {
         heading.appendChild(title);
         const detail = document.createElement('span');
         detail.textContent = item
-            ? `${value} · ${item.route.name || 'Salida'} · ${fmtDate(item.route.startedAt)}`
+            ? `${value} · Ruta: ${item.route.name || 'Salida'} · ${fmtDate(item.route.startedAt)}`
             : (context ? `${value} · ${context}` : (value || 'Sin datos suficientes'));
         row.append(heading, detail);
         records.appendChild(row);
@@ -969,10 +739,18 @@ function statsRenderRecords() {
     });
     const biggestWeek = [...weeklyDistances.values()].reduce((best, item) =>
         !best || item.distanceKm > best.distanceKm ? item : best, null);
+    const biggestWeekItems = biggestWeek && fullHistory.filter(item => {
+        const time = statsDate(item.route.startedAt);
+        return Number.isFinite(time)
+            && statsPeriodStart('weekly', new Date(time)).getTime() === biggestWeek.start.getTime();
+    });
     renderRecord('Mayor distancia semanal', null,
         biggestWeek && biggestWeek.distanceKm > 0 ? `${biggestWeek.distanceKm.toFixed(1)} km` : '',
         biggestWeek && biggestWeek.distanceKm > 0
-            ? `semana del ${biggestWeek.start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
+            ? [
+                `semana del ${biggestWeek.start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`,
+                routeNamesSummary(biggestWeekItems || [])
+            ].filter(Boolean).join(' · ')
             : '');
 
     const dates = new Set(fullHistory.map(item => statsRideDateKey(item.route)).filter(Boolean));
@@ -982,51 +760,17 @@ function statsRenderRecords() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     let streak = 0;
+    const streakDateKeys = new Set();
     let cursor = new Date(dates.has(dateKey(today)) ? today : yesterday);
     while (dates.has(dateKey(cursor))) {
         streak++;
+        streakDateKeys.add(dateKey(cursor));
         cursor.setDate(cursor.getDate() - 1);
     }
-    renderRecord('Racha actual', null, `${streak} ${streak === 1 ? 'día' : 'días'} consecutivos`);
+    const streakItems = fullHistory.filter(item => streakDateKeys.has(statsRideDateKey(item.route)));
+    renderRecord('Racha actual', null, `${streak} ${streak === 1 ? 'día' : 'días'} consecutivos`,
+        routeNamesSummary(streakItems));
 
-    const groups = new Map();
-    fullHistory.forEach(item => {
-        const key = statsRouteKey(item.route);
-        if (!key) return;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(item);
-    });
-    const repeatedGroups = [...groups.values()].map(group =>
-        group.sort((a, b) => statsDate(a.route.startedAt) - statsDate(b.route.startedAt))
-    ).map(group => {
-        const referenceDistance = group[0].distanceKm;
-        return group.filter(item => referenceDistance > 0
-            && Math.abs(item.distanceKm - referenceDistance) / referenceDistance <= 0.10);
-    }).filter(group => group.length >= 2);
-    const repeated = repeatedGroups[0] || null;
-    const bestRepeatedTime = repeatedGroups.flat()
-        .filter(item => !item.movingTimeEstimated && item.movingTimeSec > 0)
-        .reduce((best, item) => !best || item.movingTimeSec < best.movingTimeSec ? item : best, null);
-    renderRecord('Mejor tiempo en ruta repetida', bestRepeatedTime,
-        bestRepeatedTime && fmtDur(bestRepeatedTime.movingTimeSec));
-
-    const improvement = $('stats-route-improvement');
-    const segmentRecords = $('stats-segment-records');
-    segmentRecords.textContent = 'Consulta los segmentos personales y sus clasificaciones dentro de Rutas, en el detalle de cada ruta comunitaria.';
-    if (!repeated) {
-        improvement.textContent = 'Mejora en rutas repetidas: hacen falta al menos dos salidas con el mismo nombre y una distancia similar (±10%).';
-        return;
-    }
-    const comparable = repeated.filter(item => Math.abs(item.distanceKm - repeated[0].distanceKm) / repeated[0].distanceKm <= 0.10);
-    const first = comparable[0];
-    const latest = comparable[comparable.length - 1];
-    let summary = `Mejora en «${latest.route.name}»: `;
-    if (!first.movingTimeEstimated && !latest.movingTimeEstimated
-        && first.averageSpeed > 0 && latest.averageSpeed > 0) {
-        const change = (latest.averageSpeed - first.averageSpeed) / first.averageSpeed * 100;
-        summary += `velocidad media ${change >= 0 ? '+' : ''}${change.toFixed(1)}% desde la primera salida. `;
-    } else summary += 'faltan tiempos de movimiento registrados suficientes para comparar. ';
-    improvement.textContent = summary;
 }
 
 let statsNeedsRefresh = true;
@@ -1049,7 +793,6 @@ function refreshStats() {
     statsRenderEvolutionSummary();
     statsRenderEvolutionChart();
     statsRenderRecords();
-    statsRefreshRouteSelectors();
 }
 
 function setStatsPeriod(period) {
@@ -1066,8 +809,10 @@ function setStatsPeriod(period) {
 function setStatsSlide(index) {
     const track = $('stats-track');
     if (!track) return;
-    activeStatsSlide = Math.max(0, Math.min(5, Number(index) || 0));
-    track.style.transform = `translateX(-${activeStatsSlide * (100 / 6)}%)`;
+    const slideCount = track.children.length;
+    if (!slideCount) return;
+    activeStatsSlide = Math.max(0, Math.min(slideCount - 1, Number(index) || 0));
+    track.style.transform = `translateX(-${activeStatsSlide * (100 / slideCount)}%)`;
     document.querySelectorAll('[data-stats-slide]').forEach(button => {
         const active = Number(button.dataset.statsSlide) === activeStatsSlide;
         button.classList.toggle('active', active);
@@ -1081,13 +826,7 @@ function setStatsSlide(index) {
         [statsProfileChart, statsMtbSpeedChart, statsGradeChart, statsClimbTimeChart, statsVamChart]
             .forEach(chart => chart?.resize());
     }
-    if (activeStatsSlide === 2) {
-        statsEnsureRouteMap();
-        statsRenderRouteAnalysis();
-        statsRouteProfileChart?.resize();
-        setTimeout(() => statsRouteMap?.invalidateSize({ pan: false }), 0);
-    }
-    if (activeStatsSlide === 3) statsEvolutionChart?.resize();
+    if (activeStatsSlide === 2) statsEvolutionChart?.resize();
 }
 
 function statsInitCharts() {
@@ -1236,40 +975,6 @@ function statsInitCharts() {
             }
         }
     });
-    statsRouteProfileChart = new Chart($('stats-route-profile-chart').getContext('2d'), {
-        type: 'scatter',
-        data: { datasets: [] },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            parsing: false,
-            interaction: { mode: 'nearest', intersect: true },
-            plugins: {
-                legend: { display: true, labels: { color: '#aab8ca', boxWidth: 10, font: { size: 10 } } },
-                tooltip: {
-                    callbacks: {
-                        label: context => {
-                            const point = context.raw;
-                            return point && Number.isFinite(point.y)
-                                ? ` ${context.dataset.label}: ${point.x.toFixed(2)} km · ${Math.round(point.y)} m`
-                                : context.dataset.label;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: { ...axis, type: 'linear', title: { display: true, text: 'Distancia (km)', color: '#aab8ca' } },
-                y: { ...axis, title: { display: true, text: 'Altitud (m)', color: '#aab8ca' } }
-            },
-            onClick: (event, elements) => {
-                if (!elements.length) return;
-                const { datasetIndex, index } = elements[0];
-                const dataset = statsRouteProfileChart.data.datasets[datasetIndex];
-                const point = dataset.data[index];
-                statsRouteProfilePointSelected(point, dataset.route, dataset.borderColor);
-            }
-        }
-    });
     statsEvolutionChart = new Chart($('stats-evolution-chart').getContext('2d'), {
         type: 'line',
         data: { labels: [], datasets: [{
@@ -1291,26 +996,11 @@ function initCharts() {
         button.addEventListener('click', () => setStatsPeriod(button.dataset.statsPeriod)));
     document.querySelectorAll('[data-stats-slide]').forEach(button =>
         button.addEventListener('click', () => setStatsSlide(button.dataset.statsSlide)));
-    $('stats-weight').addEventListener('change', () => {
-        statsSavePreferences();
-        if (typeof syncStatsProfileToAccount === 'function') syncStatsProfileToAccount();
-    });
-    $('stats-age').addEventListener('change', () => {
-        statsSavePreferences(true);
-        if (typeof syncStatsProfileToAccount === 'function') syncStatsProfileToAccount();
-    });
     $('stats-power-ftp').addEventListener('change', statsSavePreferences);
     $('stats-profile-route').addEventListener('change', () => {
         const route = savedRoutes.find(item => String(item.id) === $('stats-profile-route').value);
         statsRenderProfile(route ? statsAnalyzeRoute(route) : null);
     });
-    $('stats-route-select').addEventListener('change', () => {
-        if ($('stats-route-select').value === $('stats-route-compare-select').value) {
-            $('stats-route-compare-select').value = '';
-        }
-        statsRefreshRouteSelectors();
-    });
-    $('stats-route-compare-select').addEventListener('change', statsRenderRouteAnalysis);
     $('stats-evolution-period').addEventListener('change', statsRenderEvolutionChart);
     $('stats-evolution-metric').addEventListener('change', statsRenderEvolutionChart);
     refreshStats();

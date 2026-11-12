@@ -292,8 +292,8 @@ async function accAuth(register) {
     if (register && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres'); return; }
     const weightKg = $('acc-weight').value.trim();
     const age = $('acc-age').value.trim();
-    if (register && weightKg && (!Number.isFinite(Number(weightKg)) || Number(weightKg) < 25 || Number(weightKg) > 250)) { toast('El peso debe estar entre 25 y 250 kg.'); return; }
-    if (register && age && (!Number.isInteger(Number(age)) || Number(age) < 10 || Number(age) > 100)) { toast('La edad debe estar entre 10 y 100 años.'); return; }
+    if (weightKg && (!Number.isFinite(Number(weightKg)) || Number(weightKg) < 25 || Number(weightKg) > 250)) { toast('El peso debe estar entre 25 y 250 kg.'); return; }
+    if (age && (!Number.isInteger(Number(age)) || Number(age) < 10 || Number(age) > 100)) { toast('La edad debe estar entre 10 y 100 años.'); return; }
     localStorage.setItem('mtb_server', server);
     Cloud.clearSession();
     try {
@@ -306,9 +306,15 @@ async function accAuth(register) {
         const r = await cloudApi('/api/collections/users/auth-with-password', 'POST', { identity: email, password: pass });
         Cloud.setSession(r.token, r.record);
         renderAccountProfile(r.record);
+        if ((weightKg || age) && typeof statsApplyAccountProfile === 'function') {
+            statsApplyAccountProfile(r.record.weightKg ?? (weightKg ? Number(weightKg) : undefined),
+                r.record.age ?? (age ? Number(age) : undefined));
+        }
         try { await syncPendingAccountAvatar(r.record); }
         catch (avatarError) { console.warn('No se pudo sincronizar el avatar pendiente:', avatarError); }
         $('acc-pass').value = '';
+        $('acc-weight').value = '';
+        $('acc-age').value = '';
         renderAccount();
         if (!Cloud.nickname && nickname) $('acc-account-nickname').value = nickname;
         await restoreGroup();

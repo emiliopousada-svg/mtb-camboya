@@ -136,10 +136,9 @@
                 <nav class="stats-tabs" aria-label="Secciones de estadísticas">
                     <button class="stats-tab active" type="button" data-stats-slide="0" aria-current="page">Resumen</button>
                     <button class="stats-tab" type="button" data-stats-slide="1">Rendimiento MTB</button>
-                    <button class="stats-tab" type="button" data-stats-slide="2">Rutas</button>
-                    <button class="stats-tab" type="button" data-stats-slide="3">Evolución</button>
-                    <button class="stats-tab" type="button" data-stats-slide="4">Récords</button>
-                    <button class="stats-tab" type="button" data-stats-slide="5">Sensores</button>
+                    <button class="stats-tab" type="button" data-stats-slide="2">Evolución</button>
+                    <button class="stats-tab" type="button" data-stats-slide="3">Récords</button>
+                    <button class="stats-tab" type="button" data-stats-slide="4">Sensores</button>
                 </nav>
             </header>
             <div class="stats-carousel" id="stats-carousel">
@@ -232,50 +231,6 @@
                         </div>
                     </section>
 
-                    <section class="stats-slide" aria-label="Análisis y comparación de rutas">
-                        <div class="card">
-                            <h3>Análisis de rutas</h3>
-                            <div class="stats-route-selectors">
-                                <div>
-                                    <label for="stats-route-select">Actividad</label>
-                                    <select id="stats-route-select"></select>
-                                </div>
-                                <div>
-                                    <label for="stats-route-compare-select">Comparar con</label>
-                                    <select id="stats-route-compare-select">
-                                        <option value="">Sin comparación</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <p id="stats-route-map-status" class="hint" role="status" aria-live="polite"></p>
-                            <div id="stats-route-map" class="stats-route-map" role="region" aria-label="Mapa del recorrido GPS"></div>
-                            <div id="stats-route-details" class="stats-grid stats-route-details"></div>
-                            <p id="stats-route-point" class="stats-profile-point" aria-live="polite">Selecciona un punto del perfil para localizarlo en el mapa.</p>
-                        </div>
-                        <div class="card">
-                            <h3>Perfil de elevación sincronizado</h3>
-                            <p class="hint">Selecciona un punto del perfil para mostrar su posición y datos. Si comparas salidas, puedes seleccionar cualquiera de los dos perfiles.</p>
-                            <div class="stats-profile-chart"><canvas id="stats-route-profile-chart" aria-label="Perfil de elevación de las actividades seleccionadas"></canvas></div>
-                        </div>
-                        <div class="card">
-                            <h3>Comparación de salidas</h3>
-                            <div id="stats-route-comparison" class="stats-route-comparison">
-                                <p class="hint">Elige una segunda actividad para comparar las métricas disponibles.</p>
-                            </div>
-                        </div>
-                        <div class="card" id="stats-community-ranking">
-                            <h3>Clasificación de rutas comunitarias</h3>
-                            <p class="hint">Consulta las mejores marcas públicas y revisa tus tiempos calculados con el GPS de tus actividades. Solo se envían el apodo y el tiempo si confirmas.</p>
-                            <button id="stats-community-browse" class="btn secondary" type="button">Buscar rutas comunitarias</button>
-                            <label for="stats-community-route">Ruta</label>
-                            <select id="stats-community-route">
-                                <option value="">Busca rutas comunitarias para empezar</option>
-                            </select>
-                            <div id="stats-community-leaderboard" class="community-ranking-list" aria-live="polite"></div>
-                            <div id="stats-community-attempt"></div>
-                        </div>
-                    </section>
-
                     <section class="stats-slide" aria-label="Evolución histórica">
                         <div class="card">
                             <h3>Carga semanal y mensual</h3>
@@ -319,15 +274,6 @@
                             <p class="hint">Cada logro se basa en los datos disponibles de tus actividades; no se asignan marcas estimadas.</p>
                             <div id="stats-records" class="stats-records"></div>
                         </div>
-                        <div class="card">
-                            <h3>Rutas repetidas</h3>
-                            <div id="stats-route-improvement" class="stats-unavailable"></div>
-                            <p class="hint">Los tiempos solo se comparan cuando el nombre coincide, la distancia difiere como máximo un 10% y el tiempo de movimiento está registrado (no estimado).</p>
-                        </div>
-                        <div class="card">
-                            <h3>Segmentos comunitarios</h3>
-                            <p id="stats-segment-records" class="stats-unavailable">Consulta los segmentos personales y sus clasificaciones dentro de Rutas, en el detalle de cada ruta comunitaria.</p>
-                        </div>
                     </section>
 
                     <section class="stats-slide" aria-label="Sensores y métricas avanzadas">
@@ -343,10 +289,10 @@
                                 <div class="stat-box"><div class="v" id="st-calories">--</div><div class="l">Calorías estimadas</div></div>
                             </div>
                             <div class="stats-config">
-                                <label for="stats-weight">Peso para estimar calorías (kg)</label>
-                                <input id="stats-weight" type="number" min="25" max="250" step="0.1" inputmode="decimal" placeholder="Sin configurar">
+                                <label for="stats-weight">Peso para estimar calorías</label>
+                                <output id="stats-weight" class="stats-profile-value">Sin configurar</output>
                                 <label for="stats-age">Edad para estimar FC máxima</label>
-                                <input id="stats-age" type="number" min="10" max="100" step="1" inputmode="numeric" placeholder="Sin configurar">
+                                <output id="stats-age" class="stats-profile-value">Sin configurar</output>
                                 <label for="stats-hr-max-config">FC máxima para zonas (lpm)</label>
                                 <input id="stats-hr-max-config" type="number" placeholder="Sin configurar" readonly>
                                 <label for="stats-power-ftp">FTP para zonas Coggan (W)</label>
@@ -520,12 +466,6 @@
                                 <option value="horse">🐎 Caballo</option>
                                 <option value="walking">🚶 Paseo (guardadas)</option>
                                 <option value="other">📍 Sin clasificar</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="route-folder-filter" class="hint">Mostrar carpeta</label>
-                            <select id="route-folder-filter" aria-label="Filtrar rutas por carpeta">
-                                <option value="">Todas las carpetas</option>
                             </select>
                         </div>
                         <div>
@@ -751,12 +691,6 @@
                 <div id="community-detail-map" class="community-detail-map" role="region" aria-label="Mapa con el trazado de la ruta"></div>
                 <div id="community-detail-stats" class="community-detail-stats"></div>
                 <div id="community-detail-custom-actions" class="community-detail-actions"></div>
-                <section id="route-comparison" class="community-detail-section" hidden aria-labelledby="route-comparison-title">
-                    <h3 id="route-comparison-title">Comparar con otra salida</h3>
-                    <label for="route-compare-select">Elige una actividad</label>
-                    <select id="route-compare-select"></select>
-                    <div id="route-compare-results" class="route-compare-results" aria-live="polite"></div>
-                </section>
                 <section id="community-social" class="community-detail-section" hidden aria-labelledby="community-social-title">
                     <h3 id="community-social-title">Valoraciones y comentarios</h3>
                     <div id="community-rating-summary" class="community-rating-summary"></div>

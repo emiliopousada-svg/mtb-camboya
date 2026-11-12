@@ -602,17 +602,17 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
 .stats-carousel { flex: 1 1 auto; min-height: 0; overflow: hidden; touch-action: pan-y; }
 .stats-track {
     display: flex;
-    width: 600%;
+    width: 500%;
     height: 100%;
     transition: transform .22s ease-out;
     will-change: transform;
 }
 .stats-slide {
     display: flex;
-    flex: 0 0 16.6667%;
+    flex: 0 0 20%;
     flex-direction: column;
     gap: 12px;
-    width: 16.6667%;
+    width: 20%;
     height: 100%;
     overflow-y: auto;
     overscroll-behavior-y: contain;
@@ -632,15 +632,6 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
 .stats-overview-charts, .stats-mtb-charts { display: grid; gap: 12px; }
 .stats-overview-charts .stats-chart, .stats-mtb-charts .stats-chart { height: 180px; }
 .stats-profile-chart { position: relative; height: 220px; margin-top: 8px; }
-.stats-route-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.stats-route-selectors > div { display: flex; flex-direction: column; min-width: 0; gap: 5px; }
-.stats-route-selectors select { width: 100%; min-width: 0; }
-.stats-route-map { width: 100%; height: 280px; margin-top: 8px; border-radius: 9px; background: #171717; }
-.stats-route-details { margin-top: 10px; }
-.stats-route-comparison { overflow-x: auto; }
-.stats-route-compare-grid { display: grid; grid-template-columns: minmax(92px, .8fr) repeat(2, minmax(100px, 1fr)); gap: 1px; min-width: 360px; overflow: hidden; border-radius: 8px; background: rgba(255,255,255,.1); }
-.stats-route-compare-grid > div { padding: 9px 8px; background: #121212; font-size: .76rem; overflow-wrap: anywhere; }
-.stats-route-compare-grid .stats-route-compare-heading { color: var(--text-secondary); font-weight: 700; }
 .stats-evolution-summary { display: grid; gap: 10px; }
 .stats-evolution-period-summary { padding: 10px; border-radius: 9px; background: #121212; }
 .stats-evolution-period-summary h4 { margin: 0 0 8px; color: var(--text); font-size: .82rem; }
@@ -656,6 +647,17 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
 }
 .stats-config label, .stats-slide label { align-self: end; font-size: .76rem; color: var(--text-secondary); }
 .stats-config input { margin-top: 4px; padding: 9px; }
+.stats-config output {
+    display: flex;
+    align-items: center;
+    min-height: 38px;
+    margin-top: 4px;
+    padding: 9px;
+    border: 1px solid rgba(143, 166, 199, .2);
+    border-radius: 9px;
+    background: #0c1628;
+    color: #e2eafa;
+}
 .stats-zones { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .stats-zone {
     display: grid;
@@ -671,9 +673,6 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
     .stats-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .stats-overview-charts, .stats-mtb-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .stats-evolution-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 380px) {
-    .stats-route-selectors { grid-template-columns: 1fr; }
 }
 @media (min-width: 1000px) {
     .stats-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -1215,11 +1214,6 @@ nav {
 .community-comment strong { color: var(--primary); font-size: .8rem; }
 .community-comment p { margin-top: 5px; color: var(--text); font-size: .82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .community-comment .btn-small { margin-top: 7px; }
-.route-compare-results { overflow-x: auto; margin-top: 9px; }
-.route-compare-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
-.route-compare-table th, .route-compare-table td { min-width: 78px; padding: 7px 5px; border-bottom: 1px solid rgba(143, 166, 199, .13); text-align: left; }
-.route-compare-table th { color: var(--primary); font-size: .68rem; overflow-wrap: anywhere; }
-.route-compare-table td:first-child { color: var(--text-secondary); }
 .community-detail-actions { flex-wrap: wrap; }
 .community-detail-actions .btn { min-width: 0; }
 .leaflet-popup-content .btn { display: block; width: 100%; }
@@ -1381,7 +1375,6 @@ nav {
     background: #0c1628;
     color: #e2eafa;
 }
-.stats-route-map { border: 1px solid rgba(143, 166, 199, .14); }
 @media (min-width: 620px) {
     .stats-slide { padding-right: 22px; padding-left: 22px; }
     .stats-slide > .card, .stats-overview-charts { width: min(100%, 1180px); }
@@ -1792,5 +1785,3 @@ body > nav {
 .community-effort-entry select { width: 100%; min-height: 40px; padding: 8px; }
 .community-effort-entry .btn { margin: 0; }
 .community-empty { padding: 10px; border-radius: 10px; background: rgba(143, 166, 199, .06); }
-#stats-community-ranking > label { display: block; margin: 10px 0 5px; color: #b7c5d8; font-size: .78rem; }
-#stats-community-browse { margin-top: 8px; }
