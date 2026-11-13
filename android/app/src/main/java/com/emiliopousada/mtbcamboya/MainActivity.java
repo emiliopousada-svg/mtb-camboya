@@ -14,6 +14,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.splashscreen.SplashScreen;
 
 import com.getcapacitor.BridgeActivity;
@@ -29,11 +30,23 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScreenControlPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        registerBackHandler();
         showFullScreenSplash();
     }
 
-    @Override
-    public void onBackPressed() {
+    // Con targetSdk 36 Android ya no llama a onBackPressed(): el botón/gesto Atrás llega
+    // por el OnBackPressedDispatcher. Este callback se registra después de cargar los
+    // plugins de Capacitor, así que tiene prioridad sobre el del plugin App.
+    private void registerBackHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                handleBackPress();
+            }
+        });
+    }
+
+    private void handleBackPress() {
         if (backCheckPending) return;
         if (getBridge() != null && getBridge().getWebView() != null) {
             backCheckPending = true;
