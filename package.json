@@ -7,6 +7,7 @@
     "prepare-web": "node scripts/prepare-web.js",
     "build": "node scripts/prepare-web.js && npx cap sync android",
     "sync": "node scripts/prepare-web.js && npx cap sync android",
+    "test": "node --test \"tests/*.test.js\"",
     "test:statistics": "node --test tests/statistics-engine.test.js",
     "test:community": "node --test tests/community-performance.test.js"
   },
