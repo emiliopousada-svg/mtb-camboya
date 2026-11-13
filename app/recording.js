@@ -257,7 +257,9 @@ async function startBgWatcher() {
             backgroundMessage: 'Grabando tu ruta…',
             requestPermissions: true,
             stale: false,
-            distanceFilter: MIN_STEP_M
+            // A modestly wider filter reduces native location callbacks and GPS work
+            // while keeping track spacing close to the existing 4 m recording gate.
+            distanceFilter: 6
         }, (loc, err) => {
             if (my !== bgToken) return;
             if (err) {

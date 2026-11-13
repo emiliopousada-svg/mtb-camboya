@@ -944,8 +944,8 @@ nav {
     touch-action: manipulation;
 }
 .screen-dim-overlay[hidden] { display: none; }
-.screen-dim-overlay.screen-dim-native { background: rgba(0, 0, 0, .12); }
-.screen-dim-overlay.screen-dim-fallback { background: rgba(0, 0, 0, .84); }
+.screen-dim-overlay.screen-dim-native { background: rgba(0, 0, 0, .2); }
+.screen-dim-overlay.screen-dim-fallback { background: rgba(0, 0, 0, .92); }
 
 #modal {
     display: none;

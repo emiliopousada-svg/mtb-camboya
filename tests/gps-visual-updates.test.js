@@ -50,7 +50,7 @@ function runNextFrame(state) {
     callback();
 }
 
-test('GPS visual updates are throttled to two per second and coalesce to the latest fix', () => {
+test('GPS visual updates are throttled to one per second and coalesce to the latest fix', () => {
     const { context, state } = createGpsContext();
     vm.runInContext('scheduleGpsVisualUpdate({ fix: 1 }); scheduleGpsVisualUpdate({ fix: 2 }); scheduleGpsVisualUpdate({ fix: 3 });', context);
 
@@ -63,7 +63,7 @@ test('GPS visual updates are throttled to two per second and coalesce to the lat
     state.now += 200;
     vm.runInContext('scheduleGpsVisualUpdate({ fix: 5 });', context);
     const nextTimer = runNextTimer(state);
-    assert.equal(nextTimer.delay, 300);
+    assert.equal(nextTimer.delay, 800);
     runNextFrame(state);
     assert.deepEqual(JSON.parse(JSON.stringify(state.rendered)), [{ fix: 4 }, { fix: 5 }]);
 });

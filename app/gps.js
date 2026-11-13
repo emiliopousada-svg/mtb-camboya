@@ -6,7 +6,7 @@ const GPS_LOW_POWER_OPTIONS = { enableHighAccuracy: false, maximumAge: 10000, ti
 const GPS_ACTIVE_OPTIONS = { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 };
 const GPS_FOLLOW_OPTIONS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 };
 const GPS_RECENTER_ACCURACY_M = 100;
-const GPS_VISUAL_UPDATE_INTERVAL_MS = 500;
+const GPS_VISUAL_UPDATE_INTERVAL_MS = 1000;
 let gpsWatchId = null, gpsRetryTimer = null, gpsRetryDelay = 2000;
 let gpsHighAccuracyMode = null;
 let gpsPermissionDenied = false, gpsPermissionNoticeShown = false;

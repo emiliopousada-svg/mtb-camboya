@@ -12,7 +12,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class ScreenControlPlugin extends Plugin {
     @PluginMethod
     public void dim(PluginCall call) {
-        setScreenBrightness(call, 0.06f);
+        setScreenBrightness(call, 0.03f);
     }
 
     @PluginMethod
