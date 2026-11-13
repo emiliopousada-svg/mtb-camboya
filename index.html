@@ -620,7 +620,7 @@
     <p class="hint">La descarga cubre el área geográfica aproximada de la comunidad y puede incluir zonas limítrofes. Se muestra el número de teselas antes de iniciar.</p>
     <div id="offline-progress"><div id="offline-progress-fill"></div></div>
     <div id="offline-progress-text">Preparado para descargar</div>
-    <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga. Las descargas de mapas tienen límites de espacio; las cachés automáticas se depuran por antigüedad.</p>
+    <p id="offline-storage-note">Se necesita conexión Wi-Fi y espacio libre. Mantén la aplicación abierta durante la descarga. Los mapas IGN descargados tienen un presupuesto de 256 MiB medido por tamaño real; las cachés automáticas se limitan por teselas y también consumen cuota.</p>
     <div class="offline-actions">
         <button class="btn" id="btn-download-region" type="button">Descargar / reanudar</button>
         <button class="btn secondary" id="btn-download-visible-detail" type="button">Descargar detalle de la vista (15–17)</button>
@@ -641,6 +641,10 @@
                 <label class="setting-toggle" for="setting-map-rotation">
                     <input type="checkbox" id="setting-map-rotation">
                     <span><strong>Rotación automática del mapa</strong><span class="hint">Orienta el mapa según tu dirección o la ruta cargada mientras sigues tu posición. Si el GPS no informa velocidad, se calcula el rumbo con el desplazamiento.</span></span>
+                </label>
+                <label class="setting-toggle" for="setting-large-controls">
+                    <input type="checkbox" id="setting-large-controls">
+                    <span><strong>Controles grandes y alto contraste</strong><span class="hint">Aumenta el tamaño y el contraste de los controles del mapa y de la navegación inferior.</span></span>
                 </label>
             </div>
             <div class="card">

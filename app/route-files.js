@@ -30,11 +30,21 @@ function routeToGpx(r) {
     return out.join('\n');
 }
 
+function xmlLocalName(element) {
+    return String(element.localName || element.nodeName || '').split(':').pop().toLowerCase();
+}
+
+function xmlElementsByLocalName(root, name) {
+    return Array.from(root.getElementsByTagName('*'))
+        .filter(element => xmlLocalName(element) === name);
+}
+
 // Devuelve { name, segs: [ [ [lat, lon, alt|null, tMs|null], ... ], ... ] }
 function parseTrack(text, fname) {
     let name = fname.replace(/\.[^.]+$/, '');
     const segs = [];
     const trimmed = text.trim();
+    const extension = (fname.match(/\.([^.]+)$/) || [null, ''])[1].toLowerCase();
     let pointCount = 0;
     const addSegment = segment => {
         pointCount += segment.length;
@@ -44,7 +54,10 @@ function parseTrack(text, fname) {
         segs.push(segment);
     };
 
-    if (trimmed.startsWith('{')) { // GeoJSON
+    const isGeoJson = extension === 'geojson' || extension === 'json'
+        || (!extension && trimmed.startsWith('{'));
+    if (isGeoJson) { // GeoJSON
+        if (!trimmed.startsWith('{')) throw new Error('El archivo GeoJSON no contiene un objeto válido.');
         const geoms = [];
         (function walk(o) {
             if (!o) return;
@@ -69,51 +82,76 @@ function parseTrack(text, fname) {
         const doc = new DOMParser().parseFromString(trimmed, 'application/xml');
         if (doc.getElementsByTagName('parsererror').length) throw new Error('el archivo no es un XML válido');
 
-        if (/<kml[\s>]/i.test(trimmed)) { // KML
-            const n = doc.getElementsByTagName('name')[0];
+        const expectedRoot = extension === 'gpx' ? 'gpx' : extension === 'kml' ? 'kml' : null;
+        if (!expectedRoot) throw new Error('El XML debe ser un archivo GPX o KML.');
+        const rootName = doc.documentElement ? xmlLocalName(doc.documentElement) : '';
+        if (rootName !== expectedRoot) {
+            throw new Error(`El archivo .${extension} debe tener una raíz <${expectedRoot}>.`);
+        }
+
+        if (expectedRoot === 'kml') { // KML
+            const n = xmlElementsByLocalName(doc, 'name')[0];
             if (n && n.textContent.trim()) name = n.textContent.trim();
-            Array.from(doc.getElementsByTagName('LineString')).forEach(ls => {
-                const co = ls.getElementsByTagName('coordinates')[0];
+            xmlElementsByLocalName(doc, 'linestring').forEach(ls => {
+                const co = xmlElementsByLocalName(ls, 'coordinates')[0];
                 if (!co) return;
                 const coordinates = [];
                 for (const match of co.textContent.matchAll(/\S+/g)) {
                     if (pointCount + coordinates.length >= MAX_IMPORTED_TRACK_POINTS) {
                         throw new Error(`el track supera el límite de ${MAX_IMPORTED_TRACK_POINTS.toLocaleString('es-ES')} puntos`);
                     }
-                    const s = match[0];
-                    const [lon, lat, alt] = s.split(',').map(Number);
+                    const values = match[0].split(',');
+                    if (values.length < 2 || values.length > 3 || !values[0].trim() || !values[1].trim()) {
+                        throw new Error('El archivo KML contiene una coordenada geográfica no válida.');
+                    }
+                    const lon = Number(values[0]), lat = Number(values[1]);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon)
+                        || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                        throw new Error('El archivo KML contiene una coordenada geográfica no válida.');
+                    }
+                    const alt = values.length === 3 && values[2].trim() ? Number(values[2]) : null;
                     coordinates.push([lat, lon, Number.isFinite(alt) ? alt : null, null]);
                 }
                 addSegment(coordinates);
             });
         } else { // GPX
-            const n = doc.getElementsByTagName('trk')[0]
-                ? doc.getElementsByTagName('trk')[0].getElementsByTagName('name')[0]
-                : doc.getElementsByTagName('name')[0];
+            const tracks = xmlElementsByLocalName(doc, 'trk');
+            const n = tracks.length
+                ? xmlElementsByLocalName(tracks[0], 'name')[0]
+                : xmlElementsByLocalName(doc, 'name')[0];
             if (n && n.textContent.trim()) name = n.textContent.trim();
             const readPt = e => {
-                const ele = e.getElementsByTagName('ele')[0];
-                const tm = e.getElementsByTagName('time')[0];
+                const latText = e.getAttribute('lat');
+                const lonText = e.getAttribute('lon');
+                const lat = Number(latText), lon = Number(lonText);
+                if (latText == null || !latText.trim() || lonText == null || !lonText.trim()
+                    || !Number.isFinite(lat) || !Number.isFinite(lon)
+                    || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                    throw new Error('El archivo GPX contiene una coordenada geográfica no válida.');
+                }
+                const ele = xmlElementsByLocalName(e, 'ele')[0];
+                const tm = xmlElementsByLocalName(e, 'time')[0];
                 return [
-                    parseFloat(e.getAttribute('lat')), parseFloat(e.getAttribute('lon')),
+                    lat, lon,
                     ele ? parseFloat(ele.textContent) : null,
                     tm ? Date.parse(tm.textContent) : null
                 ];
             };
-            const trksegs = Array.from(doc.getElementsByTagName('trkseg'));
-            const trackPointCount = doc.getElementsByTagName('trkpt').length;
-            const routePointCount = doc.getElementsByTagName('rtept').length;
+            const trksegs = xmlElementsByLocalName(doc, 'trkseg');
+            const trackPointCount = xmlElementsByLocalName(doc, 'trkpt').length;
+            const routePointCount = xmlElementsByLocalName(doc, 'rtept').length;
             const usedPointCount = trksegs.length ? trackPointCount : routePointCount;
             if (usedPointCount > MAX_IMPORTED_TRACK_POINTS) {
                 throw new Error(`el track supera el límite de ${MAX_IMPORTED_TRACK_POINTS.toLocaleString('es-ES')} puntos`);
             }
             if (trksegs.length) {
-                trksegs.forEach(s => addSegment(Array.from(s.getElementsByTagName('trkpt')).map(readPt)));
+                trksegs.forEach(s => addSegment(xmlElementsByLocalName(s, 'trkpt').map(readPt)));
             } else {
-                Array.from(doc.getElementsByTagName('rte')).forEach(r =>
-                    addSegment(Array.from(r.getElementsByTagName('rtept')).map(readPt)));
+                xmlElementsByLocalName(doc, 'rte').forEach(r =>
+                    addSegment(xmlElementsByLocalName(r, 'rtept').map(readPt)));
             }
         }
+        if (pointCount === 0) throw new Error(`El archivo ${expectedRoot.toUpperCase()} no contiene puntos de ruta.`);
     }
     return { name, segs };
 }

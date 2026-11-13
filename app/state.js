@@ -2,7 +2,8 @@
 
 //  ESTADO GLOBAL
 // ============================================================
-let map = null, userMarker = null, routePolyline = null, routePolylines = [], routePolylinePointCount = 0, savedRouteLayer = null, offlineTileLayer = null;
+let map = null, userMarker = null, routePolyline = null, routePolylines = [], routePolylinePointCount = 0;
+let routePolylinePoints = [], routePolylineLastPoint = null, savedRouteLayer = null, offlineTileLayer = null;
 const MAX_ROUTE_RENDER_POINTS = 250;
 let activeMapStyle = null, mapStyleLayers = {};
 let isRecording = false, isPaused = false, bgActive = false;
@@ -19,7 +20,7 @@ try {
 let movingMs = 0, segStart = null, timerInterval = null, draftInterval = null;
 let totalDistance = 0, elev = makeElevTracker();
 let points = [], segments = [], lastAccepted = null, resumeBreak = false, startedAt = null;
-let lastLat = null, lastLon = null, lastAccuracy = null, following = true, firstFix = false, lastPosSave = 0;
+let lastLat = null, lastLon = null, lastAccuracy = null, lastPositionAt = 0, following = true, firstFix = false, lastPosSave = 0;
 let lastHeading = null; // Último rumbo GPS válido; se conserva al detenerse.
 let lastCourseFix = null; // Posición de referencia para calcular el rumbo si el GPS nativo no lo da.
 let currentHr = null;

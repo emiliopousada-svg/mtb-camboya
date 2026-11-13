@@ -4,11 +4,17 @@
 // ============================================================
 let groupJoined = false, groupSyncAvailable = false, friendsTimer = null, restoreGroupPending = false;
 let friendsRefreshPending = false, lastLivePush = 0, lastFriendsRefreshAt = 0, livePushPending = false;
+let pendingLiveLocation = null, pendingLiveLocationLoaded = false;
+let pendingLiveLocationLoadPromise = null, pendingLiveLocationWrite = Promise.resolve();
+let pendingLiveLocationRevision = 0, liveLocationRetryTimer = null;
 let groupRankingDeletesSyncing = false;
 let myLiveRecordId = null;
 let groupLiveEndpointUnsupportedFor = '';
 const friendMarkers = new Map();
 const LIVE_INTERVAL_MS = 30000, FRIEND_STALE_MS = 120000;
+const LIVE_PENDING_KEY = 'pendingLiveLocation';
+const LIVE_PENDING_TTL_MS = FRIEND_STALE_MS;
+const LIVE_RETRY_BASE_MS = 5000, LIVE_RETRY_MAX_MS = 60000;
 const FRIENDS_IDLE_REFRESH_MS = 30000;
 const GROUP_RANKING_MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -16,6 +22,99 @@ let groupInfo = null, groupChoices = [], liveFriendCount = 0;
 let groupRankingMembers = [];
 
 function groupName() { return Cloud.groupCode || ''; }
+
+function reportPendingLiveLocationStorageError(error) {
+    console.warn('No se pudo guardar la posición pendiente del grupo:', error);
+    $('group-status').textContent = 'No se pudo guardar la posición pendiente; se reintentará mientras la aplicación siga abierta.';
+}
+
+function queuePendingLiveLocationWrite(value) {
+    const write = pendingLiveLocationWrite.then(() => value
+        ? DB.kvSet(LIVE_PENDING_KEY, value)
+        : DB.kvDel(LIVE_PENDING_KEY));
+    pendingLiveLocationWrite = write.catch(reportPendingLiveLocationStorageError);
+    return write;
+}
+
+function validPendingLiveLocation(value) {
+    const now = Date.now();
+    return value && value.ownerId === Cloud.uid && value.groupCode === groupName()
+        && Number.isFinite(value.lat) && value.lat >= -90 && value.lat <= 90
+        && Number.isFinite(value.lon) && value.lon >= -180 && value.lon <= 180
+        && typeof value.name === 'string' && value.name.length > 0
+        && Number.isFinite(value.accuracy) && value.accuracy >= 0 && value.accuracy <= MAX_ACC_M
+        && Number.isFinite(value.updatedAt) && value.updatedAt <= now + 30000
+        && now - value.updatedAt <= LIVE_PENDING_TTL_MS
+        && Number.isInteger(value.retryAttempt) && value.retryAttempt >= 0
+        && Number.isFinite(value.retryAt);
+}
+
+async function loadPendingLiveLocation() {
+    if (pendingLiveLocationLoaded) return;
+    if (pendingLiveLocationLoadPromise) return pendingLiveLocationLoadPromise;
+    const load = (async () => {
+        const revision = pendingLiveLocationRevision;
+        try {
+            const saved = await DB.kvGet(LIVE_PENDING_KEY);
+            if (revision !== pendingLiveLocationRevision) return;
+            if (saved && validPendingLiveLocation(saved)) {
+                pendingLiveLocation = { ...saved, revision: ++pendingLiveLocationRevision };
+            } else if (saved) {
+                await queuePendingLiveLocationWrite(null);
+            }
+            pendingLiveLocationLoaded = true;
+        } catch (error) {
+            pendingLiveLocationLoaded = false;
+            reportPendingLiveLocationStorageError(error);
+        }
+    })();
+    pendingLiveLocationLoadPromise = load.finally(() => { pendingLiveLocationLoadPromise = null; });
+    return pendingLiveLocationLoadPromise;
+}
+
+function persistPendingLiveLocation() {
+    if (!pendingLiveLocation) return Promise.resolve();
+    const value = { ...pendingLiveLocation };
+    delete value.revision;
+    return queuePendingLiveLocationWrite(value);
+}
+
+function clearPendingLiveLocation() {
+    pendingLiveLocationRevision++;
+    pendingLiveLocation = null;
+    pendingLiveLocationLoaded = true;
+    if (liveLocationRetryTimer) clearTimeout(liveLocationRetryTimer);
+    liveLocationRetryTimer = null;
+    return queuePendingLiveLocationWrite(null);
+}
+
+function scheduleLiveLocationRetry(retryAt) {
+    if (liveLocationRetryTimer) clearTimeout(liveLocationRetryTimer);
+    liveLocationRetryTimer = null;
+    if (!Number.isFinite(retryAt) || retryAt <= 0) return;
+    liveLocationRetryTimer = setTimeout(() => {
+        liveLocationRetryTimer = null;
+        if (navigator.onLine) retryPendingLiveLocation();
+    }, Math.max(0, retryAt - Date.now()));
+}
+
+function updatePendingLiveLocation(nickname) {
+    const prior = pendingLiveLocation;
+    const sameGroup = prior && prior.ownerId === Cloud.uid && prior.groupCode === groupName();
+    pendingLiveLocation = {
+        ownerId: Cloud.uid,
+        groupCode: groupName(),
+        name: nickname,
+        lat: lastLat,
+        lon: lastLon,
+        accuracy: Number.isFinite(lastAccuracy) ? lastAccuracy : 0,
+        updatedAt: Date.now(),
+        retryAttempt: sameGroup ? prior.retryAttempt : 0,
+        retryAt: sameGroup ? prior.retryAt : 0,
+        revision: ++pendingLiveLocationRevision
+    };
+    return pendingLiveLocation;
+}
 
 function renderGroupMetricRanking(containerId, key, format) {
     const container = $(containerId);
@@ -472,6 +571,8 @@ async function restoreGroup() {
         if (hasPendingGroupLeave()) {
             groupJoined = false;
             groupSyncAvailable = false;
+            try { await clearPendingLiveLocation(); }
+            catch (error) { reportPendingLiveLocationStorageError(error); }
             localStorage.removeItem('mtb_group_joined');
             localStorage.removeItem('mtb_group_code');
             if (friendsTimer) { clearInterval(friendsTimer); friendsTimer = null; }
@@ -666,18 +767,83 @@ async function refreshFriends(retryAuth = true, ownsPending = false) {
     }
 }
 async function publishMyLocation(force = false) {
-    if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null || livePushPending) return;
+    if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || lastLat === null || lastLon === null
+        || !Number.isFinite(lastLat) || lastLat < -90 || lastLat > 90
+        || !Number.isFinite(lastLon) || lastLon < -180 || lastLon > 180
+        || !Number.isFinite(lastPositionAt) || Date.now() - lastPositionAt > LIVE_PENDING_TTL_MS
+        || !Number.isFinite(lastAccuracy) || lastAccuracy < 0 || lastAccuracy > MAX_ACC_M) return;
     const nickname = String(Cloud.nickname || '').trim();
     if (!nickname) {
         $('group-status').textContent = 'Añade un apodo a tu cuenta antes de compartir tu posición.';
         return;
     }
-    if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) return;
+    await loadPendingLiveLocation();
+    if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused) return;
+    if (!pendingLiveLocation && !force && Date.now() - lastLivePush < LIVE_INTERVAL_MS && navigator.onLine) return;
+    const snapshot = updatePendingLiveLocation(nickname);
+    if (!navigator.onLine || livePushPending) {
+        try { await persistPendingLiveLocation(); }
+        catch (error) { reportPendingLiveLocationStorageError(error); }
+        return;
+    }
+    if (snapshot.retryAt > Date.now()) {
+        try { await persistPendingLiveLocation(); }
+        catch (error) { reportPendingLiveLocationStorageError(error); }
+        scheduleLiveLocationRetry(snapshot.retryAt);
+        return;
+    }
+    if (!force && Date.now() - lastLivePush < LIVE_INTERVAL_MS) {
+        snapshot.retryAt = lastLivePush + LIVE_INTERVAL_MS;
+        try { await persistPendingLiveLocation(); }
+        catch (error) { reportPendingLiveLocationStorageError(error); }
+        scheduleLiveLocationRetry(snapshot.retryAt);
+        return;
+    }
+    await sendPendingLiveLocation(snapshot);
+}
+
+async function retryPendingLiveLocation() {
+    if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || !navigator.onLine) return;
+    await loadPendingLiveLocation();
+    const snapshot = pendingLiveLocation;
+    if (!snapshot) return;
+    if (!validPendingLiveLocation(snapshot)) {
+        try { await clearPendingLiveLocation(); }
+        catch (error) { reportPendingLiveLocationStorageError(error); }
+        return;
+    }
+    if (!Number.isFinite(lastLat) || lastLat < -90 || lastLat > 90
+        || !Number.isFinite(lastLon) || lastLon < -180 || lastLon > 180
+        || !Number.isFinite(lastPositionAt) || Date.now() - lastPositionAt > LIVE_PENDING_TTL_MS
+        || !Number.isFinite(lastAccuracy) || lastAccuracy < 0 || lastAccuracy > MAX_ACC_M) return;
+    if (snapshot.retryAt > Date.now()) {
+        scheduleLiveLocationRetry(snapshot.retryAt);
+        return;
+    }
+    await sendPendingLiveLocation(snapshot);
+}
+
+async function sendPendingLiveLocation(snapshot) {
+    if (livePushPending || !snapshot) return;
     livePushPending = true;
     try {
-        const payload = { owner: Cloud.uid, groupCode: groupName(), name: nickname, lat: lastLat, lon: lastLon, accuracy: Number.isFinite(lastAccuracy) ? lastAccuracy : 0 };
+        try { await persistPendingLiveLocation(); }
+        catch (error) { reportPendingLiveLocationStorageError(error); }
+        if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused
+            || groupName() !== snapshot.groupCode || Cloud.uid !== snapshot.ownerId) {
+            await removeMyLiveLocation();
+            return;
+        }
+        const payload = {
+            owner: snapshot.ownerId,
+            groupCode: snapshot.groupCode,
+            name: snapshot.name,
+            lat: snapshot.lat,
+            lon: snapshot.lon,
+            accuracy: snapshot.accuracy
+        };
         if (!myLiveRecordId) {
-            const f = encodeURIComponent(`owner = "${Cloud.uid}"`);
+            const f = encodeURIComponent(`owner = "${snapshot.ownerId}"`);
             const own = await cloudApi(`/api/collections/live_locations/records?filter=${f}&perPage=1`);
             myLiveRecordId = own.items[0] ? own.items[0].id : null;
         }
@@ -686,19 +852,46 @@ async function publishMyLocation(force = false) {
             const rec = await cloudApi('/api/collections/live_locations/records', 'POST', payload);
             myLiveRecordId = rec.id;
         }
-        if (!groupJoined || !isRecording || isPaused) { await removeMyLiveLocation(); return; }
+        if (!groupJoined || !isRecording || isPaused || groupName() !== snapshot.groupCode || Cloud.uid !== snapshot.ownerId) {
+            await removeMyLiveLocation();
+            return;
+        }
         lastLivePush = Date.now();
+        if (pendingLiveLocation && pendingLiveLocation.revision === snapshot.revision) {
+            await clearPendingLiveLocation();
+        } else if (pendingLiveLocation) {
+            pendingLiveLocation.retryAttempt = 0;
+            pendingLiveLocation.retryAt = lastLivePush + LIVE_INTERVAL_MS;
+            try { await persistPendingLiveLocation(); }
+            catch (error) { reportPendingLiveLocationStorageError(error); }
+            scheduleLiveLocationRetry(pendingLiveLocation.retryAt);
+        }
         refreshFriends();
     } catch (e) {
         console.warn('No se pudo compartir la posición:', e);
         groupSyncAvailable = false;
         renderFriendsGroupStatus();
         if (e.status === 404) myLiveRecordId = null;
-        if (e.status !== undefined) $('group-status').textContent = `Error al compartir posición: ${e.message}`;
+        $('group-status').textContent = e.status !== undefined
+            ? `Error al compartir posición: ${e.message}. Se reintentará automáticamente.`
+            : 'Sin conexión: la posición más reciente queda pendiente y se reintentará al recuperar cobertura.';
+        if (groupJoined && Cloud.loggedIn() && isRecording && !isPaused
+            && groupName() === snapshot.groupCode && Cloud.uid === snapshot.ownerId) {
+            const retry = pendingLiveLocation || snapshot;
+            retry.retryAttempt = Math.min(20, retry.retryAttempt + 1);
+            const delay = Math.min(LIVE_RETRY_BASE_MS * (2 ** (retry.retryAttempt - 1)), LIVE_RETRY_MAX_MS);
+            retry.retryAt = Date.now() + delay;
+            pendingLiveLocation = retry;
+            try { await persistPendingLiveLocation(); }
+            catch (error) { reportPendingLiveLocationStorageError(error); }
+            scheduleLiveLocationRetry(retry.retryAt);
+        }
     } finally { livePushPending = false; }
 }
 
 async function removeMyLiveLocation() {
+    try { await clearPendingLiveLocation(); }
+    catch (error) { reportPendingLiveLocationStorageError(error); }
     const id = myLiveRecordId;
     myLiveRecordId = null;
     if (id && Cloud.loggedIn()) {
@@ -814,9 +1007,11 @@ async function leaveGroupLocally() {
     const key = pendingGroupLeaveKey();
     if (!groupId || !key) { toast('No hay un grupo activo que cerrar.'); return; }
     localStorage.setItem(key, JSON.stringify({ groupId, uid: Cloud.uid, queuedAt: Date.now() }));
-    if (groupInfo && !groupChoices.some(group => group.id === groupId)) groupChoices.push(groupInfo);
     groupJoined = false;
     groupSyncAvailable = false;
+    try { await clearPendingLiveLocation(); }
+    catch (error) { reportPendingLiveLocationStorageError(error); }
+    if (groupInfo && !groupChoices.some(group => group.id === groupId)) groupChoices.push(groupInfo);
     groupInfo = null;
     myLiveRecordId = null;
     localStorage.removeItem('mtb_group_joined');
@@ -852,5 +1047,8 @@ window.addEventListener('online', restoreGroup);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !navigator.onLine) return;
     if (hasPendingGroupLeave()) restoreGroup();
-    else if (groupJoined) refreshFriends();
+    else if (groupJoined) {
+        refreshFriends();
+        if (isRecording && !isPaused) publishMyLocation(true);
+    }
 });

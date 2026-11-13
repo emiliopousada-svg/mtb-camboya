@@ -6,12 +6,24 @@ let wakeLock = null;
 let recordingPois = [];
 let routePhotoCapturePosition = null;
 let routePhotoProcessing = null;
+const DRAFT_SAVE_DEBOUNCE_MS = 1500;
+const DRAFT_SAVE_MAX_WAIT_MS = 5000;
+let draftSaveTimer = null;
+let draftSaveMaxWaitTimer = null;
+let draftSavePromise = null;
+let pendingDraft = null;
+let draftStateVersion = 0;
+let draftRevision = 0;
+let draftSavedRevision = 0;
 
 function clearRoutePolylines() {
     routePolylines.forEach(polyline => { if (map) map.removeLayer(polyline); });
     routePolylines = [];
     routePolyline = null;
     routePolylinePointCount = 0;
+    routePolylinePoints = [];
+    routePolylineLastPoint = null;
+    pendingRouteRenderPoints.length = 0;
 }
 
 function renderRecordingSegments(routeSegments) {
@@ -26,6 +38,8 @@ function renderRecordingSegments(routeSegments) {
             routePolylines.push(polyline);
             routePolyline = polyline;
             routePolylinePointCount = end - start;
+            routePolylinePoints = segment.slice(start, end);
+            routePolylineLastPoint = routePolylinePoints[routePolylinePoints.length - 1];
             if (end === segment.length) break;
             start = end - 1;
         }
@@ -50,7 +64,7 @@ function releaseWake() {
 }
 
 // ---- GPS en segundo plano (solo dentro del APK) ----
-let bgWatcherId = null, bgToken = 0, bgDeniedShown = false;
+let bgWatcherId = null, bgToken = 0, bgDeniedShown = false, bgStarting = false;
 
 function bgPlugin() {
     const cap = window.Capacitor;
@@ -212,10 +226,30 @@ async function onBgDenied(bg) {
     bgDeniedShown = false;
 }
 
+function handleBgWatcherError(my, bg, error) {
+    if (my !== bgToken) return;
+    console.warn('GPS en segundo plano:', error);
+    const id = bgWatcherId;
+    bgToken++;
+    bgStarting = false;
+    bgActive = false;
+    bgWatcherId = null;
+    if (id != null) {
+        bg.removeWatcher({ id }).catch(removeError => {
+            console.warn('No se pudo detener el watcher GPS en segundo plano:', removeError);
+        });
+    }
+    if (error.code === 'NOT_AUTHORIZED') onBgDenied(bg);
+    else if (id != null) toast('No se pudo mantener el GPS en segundo plano. Mantén la app abierta para seguir grabando.', 7000);
+    if (document.visibilityState === 'visible' && isRecording && !isPaused) startGps();
+}
+
 async function startBgWatcher() {
     const bg = bgPlugin();
-    if (!bg || bgActive) return false;
+    if (!bg) return false;
+    if (bgActive || bgStarting) return true;
     const my = ++bgToken;
+    bgStarting = true;
     try {
         await ensureNotifPermission();
         const id = await bg.addWatcher({
@@ -227,30 +261,45 @@ async function startBgWatcher() {
         }, (loc, err) => {
             if (my !== bgToken) return;
             if (err) {
-                console.warn('GPS en segundo plano:', err);
-                if (err.code === 'NOT_AUTHORIZED') onBgDenied(bg);
+                handleBgWatcherError(my, bg, err);
                 return;
             }
             if (!loc) return;
-            onPos({
+            const position = {
                 coords: {
                     latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy,
-                    altitude: loc.altitude, speed: loc.speed, heading: loc.heading ?? loc.bearing
+                    altitude: loc.altitude, altitudeAccuracy: loc.altitudeAccuracy,
+                    speed: loc.speed, heading: loc.heading ?? loc.bearing
                 },
                 timestamp: loc.time
-            });
+            };
+            const usableFix = Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)
+                && Number.isFinite(loc.accuracy) && loc.accuracy >= 0 && loc.accuracy <= MAX_ACC_M
+                && Number.isFinite(loc.time);
+            if (usableFix) {
+                bgActive = true;
+                bgStarting = false;
+                clearGpsWatch();
+            }
+            onPos(position);
         });
         if (my !== bgToken) { // se pausó o terminó mientras se activaba
-            try { await bg.removeWatcher({ id }); } catch (e) {}
+            try { await bg.removeWatcher({ id }); }
+            catch (error) { console.warn('No se pudo detener el watcher GPS en segundo plano:', error); }
             return false;
         }
+        if (typeof id !== 'string' || !id) throw new Error('El plugin no devolvió el ID del watcher.');
         bgWatcherId = id;
-        bgActive = true; // solo ahora el plugin ha confirmado el watcher
-        clearGpsWatch();
+        if (bgActive) clearGpsWatch();
         return true;
     } catch (e) {
         console.warn('No se pudo iniciar el GPS en segundo plano:', e);
-        if (my === bgToken) bgWatcherId = null;
+        if (my === bgToken) {
+            bgToken++;
+            bgWatcherId = null;
+            bgStarting = false;
+            bgActive = false;
+        }
         return false;
     }
 }
@@ -260,8 +309,13 @@ function stopBgWatcher() {
     const id = bgWatcherId;
     bgToken++;
     bgActive = false;
+    bgStarting = false;
     bgWatcherId = null;
-    if (bg && id != null) bg.removeWatcher({ id }).catch(() => {});
+    if (bg && id != null) {
+        bg.removeWatcher({ id }).catch(error => {
+            console.warn('No se pudo detener el watcher GPS en segundo plano:', error);
+        });
+    }
     if (document.visibilityState === 'visible') startGps();
 }
 
@@ -270,7 +324,11 @@ async function beginTracking(showToast) {
     acquireWake();
     const ok = await startBgWatcher();
     if (ok) {
-        if (showToast) toast('Grabando en segundo plano: puedes bloquear la pantalla.', 5000);
+        if (showToast) {
+            toast(bgActive
+                ? 'Grabando en segundo plano: puedes bloquear la pantalla.'
+                : 'Activando GPS en segundo plano. Mantén la app abierta hasta recibir una posición precisa.', 5000);
+        }
         return;
     }
     if (showToast) {
@@ -448,7 +506,7 @@ $('route-photo-input').addEventListener('change', async event => {
             savedCopyPath
         });
         showRoutePoisOnMap([...(followedRoute ? followedRoute.pois : []), ...recordingPois]);
-        saveDraft();
+        scheduleDraftSave(0);
         toast(savedCopyPath
             ? 'Foto añadida y guardada en Documentos/MTB CAMBOYA/Rutas.'
             : copyFailed
@@ -510,7 +568,7 @@ function pauseRecording(automatic = false) {
     removeMyLiveLocation();
     setBtnState(automatic ? 'auto-paused' : 'paused');
     $('m-speed').textContent = '0.0';
-    saveDraft();
+    scheduleDraftSave(0);
     if (automatic) toast(`Pausa automática: sin movimiento durante ${AUTO_PAUSE_AFTER_MS / 1000} segundos.`);
 }
 
@@ -609,7 +667,7 @@ async function finishRecording() {
     removeMyLiveLocation();
     setBtnState('idle');
     $('m-speed').textContent = '0.0';
-    DB.kvDel('draft').catch(() => {});
+    await clearDraft();
 }
 
 async function saveRoute(r) {
@@ -639,17 +697,90 @@ async function saveRoute(r) {
 }
 
 // --- Borrador: recuperar una ruta si la app se cierra durante la grabación ---
-function saveDraft() {
+function draftMovingMs() {
+    return Math.floor((movingMs + (segStart ? Date.now() - segStart : 0)) / 1000) * 1000;
+}
+
+function scheduleDraftSave(delay = DRAFT_SAVE_DEBOUNCE_MS) {
     if (!isRecording) return;
-    DB.kvSet('draft', {
-        startedAt,
-        activityType: recordingActivityType,
-        movingMs: movingMs + (segStart ? Date.now() - segStart : 0),
-        totalDistance,
-        points,
-        pois: recordingPois,
-        savedAt: Date.now()
-    }).catch(() => {});
+    draftStateVersion++;
+    clearTimeout(draftSaveTimer);
+    if (delay <= 0) {
+        clearTimeout(draftSaveMaxWaitTimer);
+        draftSaveMaxWaitTimer = null;
+        saveDraft();
+        return;
+    }
+    draftSaveTimer = setTimeout(() => {
+        draftSaveTimer = null;
+        saveDraft();
+    }, delay);
+    if (!draftSaveMaxWaitTimer) {
+        draftSaveMaxWaitTimer = setTimeout(() => {
+            draftSaveMaxWaitTimer = null;
+            saveDraft();
+        }, DRAFT_SAVE_MAX_WAIT_MS);
+    }
+}
+
+function saveDraft() {
+    if (!isRecording) return Promise.resolve(true);
+    const movingMsSnapshot = draftMovingMs();
+    if (!pendingDraft
+        || pendingDraft.stateVersion !== draftStateVersion
+        || pendingDraft.value.movingMs !== movingMsSnapshot) {
+        pendingDraft = {
+            revision: ++draftRevision,
+            stateVersion: draftStateVersion,
+            value: {
+                startedAt,
+                activityType: recordingActivityType,
+                movingMs: movingMsSnapshot,
+                totalDistance,
+                points: points.slice(),
+                pois: recordingPois.slice(),
+                savedAt: Date.now()
+            }
+        };
+    }
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    clearTimeout(draftSaveMaxWaitTimer);
+    draftSaveMaxWaitTimer = null;
+    return persistPendingDraft();
+}
+
+function persistPendingDraft() {
+    if (draftSavePromise) return draftSavePromise;
+    const write = async () => {
+        while (pendingDraft && pendingDraft.revision > draftSavedRevision) {
+            const snapshot = pendingDraft;
+            try {
+                await DB.kvSet('draft', snapshot.value);
+            } catch (error) {
+                console.warn('No se pudo guardar el borrador de la ruta:', error);
+                return false;
+            }
+            draftSavedRevision = snapshot.revision;
+        }
+        return true;
+    };
+    draftSavePromise = write().finally(() => { draftSavePromise = null; });
+    return draftSavePromise;
+}
+
+async function clearDraft() {
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    clearTimeout(draftSaveMaxWaitTimer);
+    draftSaveMaxWaitTimer = null;
+    pendingDraft = null;
+    if (draftSavePromise) await draftSavePromise;
+    try {
+        await DB.kvDel('draft');
+    } catch (error) {
+        console.warn('No se pudo borrar el borrador de la ruta:', error);
+    }
 }
 
 function buildSegments(pts) {
@@ -713,14 +844,14 @@ async function maybeRestoreDraft() {
     DB.kvDel('draft').catch(() => {});
 }
 
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'hidden') {
-        if (isRecording) saveDraft();
+        if (isRecording) await saveDraft();
     } else if (isRecording && !isPaused) {
         updateTimerDisplay();
         acquireWake(); // el wake lock se pierde al ocultar la página
     }
 });
-window.addEventListener('pagehide', () => { if (isRecording) saveDraft(); });
+window.addEventListener('pagehide', async () => { if (isRecording) await saveDraft(); });
 
 // ============================================================

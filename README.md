@@ -28,7 +28,7 @@ Aplicación para registrar, seguir y analizar actividades al aire libre, con esp
 - Conexión con sensores Bluetooth Low Energy (BLE) compatibles, como frecuencia cardíaca, cadencia, potencia y velocidad.
 
 ### Grupos y comunidad
-- Funciones para crear o unirse a grupos y compartir ubicaciones en directo.
+- Funciones para crear o unirse a grupos y compartir ubicaciones en directo. Si falla la conexión, se conserva solo la última posición en IndexedDB y se reintenta con backoff; las posiciones pendientes caducan y se borran al pausar o detener la grabación.
 - Invitaciones, apodos y controles de administración del grupo.
 - Publicación y descubrimiento de rutas de la comunidad, con filtros por actividad, provincia y distancia.
 - Captura de fotos geolocalizadas durante una ruta; al publicar en Comunidad, se pueden compartir como POI visibles al seguirla.
@@ -38,6 +38,7 @@ Aplicación para registrar, seguir y analizar actividades al aire libre, con esp
 - Almacenamiento local mediante IndexedDB.
 - Sincronización de cuenta y datos en la nube mediante una API basada en PocketBase.
 - Las rutas grabadas sin conexión quedan pendientes de sincronizar al recuperar la conexión; consulta [CONFIGURAR-SINCRONIZACION.md](CONFIGURAR-SINCRONIZACION.md) para habilitar el apodo de autor en PocketBase.
+- Los fallos de red y errores temporales del servidor se reintentan con backoff exponencial (de 5 a 60 segundos); los errores HTTP permanentes no se repiten automáticamente y cerrar sesión cancela los reintentos pendientes.
 - Peso y edad sincronizados con la cuenta para estimar calorías y frecuencia cardíaca máxima; consulta [CONFIGURAR-PERFIL.md](CONFIGURAR-PERFIL.md) para añadir los campos de PocketBase.
 - Aplicación web progresiva (PWA), con recursos preparados para uso sin conexión.
 
@@ -155,9 +156,9 @@ Consulta la pestaña **Actions** del repositorio para ver las ejecuciones y sus 
 
 La aplicación incorpora una PWA y mecanismos de caché para facilitar el uso sin conexión. Para navegar sin cobertura, descarga previamente las zonas o paquetes de mapas que necesites y comprueba que la región está disponible antes de iniciar la actividad.
 
-Cada descarga regional está limitada a 25.000 teselas y el dispositivo conserva hasta 30.000 teselas IGN descargadas. Las cachés automáticas de IGN y de mapas online conservan hasta 2.500 teselas cada una y eliminan las más antiguas; estas cachés no sustituyen a una descarga regional.
+Cada descarga está limitada a 25.000 teselas y el dispositivo conserva hasta 30.000 teselas IGN descargadas, con un presupuesto de 256 MiB medido a partir del tamaño real de los blobs. Si el navegador informa la cuota de almacenamiento, se reservan además 128 MiB para rutas, fotos y otros datos. Las cachés automáticas de IGN y de mapas online conservan hasta 2.500 teselas cada una y eliminan las más antiguas; también consumen cuota y no sustituyen a una descarga regional.
 
-Durante una grabación larga, el trazado del mapa se dibuja en segmentos acotados para reducir el coste de actualización. Se intenta guardar el borrador cada 30 segundos y también al pausar o dejar la aplicación; una interrupción brusca puede perder los puntos posteriores al último guardado.
+Durante una grabación larga, el trazado del mapa se dibuja en segmentos acotados para reducir el coste de actualización. El borrador se guarda tras aceptar puntos, como máximo cada cinco segundos durante el movimiento, cada 30 segundos como respaldo y al pausar. Al ocultar o cerrar la página se intenta completar otra escritura, pero el navegador no garantiza que termine antes de suspender el proceso.
 
 La disponibilidad sin conexión puede variar según el mapa, el espacio disponible, los datos descargados y las funciones que necesiten conexión con los servicios en la nube.
 

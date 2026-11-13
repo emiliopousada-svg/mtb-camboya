@@ -5,7 +5,7 @@
     --surface: #101a2d;
     --surface-card: #151f34;
     --text: #e2eafa;
-    --text-secondary: #9aa9bd;
+    --text-secondary: #c1ccdc;
     --danger: #f06c78;
 }
 
@@ -342,9 +342,9 @@ html, body {
 .btn-unfollow-map svg { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: #d8b4fe; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .btn-unfollow-map span { min-width: 0; text-align: center; }
 .controls-overlay #btn-stop {
-    flex: 0 0 42px;
-    width: 42px;
-    height: 42px;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
     font-size: 1rem;
 }
 
@@ -886,6 +886,8 @@ nav {
 }
 
 .nav-btn {
+    min-height: 44px;
+    padding: 3px 1px;
     background: none;
     border: none;
     color: var(--text-secondary);
@@ -893,7 +895,8 @@ nav {
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
     flex: 1;
     cursor: pointer;
 }
@@ -1068,8 +1071,8 @@ nav {
 @media (orientation: landscape) and (max-height: 600px) {
     .swiper-wrapper { height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px)); }
     nav { height: calc(48px + env(safe-area-inset-bottom, 0px)); }
-    .nav-btn { gap: 1px; font-size: .58rem; }
-    .nav-btn .icon { font-size: 1.08rem; }
+    .nav-btn { gap: 2px; font-size: .68rem; }
+    .nav-btn .icon { font-size: 1.1rem; }
 
     .metrics-bar {
         top: env(safe-area-inset-top, 0px);
@@ -1133,9 +1136,9 @@ nav {
     .controls-overlay .btn-unfollow-map { flex-basis: 145px; font-size: .68rem; }
     .btn-unfollow-map svg { width: 18px; height: 18px; flex-basis: 18px; }
     .controls-overlay #btn-stop {
-        flex-basis: 46px;
-        width: 46px;
-        height: 46px;
+        flex-basis: 48px;
+        width: 48px;
+        height: 48px;
         font-size: 1rem;
     }
 
@@ -1315,7 +1318,7 @@ nav {
     --surface: #101a2d;
     --surface-card: #151f34;
     --text: #e2eafa;
-    --text-secondary: #9aa9bd;
+    --text-secondary: #c1ccdc;
     color: var(--text);
     background:
         radial-gradient(ellipse at 50% -18%, rgba(52, 112, 132, .2), transparent 58%),
@@ -1422,7 +1425,7 @@ nav {
 }
 .stats-grid .stat-box .l {
     margin-top: 5px;
-    color: #9aa9bd;
+    color: #c1ccdc;
     font-size: .62rem;
     font-weight: 650;
     letter-spacing: .035em;
@@ -1432,7 +1435,7 @@ nav {
 .stats-summary-grid .stat-box:nth-child(4n + 2) .v { color: #58d8e6; }
 .stats-slide .hint {
     margin-top: 9px;
-    color: #91a1b7;
+    color: #c1ccdc;
     font-size: .72rem;
     line-height: 1.5;
 }
@@ -1540,7 +1543,7 @@ body {
     font-weight: 700;
     letter-spacing: -.015em;
 }
-.hint { color: #9aa9bd; line-height: 1.5; }
+.hint { color: #c1ccdc; line-height: 1.5; }
 .server-address {
     display: block;
     margin: 3px 0 10px;
@@ -1770,7 +1773,7 @@ body > nav {
     box-shadow: 0 -8px 24px rgba(0, 0, 0, .22);
     backdrop-filter: blur(16px);
 }
-.nav-btn { color: #8190a7; }
+.nav-btn { color: #c1ccdc; }
 .nav-btn.active { color: #68edc4; }
 .nav-btn.active .icon { filter: drop-shadow(0 0 7px rgba(73, 221, 181, .3)); }
 
@@ -1825,7 +1828,7 @@ body > nav {
 .community-panel select { border-color: rgba(143, 166, 199, .2); background: #0c1628; color: #e2eafa; }
 
 #offline-panel { border-color: rgba(143, 166, 199, .11); background: linear-gradient(145deg, #182339, #111b2e); color: #e2eafa; }
-#offline-panel p { color: #9aa9bd; }
+#offline-panel p { color: #c1ccdc; }
 #offline-panel select { border-color: rgba(143, 166, 199, .2); background: #0c1628; color: #e2eafa; }
 #offline-progress { background: #0b1324; }
 #offline-progress-fill { background: linear-gradient(90deg, #49ddb5, #55dce7); }
@@ -1863,7 +1866,7 @@ body > nav {
 }
 .community-segment-item > p, .community-ranking-item > p, .community-effort-entry > p {
     margin: 4px 0 0;
-    color: #9aa9bd;
+    color: #c1ccdc;
     font-size: .78rem;
     line-height: 1.45;
 }
@@ -1875,3 +1878,52 @@ body > nav {
 .community-effort-entry select { width: 100%; min-height: 40px; padding: 8px; }
 .community-effort-entry .btn { margin: 0; }
 .community-empty { padding: 10px; border-radius: 10px; background: rgba(143, 166, 199, .06); }
+
+html.large-controls .swiper-wrapper {
+    height: calc(100dvh - 68px - env(safe-area-inset-bottom, 0px));
+}
+html.large-controls body > nav {
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+}
+html.large-controls .nav-btn {
+    min-height: 60px;
+    padding: 4px 2px;
+    color: #fff;
+    font-size: .8rem;
+    font-weight: 700;
+}
+html.large-controls .nav-btn.active {
+    color: #fff;
+    background: #075e49;
+    border-radius: 10px;
+}
+html.large-controls .nav-btn .icon { font-size: 1.55rem; }
+html.large-controls .map-zoom-btn,
+html.large-controls .side-controls .btn-icon-only {
+    width: 60px;
+    height: 60px;
+    border: 2px solid #fff;
+    background: #000;
+    color: #fff;
+    font-size: 1.45rem;
+    box-shadow: 0 0 0 2px #000, 0 4px 12px rgba(0, 0, 0, .7);
+}
+html.large-controls .map-zoom-btn.orient.route,
+html.large-controls .side-controls .btn-icon-only.active {
+    border-color: #fff;
+    background: #005a9c;
+}
+html.large-controls .map-zoom-btn:disabled { opacity: .75; }
+html.large-controls .controls-overlay .btn-main-action,
+html.large-controls .controls-overlay .btn-unfollow-map {
+    min-height: 58px;
+    border: 2px solid #fff;
+    font-size: .95rem;
+    font-weight: 800;
+}
+html.large-controls .controls-overlay #btn-stop {
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
+    border: 2px solid #fff !important;
+}

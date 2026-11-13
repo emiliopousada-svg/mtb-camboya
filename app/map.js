@@ -126,4 +126,16 @@ function setMapRotationMode(enabled) {
 $('btn-map-north').addEventListener('click', () => setMapRotationMode(!mapRotationEnabled));
 updateOrientBtn();
 
+const largeControlsSetting = $('setting-large-controls');
+if (largeControlsSetting) {
+    const enabled = localStorage.getItem('mtb_large_controls') === '1';
+    document.documentElement.classList.toggle('large-controls', enabled);
+    largeControlsSetting.checked = enabled;
+    largeControlsSetting.addEventListener('change', () => {
+        const isEnabled = largeControlsSetting.checked;
+        document.documentElement.classList.toggle('large-controls', isEnabled);
+        localStorage.setItem('mtb_large_controls', isEnabled ? '1' : '0');
+    });
+}
+
 // ============================================================
