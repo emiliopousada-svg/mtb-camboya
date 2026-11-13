@@ -4,15 +4,17 @@ routerAdd("POST", "/api/mtb/groups/create", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     let group = null;
     try {
-        const body = new DynamicModel({ name: "", nickname: "" });
+        const body = new DynamicModel({ name: "" });
         e.bindBody(body);
         const user = $app.findRecordById("users", e.auth.id);
         const name = String(body.name || "").trim().slice(0, 40);
         if (!name) return e.json(400, { message: "Escribe un nombre para el grupo." });
-        const nickname = requireNickname(body.nickname);
+        const nickname = requireNickname(user.getString("nickname"));
+        const iconFiles = e.findUploadedFiles("icon");
 
         group = new Record($app.findCollectionByNameOrId("mtb_groups"));
         group.set("name", name);
+        if (iconFiles.length) group.set("icon", iconFiles);
         group.set("owner", user.id);
         group.set("inviteCode", $security.randomString(12).toUpperCase());
         $app.save(group);
@@ -28,7 +30,7 @@ routerAdd("POST", "/api/mtb/groups/create", (e) => {
         user.set("groupCode", group.id);
         $app.save(user);
 
-        return e.json(200, { group: { id: group.id, name: group.getString("name"), isAdmin: true, inviteCode: group.getString("inviteCode") } });
+        return e.json(200, { group: { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin: true, inviteCode: group.getString("inviteCode") } });
     } catch (err) {
         if (group) { try { $app.delete(group); } catch (_) {} }
         return e.json(400, { message: err.message || "No se pudo crear el grupo." });
@@ -38,13 +40,13 @@ routerAdd("POST", "/api/mtb/groups/create", (e) => {
 routerAdd("POST", "/api/mtb/groups/join", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
-        const body = new DynamicModel({ code: "", nickname: "" });
+        const body = new DynamicModel({ code: "" });
         e.bindBody(body);
         const code = String(body.code || "").trim().toUpperCase();
         if (!SAFE_INVITE_RE.test(code)) return e.json(400, { message: "El código de invitación no es válido." });
-        const nickname = requireNickname(body.nickname);
-        const group = $app.findFirstRecordByFilter("mtb_groups", 'inviteCode = "' + code + '"');
         const user = $app.findRecordById("users", e.auth.id);
+        const nickname = requireNickname(user.getString("nickname"));
+        const group = $app.findFirstRecordByFilter("mtb_groups", 'inviteCode = "' + code + '"');
         const memberships = safeMembership(group.id, user.id);
         if (memberships.length) {
             memberships[0].set("nickname", nickname);
@@ -59,7 +61,7 @@ routerAdd("POST", "/api/mtb/groups/join", (e) => {
         user.set("groupCode", group.id);
         $app.save(user);
         const isAdmin = group.getString("owner") === user.id;
-        const response = { id: group.id, name: group.getString("name"), isAdmin };
+        const response = { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin };
         if (isAdmin) response.inviteCode = group.getString("inviteCode");
         return e.json(200, { group: response });
     } catch (err) {
@@ -70,11 +72,11 @@ routerAdd("POST", "/api/mtb/groups/join", (e) => {
 routerAdd("POST", "/api/mtb/groups/select", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership } = require(`${__hooks}/groups_utils.js`);
     try {
-        const body = new DynamicModel({ groupId: "", nickname: "" });
+        const body = new DynamicModel({ groupId: "" });
         e.bindBody(body);
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = requireSafeValue(body.groupId, "groupId");
-        const nickname = requireNickname(body.nickname);
+        const nickname = requireNickname(user.getString("nickname"));
         const memberships = safeMembership(groupId, user.id);
         if (!memberships.length) return e.json(403, { message: "Ya no tienes autorización para entrar en este grupo." });
         memberships[0].set("nickname", nickname);
@@ -83,7 +85,7 @@ routerAdd("POST", "/api/mtb/groups/select", (e) => {
         user.set("groupCode", groupId);
         $app.save(user);
         const isAdmin = group.getString("owner") === user.id;
-        const response = { id: group.id, name: group.getString("name"), isAdmin };
+        const response = { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin };
         if (isAdmin) response.inviteCode = group.getString("inviteCode");
         return e.json(200, { group: response });
     } catch (err) {
@@ -102,7 +104,7 @@ routerAdd("GET", "/api/mtb/groups/my", (e) => {
             try {
                 const group = $app.findRecordById("mtb_groups", membership.getString("group"));
                 const isAdmin = group.getString("owner") === user.id;
-                const item = { id: group.id, name: group.getString("name"), isAdmin, nickname: membership.getString("nickname") };
+                const item = { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin, nickname: user.getString("nickname").trim() || membership.getString("nickname") };
                 if (isAdmin) item.inviteCode = group.getString("inviteCode");
                 groups.push(item);
             } catch (_) {}
@@ -123,11 +125,15 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
         const group = $app.findRecordById("mtb_groups", safeGroupId);
         if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede ver y gestionar los miembros." });
         const memberships = findAllRecordsByFilter("mtb_group_members", 'group = "' + safeGroupId + '"', "");
-        const members = memberships.map((membership) => ({
-            userId: membership.getString("user"),
-            nickname: membership.getString("nickname") || "Apodo pendiente",
-            isAdmin: membership.getString("user") === user.id
-        }));
+        const members = memberships.map((membership) => {
+            const userId = membership.getString("user");
+            const member = $app.findRecordById("users", userId);
+            return {
+                userId,
+                nickname: member.getString("nickname").trim() || membership.getString("nickname") || "Apodo pendiente",
+                isAdmin: userId === user.id
+            };
+        });
         return e.json(200, { members });
     } catch (err) {
         return e.json(400, { message: err.message || "No se pudieron cargar los miembros." });
@@ -212,10 +218,11 @@ routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
         const rankingsByUser = groupRankingSummaryFromEntries(entries);
         const members = memberships.map((membership) => {
             const userId = membership.getString("user");
+            const member = $app.findRecordById("users", userId);
             const ranking = rankingsByUser[userId] || {};
             return {
                 userId,
-                nickname: membership.getString("nickname") || "Apodo pendiente",
+                nickname: member.getString("nickname").trim() || membership.getString("nickname") || "Apodo pendiente",
                 isMe: userId === user.id,
                 maxDistanceKm: ranking.maxDistanceKm ?? null,
                 distanceMovingTimeSec: ranking.distanceMovingTimeSec ?? null,
@@ -331,9 +338,30 @@ routerAdd("POST", "/api/mtb/groups/rotate-invite", (e) => {
         if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede renovar la invitación." });
         group.set("inviteCode", $security.randomString(12).toUpperCase());
         $app.save(group);
-        return e.json(200, { group: { id: group.id, name: group.getString("name"), isAdmin: true, inviteCode: group.getString("inviteCode") } });
+        return e.json(200, { group: { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin: true, inviteCode: group.getString("inviteCode") } });
     } catch (err) {
         return e.json(400, { message: err.message || "No se pudo renovar la invitación." });
+    }
+}, $apis.requireAuth("users"));
+
+routerAdd("POST", "/api/mtb/groups/icon", (e) => {
+    const { requireSafeValue } = require(`${__hooks}/groups_utils.js`);
+    try {
+        const user = $app.findRecordById("users", e.auth.id);
+        const groupId = user.getString("groupCode");
+        if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
+        const safeGroupId = requireSafeValue(groupId, "groupId");
+        const group = $app.findRecordById("mtb_groups", safeGroupId);
+        if (group.getString("owner") !== user.id) return e.json(403, { message: "Solo el administrador puede cambiar el logo del grupo." });
+        const iconFiles = e.findUploadedFiles("icon");
+        if (!iconFiles.length) return e.json(400, { message: "Selecciona un logo para el grupo." });
+        group.set("icon", iconFiles);
+        $app.save(group);
+        return e.json(200, {
+            group: { id: group.id, name: group.getString("name"), icon: group.getString("icon"), isAdmin: true }
+        });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudo actualizar el logo del grupo." });
     }
 }, $apis.requireAuth("users"));
 

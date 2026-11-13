@@ -82,7 +82,7 @@ function parseTrack(text, fname) {
                     }
                     const s = match[0];
                     const [lon, lat, alt] = s.split(',').map(Number);
-                    coordinates.push([lat, lon, Number.isFinite(alt) && alt !== 0 ? alt : null, null]);
+                    coordinates.push([lat, lon, Number.isFinite(alt) ? alt : null, null]);
                 }
                 addSegment(coordinates);
             });
@@ -128,9 +128,11 @@ function parseFitTrack(buffer) {
 function buildImportedRoute(parsed, routeName) {
     const full = [];
     let km = 0;
+    let hasElevationData = false;
     const el = makeElevTracker();
     parsed.segs.forEach(seg => {
         let first = true, prev = null;
+        let segmentAltitudeCount = 0;
         seg.forEach(c => {
             const [lat, lon, alt, t] = c;
             if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
@@ -138,12 +140,17 @@ function buildImportedRoute(parsed, routeName) {
             const p = [lat, lon, Number.isFinite(alt) ? alt : null, Number.isFinite(t) ? t : null, heartRate];
             if (first && full.length > 0) p.push(1);
             if (prev) km += dist(prev, p) / 1000;
-            if (p[5] === 1) el.reset();
+            if (p[5] === 1) {
+                el.reset();
+                segmentAltitudeCount = 0;
+            }
+            if (p[2] !== null) segmentAltitudeCount++;
             el.add(p[2]);
             full.push(p);
             prev = p;
             first = false;
         });
+        if (segmentAltitudeCount >= 2) hasElevationData = true;
     });
     if (full.length < 2) throw new Error('no contiene ningún track válido');
 
@@ -161,7 +168,7 @@ function buildImportedRoute(parsed, routeName) {
         startedAt: new Date().toISOString(),
         movingTimeSec: 0,
         distanceKm: +km.toFixed(3),
-        elevationGain: Math.round(el.gain),
+        elevationGain: hasElevationData ? Math.round(el.gain) : null,
         hrAvg: heartRates.length
             ? Math.round(heartRates.reduce((sum, value) => sum + value, 0) / heartRates.length)
             : null,

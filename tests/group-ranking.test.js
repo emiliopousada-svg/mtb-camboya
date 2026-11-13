@@ -12,22 +12,37 @@ class MockRecord {
         this.values = {};
     }
 
-    set(key, value) { this.values[key] = value; }
+    set(key, value) {
+        this.values[key] = key === 'icon' && Array.isArray(value)
+            ? String(value[0] && value[0].name || '')
+            : value;
+    }
     getString(key) { return String(this.values[key] || ''); }
     getFloat(key) { return Number(this.values[key] || 0); }
 }
 
 function createHookContext() {
-    const user = { id: 'user1', values: { groupCode: 'group1' }, getString(key) { return this.values[key] || ''; } };
-    const group = { id: 'group1', values: { name: 'Camboya' }, getString(key) { return this.values[key] || ''; } };
+    const users = [
+        { id: 'user1', values: { groupCode: 'group1', nickname: 'Cuenta Uno' }, getString(key) { return this.values[key] || ''; }, set(key, value) { this.values[key] = value; } },
+        { id: 'user2', values: { groupCode: 'group1', nickname: 'Cuenta Dos' }, getString(key) { return this.values[key] || ''; }, set(key, value) { this.values[key] = value; } }
+    ];
+    const user = users[0];
+    const group = new MockRecord('mtb_groups');
+    group.id = 'group1';
+    group.values = { name: 'Camboya', owner: 'user1' };
     const memberships = [
-        { values: { group: 'group1', user: 'user1', nickname: 'Ciclista 1' }, getString(key) { return this.values[key] || ''; } },
-        { values: { group: 'group1', user: 'user2', nickname: 'Ciclista 2' }, getString(key) { return this.values[key] || ''; } }
+        { values: { group: 'group1', user: 'user1', nickname: 'Ciclista 1' }, getString(key) { return this.values[key] || ''; }, set(key, value) { this.values[key] = value; } },
+        { values: { group: 'group1', user: 'user2', nickname: 'Ciclista 2' }, getString(key) { return this.values[key] || ''; }, set(key, value) { this.values[key] = value; } }
     ];
     const entries = [];
     const handlers = new Map();
     const helpers = {
         requireSafeValue(value) { return String(value); },
+        requireNickname(value) {
+            const nickname = String(value || '').trim().slice(0, 32);
+            if (!nickname) throw new Error('Añade un apodo a tu cuenta.');
+            return nickname;
+        },
         safeMembership(groupId, userId) {
             return memberships.filter(item => item.getString('group') === groupId && item.getString('user') === userId);
         },
@@ -45,7 +60,10 @@ function createHookContext() {
     };
     const app = {
         findRecordById(collection, id) {
-            if (collection === 'users' && id === user.id) return user;
+            if (collection === 'users') {
+                const match = users.find(item => item.id === id);
+                if (match) return match;
+            }
             if (collection === 'mtb_groups' && id === group.id) return group;
             throw new Error(`Unexpected record lookup: ${collection}/${id}`);
         },
@@ -85,13 +103,14 @@ function createHookContext() {
     otherOwnerEntry.set('movingTimeSec', 3000);
     otherOwnerEntry.set('maxSpeedKmh', 50);
     entries.push(otherOwnerEntry);
-    return { entries, handlers };
+    return { entries, handlers, memberships };
 }
 
-function request(userId, body = {}) {
+function request(userId, body = {}, uploadedFiles = {}) {
     return {
         auth: { id: userId },
         bindBody(model) { Object.assign(model, body); },
+        findUploadedFiles(field) { return uploadedFiles[field] || []; },
         json(status, data) { return { status, data }; }
     };
 }
@@ -129,4 +148,28 @@ test('deleting an activity recalculates only its owner ranking from remaining ac
     const otherOwner = ranking.data.members.find(member => member.userId === 'user2');
     assert.equal(otherOwner.maxDistanceKm, 50);
     assert.equal(otherOwner.maxSpeedKmh, 50);
+    assert.equal(firstOwner.nickname, 'Cuenta Uno');
+    assert.equal(otherOwner.nickname, 'Cuenta Dos');
+});
+
+test('selecting a group uses the account nickname instead of a client-provided group alias', () => {
+    const { handlers, memberships } = createHookContext();
+    const select = handlers.get('POST /api/mtb/groups/select');
+    const response = select(request('user1', { groupId: 'group1', nickname: 'Alias distinto' }));
+
+    assert.equal(response.status, 200);
+    assert.equal(memberships[0].getString('nickname'), 'Cuenta Uno');
+});
+
+test('only the group administrator can change its icon', () => {
+    const { handlers } = createHookContext();
+    const updateIcon = handlers.get('POST /api/mtb/groups/icon');
+    const uploadedFiles = { icon: [{ name: 'new-logo.jpg' }] };
+
+    const updated = updateIcon(request('user1', {}, uploadedFiles));
+    assert.equal(updated.status, 200);
+    assert.equal(updated.data.group.icon, 'new-logo.jpg');
+
+    const denied = updateIcon(request('user2', {}, uploadedFiles));
+    assert.equal(denied.status, 403);
 });

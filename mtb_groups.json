@@ -50,6 +50,18 @@
         "pattern": "^[A-Z0-9]{12}$"
       },
       {
+        "id": "mtbgrp_icon01",
+        "name": "icon",
+        "type": "file",
+        "required": false,
+        "maxSelect": 1,
+        "maxSize": 262144,
+        "mimeTypes": [
+          "image/jpeg"
+        ],
+        "protected": false
+      },
+      {
         "id": "mtbgrp_created",
         "name": "created",
         "type": "autodate",

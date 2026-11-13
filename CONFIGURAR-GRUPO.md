@@ -25,6 +25,8 @@ Haz cada importación con **Merge with the existing collections** activado. Revi
 3. Importa [mtb_group_ranking_entries.json](mtb_group_ranking_entries.json). Debe añadirse `mtb_group_ranking_entries`, con acceso REST directo cerrado.
 4. Si aún no existe, importa [live_locations.json](live_locations.json) y comprueba que solo se añade esa colección.
 
+Si `mtb_groups` ya estaba instalada, vuelve a importar su esquema actualizado con **Merge with the existing collections** y confirma que solo se añade el campo opcional `icon` (archivo JPEG de hasta 256 KB). El archivo de icono no está protegido y puede verse mediante su URL; no subas imágenes privadas.
+
 `mtb_group_rankings` es la colección antigua de máximos acumulados y ya no se consulta. Como esas marcas históricas no indican qué ruta las produjo, antes de desplegar esta versión haz una copia de seguridad y elimina sus registros desde el panel de PocketBase para reiniciar el ranking histórico. No elimines las colecciones de grupos o miembros ni las rutas. No hace falta importar `mtb_group_rankings.json` en instalaciones nuevas.
 
 Las colecciones de grupos, miembros y aportaciones al ranking quedan cerradas a las operaciones REST directas. El hook autoriza las acciones según quién creó el grupo y qué miembros siguen autorizados.
@@ -42,7 +44,7 @@ El archivo del servidor está en [pb_hooks/groups.pb.js](pb_hooks/groups.pb.js).
 3. Recrea o reinicia el contenedor para que PocketBase cargue el hook.
 4. Revisa el registro del contenedor. Si hay errores al arrancar, el hook no se habrá instalado.
 
-`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. También devuelve las posiciones en vivo de los miembros autorizados junto con su apodo de cuenta y el nombre de archivo de su avatar para mostrarlo en el mapa; si falta el apodo de cuenta, usa el apodo del grupo. El hook guarda las marcas por actividad, calcula el ranking a partir de ellas y permite retirar las aportaciones de una ruta borrada; solo devuelve las marcas de miembros autorizados. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
+`groups.pb.js` proporciona rutas autenticadas para crear grupos, aceptar invitaciones, consultar los grupos autorizados, volver a activar un grupo, gestionar miembros, renovar invitaciones, salir y eliminar grupos. La identificación de cada miembro usa el apodo de su cuenta; no se solicita un apodo distinto para cada grupo. Devuelve también el nombre del archivo del icono del grupo para mostrarlo en los accesos directos. Las posiciones en vivo incluyen el apodo de cuenta y el nombre de archivo del avatar para mostrarlos en el mapa. El hook guarda las marcas por actividad, calcula el ranking a partir de ellas y permite retirar las aportaciones de una ruta borrada; solo devuelve las marcas de miembros autorizados. `live_cleanup.pb.js` borra cada minuto las ubicaciones que llevan más de cinco minutos sin actualizarse.
 
 ## 4. Reglas de `live_locations`
 
@@ -75,11 +77,11 @@ Las reglas consultan `mtb_group_members` en cada petición, por lo que una revoc
 ## 5. Uso en la app
 
 1. Actualiza la web app desde la rama `pruebas` y entra en **Amigos** con tu cuenta.
-2. Escribe el apodo que verán los demás.
-3. Para crear un grupo, escribe su nombre y pulsa **Crear grupo y ser administrador**. Comparte el código de invitación.
+2. No hace falta introducir otro apodo: se usará el apodo de tu cuenta. Si todavía no tienes uno, complétalo en **Ajustes → Cuenta**.
+3. Para crear un grupo, escribe su nombre, elige opcionalmente un icono y pulsa **Crear grupo y ser administrador**. Si no subes imagen, la app muestra las iniciales del grupo. Comparte el código de invitación.
 4. Para unirse, pega el código y pulsa **Unirme a un grupo**.
-5. Al salir con **Salir y conservar acceso**, la app deja de compartir y el grupo aparece entre los autorizados. Pulsa **Volver a entrar** cuando quieras volver.
-6. El administrador puede renovar el código para impedir nuevas invitaciones. Las autorizaciones de los miembros existentes se mantienen.
+5. Tus grupos autorizados aparecen como etiquetas de acceso directo. Pulsa una para entrar o cambiar al grupo activo. Al salir con **Salir y conservar acceso**, la app deja de compartir y conserva la autorización.
+6. Desde **Administrar grupo**, el administrador puede cambiar el logo, renovar el código para impedir nuevas invitaciones y eliminar el grupo. Las autorizaciones de los miembros existentes se mantienen al renovar el código.
 7. Desde la lista de miembros, el administrador puede revocar la entrada de una persona. Esa persona dejará de ver el grupo y ya no podrá volver a entrar salvo que reciba una invitación nueva.
 8. El administrador puede eliminar el grupo para retirar todas las autorizaciones y borrar las posiciones asociadas.
 9. En **Mis rutas → Realizadas**, pulsa **🏆 Grupo** para compartir manualmente las marcas de una actividad. Cada envío pide confirmación y comparte distancia, tiempo en movimiento y velocidad punta; no envía el track, nombre, fecha ni ubicación. El servidor guarda el identificador numérico interno de la actividad para poder reemplazar sus marcas al volver a compartirla o retirarlas si se borra la ruta.

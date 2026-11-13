@@ -987,7 +987,7 @@ async function communityLoadRanking(record, collection, relationField, container
 
 async function communityGetPublicAlias() {
     const previous = localStorage.getItem('mtb_community_alias') || '';
-    const suggested = previous || localStorage.getItem('mtb_group_name') || '';
+    const suggested = previous || Cloud.nickname || '';
     const value = await modal({
         message: 'Elige el apodo que aparecerá públicamente junto a tu mejor tiempo. No uses tu correo: el apodo solo se guarda en este dispositivo y podrás cambiarlo en el próximo envío.',
         input: suggested,

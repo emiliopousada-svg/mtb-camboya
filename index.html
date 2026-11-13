@@ -118,6 +118,12 @@
                 <button class="btn-main-action" id="btn-start">
                     <span id="ico-start">▶️</span> <span id="lbl-start">COMENZAR RUTA</span>
                 </button>
+                <button class="btn-unfollow-map" id="btn-unfollow" type="button" style="display:none;">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 19V5l6-2 4 2 6-2v11M4 5l6 2 4-2 6 2M10 7v11m4-13v8M16 17l5 5m0-5-5 5"></path>
+                    </svg>
+                    <span>Dejar de seguir ruta</span>
+                </button>
                 <button class="btn-icon-only btn-danger-stop" id="btn-stop" title="Finalizar ruta">⏹️</button>
             </div>
         </div>
@@ -352,15 +358,17 @@
             <div class="card">
                 <h2>👥 Grupos y amigos (Live)</h2>
                 <p class="hint">Crea un grupo para administrarlo o únete con una invitación. La ubicación solo se comparte mientras grabas y formas parte del grupo.</p>
+                <p class="hint">En el grupo se mostrará el apodo de tu cuenta.</p>
                 <div id="group-setup">
-                    <input type="text" id="group-display-name" placeholder="Apodo obligatorio, visible para el grupo" maxlength="32" required aria-label="Apodo obligatorio para el grupo">
-                    <p class="hint">Elige un apodo para que los demás miembros puedan identificarte.</p>
                     <input type="text" id="group-name" placeholder="Nombre del grupo" maxlength="40">
+                    <label class="group-icon-label" for="group-icon">Icono del grupo (opcional)</label>
+                    <input type="file" id="group-icon" accept="image/jpeg,image/png,image/webp">
+                    <p class="hint">Si no subes una imagen, se mostrará un icono con las iniciales del grupo.</p>
                     <button class="btn" id="btn-create-group" type="button">Crear grupo y ser administrador</button>
                     <input type="text" id="group-code" placeholder="Código de invitación" maxlength="12" autocomplete="off">
                     <button class="btn secondary" id="btn-join" type="button">Unirme a un grupo</button>
                 </div>
-                <div id="group-choices" style="display:none;margin-top:12px;"><p class="hint">Grupos a los que tienes acceso:</p><div id="group-list"></div></div>
+                <div id="group-choices" class="group-choices" style="display:none;"><p class="hint">Tus grupos:</p><div id="group-list" class="group-shortcuts"></div></div>
                 <div id="group-connected" style="display:none;margin-top:12px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
                         <span style="display:flex;align-items:center;gap:9px;font-weight:700;"><span class="group-led" aria-hidden="true"></span><span id="group-connected-label">Grupo activo</span></span>
@@ -371,6 +379,10 @@
                         <div class="group-admin-content">
                         <p class="hint" style="margin-top:0;">Comparte el código para autorizar a nuevos miembros:</p>
                         <strong id="group-invite-code" class="group-invite-code"></strong>
+                        <label class="group-icon-label" for="group-admin-icon">Cambiar logo del grupo</label>
+                        <input type="file" id="group-admin-icon" accept="image/jpeg,image/png,image/webp">
+                        <button class="btn-small secondary" id="btn-update-group-icon" type="button">Guardar logo</button>
+                        <p id="group-icon-update-status" class="hint" role="status" aria-live="polite"></p>
                         <div class="group-actions">
                             <button class="btn-small" id="btn-copy-invite" type="button">Copiar invitación</button>
                             <button class="btn-small secondary" id="btn-rotate-invite" type="button">Renovar código</button>
@@ -477,7 +489,6 @@
                     </div>
                 </div>
                 <div id="saved-routes-list"></div>
-                <button class="btn secondary" id="btn-unfollow" style="display:none;">Dejar de seguir la ruta cargada</button>
             </div>
 
         </div>
@@ -651,8 +662,8 @@
             <span>Stats</span>
         </button>
         <button class="nav-btn" onclick="goToPage(2)">
-            <span class="icon">👥</span>
-            <span>Amigos</span>
+            <span class="icon">📡</span>
+            <span>Grupos Live</span>
         </button>
         <button class="nav-btn" onclick="goToPage(3)">
             <span class="icon">📂</span>

@@ -218,6 +218,39 @@ function routeMovingTime(route) {
         : Number(route.movingTimeSec) || 0;
 }
 
+function routeDistanceKm(route) {
+    const stored = route.distanceKm == null ? null : Number(route.distanceKm);
+    if (Number.isFinite(stored) && (stored > 0 || route.kind !== 'imported')) return stored;
+    const points = Array.isArray(route.points) ? route.points : [];
+    let distanceM = 0, pointCount = 0, previous = null;
+    points.forEach(point => {
+        if (!Array.isArray(point) || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1]))
+            || Math.abs(Number(point[0])) > 90 || Math.abs(Number(point[1])) > 180) {
+            previous = null;
+            return;
+        }
+        if (point[5] === 1) previous = null;
+        if (previous) distanceM += dist(previous, point);
+        previous = point;
+        pointCount++;
+    });
+    return pointCount >= 2 ? distanceM / 1000 : Number.isFinite(stored) ? stored : null;
+}
+
+function routeHasElevationData(route) {
+    const stored = route.elevationGain == null ? null : Number(route.elevationGain);
+    if (Number.isFinite(stored) && (stored > 0 || route.kind !== 'imported')) return true;
+    const points = Array.isArray(route.points) ? route.points : [];
+    let segmentAltitudeCount = 0;
+    for (const point of points) {
+        if (!Array.isArray(point) || point[5] === 1) segmentAltitudeCount = 0;
+        if (Array.isArray(point) && point[2] != null && Number.isFinite(Number(point[2]))) {
+            if (++segmentAltitudeCount >= 2) return true;
+        }
+    }
+    return false;
+}
+
 function routeSaveEditedMetadata(route) {
     if (route.remoteId) route.dirty = true;
     return DB.put(route).then(() => {
@@ -241,26 +274,23 @@ async function editRouteDetails(route) {
 }
 
 async function shareSavedRoute(route) {
-    const summary = [
-        route.name,
-        route.startedAt ? fmtDate(route.startedAt) : '',
-        `${(Number(route.distanceKm) || 0).toFixed(1)} km`,
-        `+${Math.round(Number(route.elevationGain) || 0)} m`,
-        route.movingTimeSec > 0 ? fmtDur(route.movingTimeSec) : '',
-        routeAverageSpeed(route) ? `${routeAverageSpeed(route).toFixed(1)} km/h` : ''
-    ].filter(Boolean).join(' · ');
+    const baseName = String(route.name || 'ruta')
+        .replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_').trim().replace(/\.gpx$/i, '') || 'ruta';
+    const filename = `${baseName}.gpx`;
+    const gpx = routeToGpx(route);
     const cap = window.Capacitor;
     try {
         if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins?.Share) {
-            await cap.Plugins.Share.share({ title: route.name, text: summary, dialogTitle: 'Compartir actividad' });
-        } else if (navigator.share) {
-            await navigator.share({ title: route.name, text: summary });
-        } else if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(summary);
-            toast('Resumen de la actividad copiado.');
+            await download(filename, gpx, 'application/gpx+xml');
+        } else if (typeof File === 'function' && navigator.share && navigator.canShare) {
+            const file = new File([gpx], filename, { type: 'application/gpx+xml' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ title: route.name || filename, files: [file] });
+            } else {
+                await download(filename, gpx, 'application/gpx+xml');
+            }
         } else {
-            await download(`${String(route.name || 'ruta').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '_')}.gpx`,
-                routeToGpx(route), 'application/gpx+xml');
+            await download(filename, gpx, 'application/gpx+xml');
         }
     } catch (error) {
         if (error && (error.name === 'AbortError' || /cancel/i.test(String(error.message || error)))) return;
@@ -287,7 +317,9 @@ function setRoutesTab(tab) {
 document.querySelectorAll('[data-routes-tab]').forEach(b => b.addEventListener('click', () => setRoutesTab(b.dataset.routesTab)));
 
 function routeCreatorName(route) {
-    const creator = String(route.createdBy || Cloud.email || '').trim();
+    const creator = String(route.kind === 'imported'
+        ? (Cloud.nickname || route.createdBy || Cloud.email)
+        : (route.createdBy || Cloud.nickname || Cloud.email)).trim();
     const atIndex = creator.indexOf('@');
     return (atIndex > 0 ? creator.slice(0, atIndex) : creator) || 'Usuario local';
 }
@@ -414,9 +446,12 @@ function createRouteCard(route) {
     description.hidden = !description.textContent;
     const metrics = document.createElement('div');
     metrics.className = 'route-card-metrics';
+    const distanceKm = routeDistanceKm(route);
     [
-        [new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(route.distanceKm) || 0), 'km'],
-        [String(Math.round(Number(route.elevationGain) || 0)), 'Desnivel (m)'],
+        [distanceKm != null
+            ? new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(distanceKm)
+            : '—', 'km'],
+        [routeHasElevationData(route) ? String(Math.round(Number(route.elevationGain) || 0)) : '—', 'Desnivel (m)'],
         [routeMovingTime(route) > 0 ? routeTimeSummary(routeMovingTime(route)) : '—', 'Tiempo'],
         [Number.isFinite(routeAverageSpeed(route)) ? `${routeAverageSpeed(route).toFixed(1)}` : '—', 'km/h media']
     ].forEach(([value, label]) => {
@@ -487,17 +522,19 @@ async function openSavedRouteDetail(route) {
     }
     const creator = routeCreatorName(route);
     const activity = ACTIVITY_TYPES[activityTypeForRoute(route)]?.label || 'No disponible';
+    const distanceKm = routeDistanceKm(route);
     const values = [
-        ['Distancia', `${(Number(route.distanceKm) || 0).toFixed(1)} km`],
-        ['Desnivel', `+${Math.round(Number(route.elevationGain) || 0)} m`],
+        ['Distancia', distanceKm != null ? `${distanceKm.toFixed(1)} km` : 'No disponible'],
+        ['Desnivel', routeHasElevationData(route) ? `+${Math.round(Number(route.elevationGain) || 0)} m` : 'No disponible'],
         ['Tiempo en movimiento', routeMovingTime(route) > 0 ? fmtDur(routeMovingTime(route)) : 'No disponible'],
         ['Velocidad media', Number.isFinite(routeAverageSpeed(route)) ? `${routeAverageSpeed(route).toFixed(1)} km/h` : 'No disponible'],
         ['Velocidad máxima', typeof statsAnalyzeRoute === 'function' && Number.isFinite(statsAnalyzeRoute(route).maxSpeed)
             ? `${statsAnalyzeRoute(route).maxSpeed.toFixed(1)} km/h` : 'No disponible'],
         ['Actividad', activity],
-        ['Frecuencia cardiaca media', typeof statsAnalyzeRoute === 'function' && Number.isFinite(statsAnalyzeRoute(route).averageHr)
-            ? `${Math.round(statsAnalyzeRoute(route).averageHr)} bpm`
-            : Number(route.hrAvg) > 0 ? `${Math.round(Number(route.hrAvg))} bpm` : 'No disponible'],
+        ...(route.kind !== 'imported' ? [['Frecuencia cardiaca media',
+            typeof statsAnalyzeRoute === 'function' && Number.isFinite(statsAnalyzeRoute(route).averageHr)
+                ? `${Math.round(statsAnalyzeRoute(route).averageHr)} bpm`
+                : Number(route.hrAvg) > 0 ? `${Math.round(Number(route.hrAvg))} bpm` : 'No disponible']] : []),
         [route.kind === 'imported' ? 'Importada por' : 'Realizada por', creator],
         ['Fecha', route.startedAt ? fmtDate(route.startedAt) : 'No disponible']
     ];

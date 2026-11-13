@@ -175,7 +175,7 @@ async function ensureRouteNickname() {
     if (current) return current;
     const value = await modal({
         message: 'Elige el apodo que aparecerá como autor de tus rutas sincronizadas:',
-        input: String(localStorage.getItem('mtb_group_name') || '').trim().slice(0, ROUTE_NICKNAME_LIMIT),
+        input: String(Cloud.nickname || '').trim().slice(0, ROUTE_NICKNAME_LIMIT),
         ok: 'Guardar apodo'
     });
     if (value === null) return null;

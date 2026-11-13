@@ -12,7 +12,7 @@ function requireSafeValue(value, label, pattern = SAFE_ID_RE) {
 
 function requireNickname(value) {
     const nickname = String(value || "").trim().slice(0, 32);
-    if (!nickname) throw new Error("Escribe un apodo para que los miembros del grupo puedan identificarte.");
+    if (!nickname) throw new Error("Añade un apodo a tu cuenta para que los miembros del grupo puedan identificarte.");
     return nickname;
 }
 

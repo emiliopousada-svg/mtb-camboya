@@ -176,7 +176,7 @@ function followRoute(r) {
         following = true;
         updateCenterBtn();
     }
-    $('btn-unfollow').style.display = 'block';
+    $('btn-unfollow').style.display = 'flex';
     goToPage(0);
     refreshGpsMode();
     toast(`Siguiendo «${r.name}». Te aviso si te desvías.`, 4500);
@@ -194,6 +194,6 @@ function unfollowRoute() {
     if (!isRecording) $('m-elevation').textContent = '0';
     refreshGpsMode();
 }
-$('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Ruta descargada del mapa'); });
+$('btn-unfollow').addEventListener('click', () => { unfollowRoute(); toast('Has dejado de seguir la ruta.'); });
 
 // ============================================================
