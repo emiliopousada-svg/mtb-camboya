@@ -99,6 +99,13 @@
         "min": 0
       },
       {
+        "id": "commrideDate001",
+        "name": "performedAt",
+        "type": "text",
+        "required": false,
+        "max": 10
+      },
+      {
         "id": "commtrack000001",
         "name": "trackJson",
         "type": "text",

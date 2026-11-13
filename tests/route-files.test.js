@@ -7,7 +7,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 const statistics = require('../app/statistics-engine.js');
 
-function importRoute(coordinates) {
+function routeFilesApi() {
     const context = {
         Cloud: { email: 'rider@example.com' },
         dist: statistics.calculateDistanceMeters,
@@ -20,7 +20,11 @@ function importRoute(coordinates) {
         fs.readFileSync(path.join(__dirname, '..', 'app', 'route-files.js'), 'utf8'),
         context
     );
-    const api = vm.runInContext('({ parseTrack, buildImportedRoute })', context);
+    return vm.runInContext('({ parseTrack, buildImportedRoute })', context);
+}
+
+function importRoute(coordinates) {
+    const api = routeFilesApi();
     const parsed = api.parseTrack(JSON.stringify({
         type: 'LineString',
         coordinates
@@ -47,4 +51,18 @@ test('imported tracks keep distance and mark elevation unavailable without altit
 
     assert.ok(route.distanceKm > 0);
     assert.equal(route.elevationGain, null);
+    assert.equal(route.startedAt, null);
+});
+
+test('imported tracks preserve their recorded date from GPS timestamps', () => {
+    const api = routeFilesApi();
+    const startedAt = Date.parse('2026-03-10T07:15:00.000Z');
+    const route = api.buildImportedRoute({
+        segs: [[
+            [40, -3, null, startedAt],
+            [40.001, -3, null, startedAt + 10000]
+        ]]
+    }, 'Ruta importada');
+
+    assert.equal(route.startedAt, '2026-03-10T07:15:00.000Z');
 });

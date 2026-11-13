@@ -160,12 +160,18 @@ function buildImportedRoute(parsed, routeName) {
         stored = full.filter((p, i) => i % k === 0 || p[5] === 1 || i === full.length - 1);
     }
     const heartRates = full.map(point => point[4]).filter(value => Number.isFinite(value) && value > 0);
+    const trackStartedAt = full.reduce((earliest, point) => {
+        const timestamp = point[3];
+        if (timestamp == null || !Number.isFinite(timestamp) || timestamp <= 0
+            || !Number.isFinite(new Date(timestamp).getTime())) return earliest;
+        return earliest === null || timestamp < earliest ? timestamp : earliest;
+    }, null);
     return {
         id: Date.now(),
         kind: 'imported',
         name: routeName,
         createdBy: Cloud.email || 'Usuario local',
-        startedAt: new Date().toISOString(),
+        startedAt: trackStartedAt === null ? null : new Date(trackStartedAt).toISOString(),
         movingTimeSec: 0,
         distanceKm: +km.toFixed(3),
         elevationGain: hasElevationData ? Math.round(el.gain) : null,

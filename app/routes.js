@@ -9,9 +9,18 @@ let routeCardMaps = [];
 let routeCardMapObserver = null;
 
 function updateRouteSummaryCounts() {
-    $('routes-count-done').textContent = String(savedRoutes.filter(route => route.kind !== 'imported').length);
+    $('routes-count-done').textContent = String(savedRoutes.filter(route => route.kind === 'recorded' || !route.kind).length);
     $('routes-count-pending').textContent = String(savedRoutes.filter(route => route.kind === 'imported').length);
-    $('routes-count-community').textContent = String(savedRoutes.filter(route => route.communityRouteId).length);
+}
+
+function routeBelongsInRoutesTab(route, tab) {
+    if (tab === 'pending') return route.kind === 'imported';
+    if (tab === 'done') return route.kind === 'recorded' || !route.kind;
+    return false;
+}
+
+function routeCanPublishCommunity(route) {
+    return route.kind !== 'community' && (route.kind !== 'imported' || !route.communityRouteId);
 }
 
 function routeCoverPhoto(route) {
@@ -237,6 +246,25 @@ function routeDistanceKm(route) {
     return pointCount >= 2 ? distanceM / 1000 : Number.isFinite(stored) ? stored : null;
 }
 
+function routePerformedAt(route) {
+    if (route.communityRouteId) {
+        const date = String(route.performedAt || '').slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T12:00:00`))
+            ? `${date}T12:00:00`
+            : '';
+    }
+    if (route.kind === 'imported') {
+        const startedAt = (Array.isArray(route.points) ? route.points : []).reduce((earliest, point) => {
+            const timestamp = Array.isArray(point) ? point[3] : null;
+            if (timestamp == null || !Number.isFinite(timestamp) || timestamp <= 0
+                || !Number.isFinite(new Date(timestamp).getTime())) return earliest;
+            return earliest === null || timestamp < earliest ? timestamp : earliest;
+        }, null);
+        return startedAt === null ? '' : new Date(startedAt).toISOString();
+    }
+    return route.startedAt || '';
+}
+
 function routeHasElevationData(route) {
     const stored = route.elevationGain == null ? null : Number(route.elevationGain);
     if (Number.isFinite(stored) && (stored > 0 || route.kind !== 'imported')) return true;
@@ -310,7 +338,9 @@ function setRoutesTab(tab) {
     $('community-tab').hidden = !communityTab;
     $('routes-tab-hint').textContent = tab === 'done'
         ? 'Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.'
-        : 'Tracks importados y guardados. Cuando los sigas y grabes tu salida, esta quedará en «Realizadas».';
+        : tab === 'pending'
+            ? 'Aquí aparecen los tracks importados y las rutas descargadas de la comunidad.'
+            : 'Explora rutas publicadas por la comunidad.';
     renderSavedRoutes();
     if (communityTab && typeof loadCommunityRoutes === 'function') loadCommunityRoutes();
 }
@@ -332,7 +362,7 @@ function renderSavedRoutes() {
     routeCardImageUrls = [];
     const pendingTab = routesTab === 'pending';
     const communityTab = routesTab === 'community';
-    const tabRoutes = savedRoutes.filter(r => (r.kind === 'imported') === pendingTab);
+    const tabRoutes = savedRoutes.filter(route => routeBelongsInRoutesTab(route, routesTab));
     updateRouteSummaryCounts();
     $('route-list-controls').hidden = communityTab || (!routesShowAll && !pendingTab);
     c.hidden = communityTab;
@@ -347,7 +377,7 @@ function renderSavedRoutes() {
         const e = document.createElement('div');
         e.className = 'routes-empty';
         e.textContent = pendingTab
-            ? 'No hay tracks guardados. Importa un GPX, KML o GeoJSON para tenerlo listo.'
+            ? 'No hay rutas guardadas. Importa un GPX, KML o GeoJSON, o descarga una ruta de la comunidad.'
             : 'No hay rutas realizadas todavía. Graba una salida para verla aquí.';
         c.appendChild(e);
         return;
@@ -439,7 +469,8 @@ function createRouteCard(route) {
     title.addEventListener('click', () => openSavedRouteDetail(route));
     const subtitle = document.createElement('p');
     subtitle.className = 'route-card-subtitle';
-    subtitle.textContent = [activity?.label || 'Ruta', route.startedAt ? fmtDate(route.startedAt) : ''].filter(Boolean).join(' · ');
+    const performedAt = routePerformedAt(route);
+    subtitle.textContent = [activity?.label || 'Ruta', performedAt ? fmtDate(performedAt) : ''].filter(Boolean).join(' · ');
     const description = document.createElement('p');
     description.className = 'route-card-description';
     description.textContent = String(route.description || '');
@@ -473,7 +504,7 @@ function createRouteCard(route) {
     card.append(cover, body);
 
     const showFullActions = routesShowAll || routesTab === 'pending';
-    const canPublishCommunity = route.kind !== 'community' && !route.communityRouteId;
+    const canPublishCommunity = routeCanPublishCommunity(route);
     const canShareGroupRanking = route.kind === 'recorded';
     if (showFullActions || (routesTab === 'done' && (canPublishCommunity || canShareGroupRanking))) {
         const actions = document.createElement('div');
@@ -523,7 +554,20 @@ async function openSavedRouteDetail(route) {
     const creator = routeCreatorName(route);
     const activity = ACTIVITY_TYPES[activityTypeForRoute(route)]?.label || 'No disponible';
     const distanceKm = routeDistanceKm(route);
+    const performedAt = routePerformedAt(route);
+    const imported = route.kind === 'imported';
+    const distanceFromPositionKm = imported
+        && typeof lastLat === 'number' && Number.isFinite(lastLat)
+        && typeof lastLon === 'number' && Number.isFinite(lastLon)
+        && typeof communityDistanceToRoute === 'function'
+        ? communityDistanceToRoute([lastLat, lastLon], lines) / 1000
+        : null;
     const values = [
+        ...(imported ? [
+            ['Distancia desde tu posición', Number.isFinite(distanceFromPositionKm)
+                ? `${distanceFromPositionKm.toFixed(1)} km` : 'No disponible'],
+            ['Provincia', route.province || 'No disponible']
+        ] : route.province ? [['Provincia', route.province]] : []),
         ['Distancia', distanceKm != null ? `${distanceKm.toFixed(1)} km` : 'No disponible'],
         ['Desnivel', routeHasElevationData(route) ? `+${Math.round(Number(route.elevationGain) || 0)} m` : 'No disponible'],
         ['Tiempo en movimiento', routeMovingTime(route) > 0 ? fmtDur(routeMovingTime(route)) : 'No disponible'],
@@ -536,7 +580,7 @@ async function openSavedRouteDetail(route) {
                 ? `${Math.round(statsAnalyzeRoute(route).averageHr)} bpm`
                 : Number(route.hrAvg) > 0 ? `${Math.round(Number(route.hrAvg))} bpm` : 'No disponible']] : []),
         [route.kind === 'imported' ? 'Importada por' : 'Realizada por', creator],
-        ['Fecha', route.startedAt ? fmtDate(route.startedAt) : 'No disponible']
+        ['Fecha de realización', performedAt ? fmtDate(performedAt) : 'No disponible']
     ];
     if (route.description) values.push(['Descripción', route.description]);
     openCommunityDetail({ title: route.name }, lines, {
