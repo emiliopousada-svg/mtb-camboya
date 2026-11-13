@@ -178,32 +178,8 @@ routerAdd("GET", "/api/mtb/groups/live", (e) => {
     }
 }, $apis.requireAuth("users"));
 
-function groupRankingSummaryFromEntries(entries) {
-    const rankings = {};
-    entries.forEach((entry) => {
-        const owner = entry.getString("owner");
-        const ranking = rankings[owner] || {
-            maxDistanceKm: 0,
-            distanceMovingTimeSec: 0,
-            bestMovingTimeSec: 0,
-            maxSpeedKmh: 0
-        };
-        const distanceKm = entry.getFloat("distanceKm");
-        const movingTimeSec = entry.getFloat("movingTimeSec");
-        const maxSpeedKmh = entry.getFloat("maxSpeedKmh");
-        if (distanceKm > ranking.maxDistanceKm) {
-            ranking.maxDistanceKm = distanceKm;
-            ranking.distanceMovingTimeSec = movingTimeSec;
-        }
-        if (movingTimeSec > ranking.bestMovingTimeSec) ranking.bestMovingTimeSec = movingTimeSec;
-        if (maxSpeedKmh > ranking.maxSpeedKmh) ranking.maxSpeedKmh = maxSpeedKmh;
-        rankings[owner] = ranking;
-    });
-    return rankings;
-}
-
 routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
-    const { requireSafeValue, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
+    const { requireSafeValue, safeMembership, findAllRecordsByFilter, groupRankingSummaryFromEntries } = require(`${__hooks}/groups_utils.js`);
     try {
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
@@ -240,7 +216,7 @@ routerAdd("GET", "/api/mtb/groups/rankings", (e) => {
 }, $apis.requireAuth("users"));
 
 routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
-    const { requireSafeValue, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
+    const { requireSafeValue, safeMembership, findAllRecordsByFilter, groupRankingSummaryFromEntries } = require(`${__hooks}/groups_utils.js`);
     try {
         const body = new DynamicModel({ clientId: 0, distanceKm: 0.1, movingTimeSec: 0.1, maxSpeedKmh: 0.1 });
         e.bindBody(body);

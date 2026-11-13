@@ -334,27 +334,6 @@
                 </div>
             </div>
 
-            <div class="card" id="group-ranking-card">
-                <h2>🏆 Ranking del grupo</h2>
-                <p class="hint">Solo aparecen las marcas que cada miembro comparte manualmente. No se envían trazados ni ubicaciones.</p>
-                <div class="group-ranking-header">
-                    <p id="group-ranking-status" class="hint" role="status" aria-live="polite">Únete a un grupo para consultar sus marcas.</p>
-                    <button class="btn-small secondary" id="group-rankings-refresh" type="button">Actualizar</button>
-                </div>
-                <div class="group-ranking-grid">
-                    <section>
-                        <h3>Actividad más larga</h3>
-                        <div id="group-ranking-distance" class="group-ranking-list"></div>
-                    </section>
-                    <section>
-                        <h3>Velocidad punta</h3>
-                        <div id="group-ranking-speed" class="group-ranking-list"></div>
-                    </section>
-                </div>
-                <h3>Mayor tiempo en movimiento</h3>
-                <div id="group-ranking-time" class="group-ranking-list"></div>
-            </div>
-
             <div class="card">
                 <h2>👥 Grupos y amigos (Live)</h2>
                 <p class="hint">Crea un grupo para administrarlo o únete con una invitación. La ubicación solo se comparte mientras grabas y formas parte del grupo.</p>
@@ -393,6 +372,29 @@
                     </details>
                 </div>
                 <p class="hint" id="group-status">Inicia sesión para crear un grupo o aceptar una invitación.</p>
+            </div>
+
+            <div class="card" id="group-ranking-card">
+                <h2>🏆 Ranking del grupo</h2>
+                <p class="hint">Con un grupo activo seleccionado, tus rutas personales realizadas se añaden automáticamente al sincronizarse. Solo se comparten distancia, tiempo en movimiento y velocidad punta; no el trazado ni la ubicación. Se excluyen las rutas importadas y las de la comunidad.</p>
+                <div class="group-ranking-header">
+                    <p id="group-ranking-status" class="hint" role="status" aria-live="polite">Únete a un grupo para consultar sus marcas.</p>
+                    <button class="btn-small secondary" id="group-rankings-refresh" type="button">Actualizar</button>
+                </div>
+                <div class="group-ranking-categories">
+                    <section class="group-ranking-category">
+                        <h3>Actividad más larga</h3>
+                        <div id="group-ranking-distance" class="group-ranking-list"></div>
+                    </section>
+                    <section class="group-ranking-category">
+                        <h3>Velocidad punta</h3>
+                        <div id="group-ranking-speed" class="group-ranking-list"></div>
+                    </section>
+                    <section class="group-ranking-category">
+                        <h3>Mayor tiempo en movimiento</h3>
+                        <div id="group-ranking-time" class="group-ranking-list"></div>
+                    </section>
+                </div>
             </div>
         </div>
 

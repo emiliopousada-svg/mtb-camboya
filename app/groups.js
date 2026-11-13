@@ -10,6 +10,7 @@ let groupLiveEndpointUnsupportedFor = '';
 const friendMarkers = new Map();
 const LIVE_INTERVAL_MS = 30000, FRIEND_STALE_MS = 120000;
 const FRIENDS_IDLE_REFRESH_MS = 30000;
+const GROUP_RANKING_MEDALS = ['🥇', '🥈', '🥉'];
 
 let groupInfo = null, groupChoices = [], liveFriendCount = 0;
 let groupRankingMembers = [];
@@ -21,22 +22,29 @@ function renderGroupMetricRanking(containerId, key, format) {
     container.replaceChildren();
     const entries = groupRankingMembers
         .filter(member => Number.isFinite(Number(member[key])) && Number(member[key]) > 0)
-        .sort((a, b) => Number(b[key]) - Number(a[key]));
-    if (!entries.length) {
-        const empty = document.createElement('p');
-        empty.className = 'community-empty';
-        empty.textContent = 'Aún no hay marcas compartidas.';
-        container.appendChild(empty);
-        return;
-    }
-    entries.forEach((member, index) => {
+        .sort((a, b) => Number(b[key]) - Number(a[key]))
+        .slice(0, GROUP_RANKING_MEDALS.length);
+    GROUP_RANKING_MEDALS.forEach((medalSymbol, index) => {
+        const member = entries[index] || null;
         const row = document.createElement('div');
-        row.className = 'group-ranking-item';
+        row.className = `group-ranking-item${member ? '' : ' is-empty'}`;
+        const position = document.createElement('div');
+        position.className = 'group-ranking-position';
+        const medal = document.createElement('span');
+        medal.className = 'group-ranking-medal';
+        medal.setAttribute('role', 'img');
+        medal.setAttribute('aria-label', `Puesto ${index + 1}`);
+        medal.textContent = medalSymbol;
+        const place = document.createElement('span');
+        place.className = 'group-ranking-place';
+        place.textContent = `${index + 1}.º`;
+        position.append(medal, place);
         const name = document.createElement('span');
-        name.textContent = `${index + 1}. ${member.nickname}`;
+        name.className = 'group-ranking-name';
+        name.textContent = member ? member.nickname || 'Ciclista' : '—';
         const value = document.createElement('strong');
-        value.textContent = format(member);
-        row.append(name, value);
+        value.textContent = member ? format(member) : 'Sin marca';
+        row.append(position, name, value);
         container.appendChild(row);
     });
 }
@@ -78,18 +86,24 @@ async function loadGroupRankings() {
     }
 }
 
-async function shareRouteToGroupRanking(route, button) {
-    if (!Cloud.loggedIn() || !groupJoined) {
-        toast('Inicia sesión y únete a un grupo para compartir marcas.');
-        return;
+async function shareRouteToGroupRanking(route, button, options = {}) {
+    const automatic = options.automatic === true;
+    const activeGroupId = Cloud.groupCode;
+    if (!Cloud.loggedIn() || !activeGroupId || (!automatic && !groupJoined)) {
+        if (!automatic) toast('Inicia sesión y selecciona un grupo para compartir marcas.');
+        return false;
     }
     if (!navigator.onLine) {
-        toast('Necesitas conexión para compartir una marca con el grupo.');
-        return;
+        if (!automatic) toast('Necesitas conexión para compartir una marca con el grupo.');
+        return false;
     }
     if (!route || route.kind !== 'recorded') {
-        toast('Solo se pueden compartir actividades grabadas.');
-        return;
+        if (!automatic) toast('Solo se pueden compartir actividades grabadas.');
+        return false;
+    }
+    if (automatic && route.groupRankingGroupId === activeGroupId
+        && route.groupRankingServer === Cloud.server && !route.groupRankingPending) {
+        return true;
     }
     const analysis = typeof statsAnalyzeRoute === 'function' ? statsAnalyzeRoute(route) : null;
     const distanceKm = analysis && Number.isFinite(analysis.distanceKm)
@@ -100,8 +114,10 @@ async function shareRouteToGroupRanking(route, button) {
         : Number(route.movingTimeSec) || 0;
     const maxSpeedKmh = analysis && Number.isFinite(analysis.maxSpeed) ? analysis.maxSpeed : 0;
     if (distanceKm <= 0 && maxSpeedKmh <= 0) {
-        toast('Esta actividad no tiene marcas válidas para compartir.');
-        return;
+        const error = new Error('Esta actividad no tiene marcas válidas para compartir.');
+        if (automatic) throw error;
+        toast(error.message);
+        return false;
     }
     const details = [];
     if (distanceKm > 0) details.push(`Distancia: ${distanceKm.toFixed(1)} km`);
@@ -109,20 +125,23 @@ async function shareRouteToGroupRanking(route, button) {
     if (maxSpeedKmh > 0) details.push(`Velocidad punta: ${maxSpeedKmh.toFixed(1)} km/h`);
     if (button) button.disabled = true;
     try {
-        const confirmed = await modal({
-            message: `Compartir con «${groupInfo && groupInfo.name ? groupInfo.name : 'el grupo'}» estas marcas de la actividad:\n\n${details.join('\n')}\n\nNo se enviarán el trazado GPS, el nombre, la fecha ni la ubicación.`,
-            ok: 'Compartir marcas'
-        });
-        if (!confirmed) return;
+        if (!automatic) {
+            const confirmed = await modal({
+                message: `Compartir con «${groupInfo && groupInfo.name ? groupInfo.name : 'el grupo'}» estas marcas de la actividad:\n\n${details.join('\n')}\n\nNo se enviarán el trazado GPS, el nombre, la fecha ni la ubicación.`,
+                ok: 'Compartir marcas'
+            });
+            if (!confirmed) return false;
+        }
         const clientId = Number(route.id);
         if (!Number.isSafeInteger(clientId) || clientId <= 0) {
-            toast('No se pudo identificar esta actividad para el ranking.');
-            return;
+            throw new Error('No se pudo identificar esta actividad para el ranking.');
         }
         const previousRankingOwnerId = route.groupRankingOwnerId;
         const previousRankingServer = route.groupRankingServer;
+        const previousRankingPending = route.groupRankingPending;
         route.groupRankingOwnerId = Cloud.uid;
         route.groupRankingServer = Cloud.server;
+        route.groupRankingPending = true;
         try {
             await DB.put(route);
         } catch (error) {
@@ -130,6 +149,8 @@ async function shareRouteToGroupRanking(route, button) {
             else route.groupRankingOwnerId = previousRankingOwnerId;
             if (previousRankingServer === undefined) delete route.groupRankingServer;
             else route.groupRankingServer = previousRankingServer;
+            if (previousRankingPending === undefined) delete route.groupRankingPending;
+            else route.groupRankingPending = previousRankingPending;
             throw error;
         }
         const result = await cloudApi('/api/mtb/groups/rankings/share', 'POST', {
@@ -138,17 +159,33 @@ async function shareRouteToGroupRanking(route, button) {
             movingTimeSec,
             maxSpeedKmh
         });
+        const previousRankingGroupId = route.groupRankingGroupId;
+        route.groupRankingGroupId = activeGroupId;
+        route.groupRankingPending = false;
+        try {
+            await DB.put(route);
+        } catch (error) {
+            if (previousRankingGroupId === undefined) delete route.groupRankingGroupId;
+            else route.groupRankingGroupId = previousRankingGroupId;
+            route.groupRankingPending = true;
+            throw error;
+        }
         const records = [];
         if (result.newDistanceRecord) records.push('nueva actividad más larga');
         if (result.newTimeRecord) records.push('mayor tiempo en movimiento');
         if (result.newSpeedRecord) records.push('nueva velocidad punta');
-        toast(records.length ? `Marca compartida: ${records.join(' y ')}.` : 'Marcas compartidas; ya conservabas un mejor récord.');
+        toast(automatic
+            ? `Marcas añadidas automáticamente al ranking de ${groupInfo?.name || 'tu grupo'}.`
+            : records.length ? `Marca compartida: ${records.join(' y ')}.` : 'Marcas compartidas; ya conservabas un mejor récord.');
         if (currentPage === 2) await loadGroupRankings();
+        return true;
     } catch (error) {
         console.warn('No se pudieron compartir las marcas con el grupo:', error);
+        if (automatic) throw error;
         toast(error.status === 404
             ? 'Falta instalar mtb_group_ranking_entries.json y actualizar groups.pb.js en PocketBase.'
             : `No se pudieron compartir las marcas: ${error.message || 'error de conexión'}`, 6000);
+        return false;
     } finally {
         if (button) button.disabled = false;
     }

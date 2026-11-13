@@ -47,6 +47,30 @@ function deleteAllRecordsByFilter(collection, filter) {
     }
 }
 
+function groupRankingSummaryFromEntries(entries) {
+    const rankings = {};
+    entries.forEach((entry) => {
+        const owner = entry.getString("owner");
+        const ranking = rankings[owner] || {
+            maxDistanceKm: 0,
+            distanceMovingTimeSec: 0,
+            bestMovingTimeSec: 0,
+            maxSpeedKmh: 0
+        };
+        const distanceKm = entry.getFloat("distanceKm");
+        const movingTimeSec = entry.getFloat("movingTimeSec");
+        const maxSpeedKmh = entry.getFloat("maxSpeedKmh");
+        if (distanceKm > ranking.maxDistanceKm) {
+            ranking.maxDistanceKm = distanceKm;
+            ranking.distanceMovingTimeSec = movingTimeSec;
+        }
+        if (movingTimeSec > ranking.bestMovingTimeSec) ranking.bestMovingTimeSec = movingTimeSec;
+        if (maxSpeedKmh > ranking.maxSpeedKmh) ranking.maxSpeedKmh = maxSpeedKmh;
+        rankings[owner] = ranking;
+    });
+    return rankings;
+}
+
 module.exports = {
     SAFE_ID_RE,
     SAFE_INVITE_RE,
@@ -54,5 +78,6 @@ module.exports = {
     requireNickname,
     safeMembership,
     findAllRecordsByFilter,
-    deleteAllRecordsByFilter
+    deleteAllRecordsByFilter,
+    groupRankingSummaryFromEntries
 };

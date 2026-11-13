@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const groupUtils = require('../pb_hooks/groups_utils.js');
 
 class MockRecord {
     constructor(collection) {
@@ -56,7 +57,8 @@ function createHookContext() {
                 && (!ownerMatch || item.getString('owner') === ownerMatch[1])
                 && (!clientIdMatch || item.getFloat('clientId') === Number(clientIdMatch[1]))
             );
-        }
+        },
+        groupRankingSummaryFromEntries: groupUtils.groupRankingSummaryFromEntries
     };
     const app = {
         findRecordById(collection, id) {

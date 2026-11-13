@@ -396,6 +396,26 @@ async function syncRoutes(manual = false) {
         syncFailures++;
         if (syncFailureDetails.length < 3 && message) syncFailureDetails.push(String(message).slice(0, 150));
     };
+    let groupRankingFailureNotified = false;
+    const syncRouteRanking = async route => {
+        try {
+            await shareRouteToGroupRanking(route, null, { automatic: true });
+        } catch (error) {
+            const message = `La ruta «${route.name || 'sin nombre'}» se subió, pero no se pudo añadir al ranking: ${error.message || 'error del servidor'}`;
+            noteSyncFailure(message);
+            console.warn(message, error);
+            if (!manual && !groupRankingFailureNotified) {
+                toast(message, 7000);
+                groupRankingFailureNotified = true;
+            }
+        }
+    };
+    const hasPendingGroupRanking = route => route.kind === 'recorded' && (
+        route.groupRankingPending
+        || (route.groupRankingOwnerId === Cloud.uid
+            && route.groupRankingServer === Cloud.server
+            && !route.groupRankingGroupId)
+    );
     const cursorKey = cloudSyncStorageKey('routes_sync_cursor');
     const auditKey = cloudSyncStorageKey('routes_full_audit_at');
     let cursor = '', lastFullAudit = 0;
@@ -531,11 +551,17 @@ async function syncRoutes(manual = false) {
                     try { await putLocal(r); }
                     catch (e) { blockedIds.add(r.id); noteSyncFailure(`No se pudo guardar «${r.name || 'ruta'}» en este teléfono: ${e.message}`); console.warn(`No se pudo actualizar localmente la ruta ${r.id}:`, e); }
                 }
+                if (!blockedIds.has(r.id) && Cloud.groupCode && hasPendingGroupRanking(r)) {
+                    await syncRouteRanking(r);
+                }
                 continue;
             }
             if (blockedIds.has(r.id)) continue;
             if (matched) r.remoteId = matched.id;
-            if (r.remoteId && !r.dirty) continue;
+            if (r.remoteId && !r.dirty) {
+                if (Cloud.groupCode && hasPendingGroupRanking(r)) await syncRouteRanking(r);
+                continue;
+            }
             try {
                 let rec;
                 if (r.remoteId) rec = await cloudApi(`/api/collections/routes/records/${r.remoteId}`, 'PATCH', {
@@ -545,6 +571,7 @@ async function syncRoutes(manual = false) {
                 else rec = await cloudApi('/api/collections/routes/records', 'POST', routeForm(r));
                 r.remoteId = rec.id;
                 r.dirty = false;
+                if (r.kind === 'recorded' && Cloud.groupCode) await syncRouteRanking(r);
                 await putLocal(r);
                 pushed++;
             } catch (e) {
