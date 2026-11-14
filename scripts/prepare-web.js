@@ -8,6 +8,11 @@ const root = path.join(__dirname, '..');
 const www = path.join(root, 'www');
 const nm = path.join(root, 'node_modules');
 const appVersion = require(path.join(root, 'package.json')).version;
+const buildNumber = process.env.GITHUB_RUN_NUMBER || '';
+if (buildNumber && !/^\d+$/.test(buildNumber)) {
+  throw new Error(`Número de build no válido en GITHUB_RUN_NUMBER: ${buildNumber}`);
+}
+const appBuild = buildNumber || 'local';
 
 if (!/^\d+\.\d+\.\d+$/.test(appVersion)) {
   throw new Error(`Versión de aplicación no válida en package.json: ${appVersion}`);
@@ -25,9 +30,15 @@ const configText = fs.readFileSync(appConfig, 'utf8');
 if (!/const APP_VERSION = '[^']*';/.test(configText)) {
   throw new Error('No se pudo encontrar APP_VERSION en app/config.js');
 }
+if (!/const APP_BUILD = '[^']*';/.test(configText)) {
+  throw new Error('No se pudo encontrar APP_BUILD en app/config.js');
+}
 const versionedConfig = configText.replace(
   /const APP_VERSION = '[^']*';/,
   `const APP_VERSION = '${appVersion}';`
+).replace(
+  /const APP_BUILD = '[^']*';/,
+  `const APP_BUILD = '${appBuild}';`
 );
 fs.writeFileSync(appConfig, versionedConfig);
 fs.copyFileSync(path.join(nm, 'leaflet/dist/leaflet.css'), path.join(www, 'lib/leaflet/leaflet.css'));
@@ -68,11 +79,11 @@ require('esbuild').buildSync({
 
 const file = path.join(www, 'index.html');
 let html = fs.readFileSync(file, 'utf8');
-const versionLabel = /(<strong id="app-version">)v\d+\.\d+\.\d+(<\/strong>)/;
+const versionLabel = /(<strong id="app-version">)v\d+\.\d+\.\d+ \(build [^)]+\)(<\/strong>)/;
 if (!versionLabel.test(html)) {
   throw new Error('No se pudo encontrar la etiqueta de versión en index.html');
 }
-html = html.replace(versionLabel, `$1v${appVersion}$2`);
+html = html.replace(versionLabel, `$1v${appVersion} (build ${appBuild})$2`);
 const swaps = [
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'lib/leaflet/leaflet.css'],
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'lib/leaflet/leaflet.js'],

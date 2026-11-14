@@ -133,7 +133,7 @@ html, body {
     border-radius: 16px;
     padding: 10px 4px;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 2px;
     z-index: 1000;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -177,6 +177,7 @@ html, body {
 #map-route-cursor { fill: #fff; stroke: #ff9800; stroke-width: 2; }
 
 .m-box {
+    min-width: 0;
     text-align: center;
     cursor: pointer;
     border-radius: 10px;
@@ -230,14 +231,14 @@ html, body {
 }
 
 .m-val {
-    font-size: 1.1rem;
+    font-size: clamp(.8rem, 3.4vw, 1.1rem);
     font-weight: 800;
     color: #fff;
     line-height: 1.1;
 }
 
 .m-lbl {
-    font-size: 0.55rem;
+    font-size: clamp(.45rem, 2.3vw, .55rem);
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -886,6 +887,7 @@ nav {
 }
 
 .nav-btn {
+    min-width: 0;
     min-height: 44px;
     padding: 3px 1px;
     background: none;
@@ -1068,9 +1070,9 @@ nav {
 }
 .seg-tabs.big-tabs .seg-tab .tab-ico { display: block; font-size: 2.2rem; line-height: 1.1; margin-bottom: 4px; }
 
-@media (orientation: landscape) and (max-height: 600px) {
-    .swiper-wrapper { height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px)); }
-    nav { height: calc(48px + env(safe-area-inset-bottom, 0px)); }
+@media (orientation: landscape) and (max-width: 1280px) {
+    .swiper-wrapper { height: calc(100dvh - clamp(44px, 12dvh, 52px) - env(safe-area-inset-bottom, 0px)); }
+    nav { height: calc(clamp(44px, 12dvh, 52px) + env(safe-area-inset-bottom, 0px)); }
     .nav-btn { gap: 2px; font-size: .68rem; }
     .nav-btn .icon { font-size: 1.1rem; }
 
@@ -1097,17 +1099,17 @@ nav {
 
     .side-controls {
         left: calc(env(safe-area-inset-left, 0px) + 16px);
-        top: calc(env(safe-area-inset-top, 0px) + 58px);
-        gap: 12px;
+        top: calc(env(safe-area-inset-top, 0px) + clamp(46px, 15dvh, 58px));
+        gap: clamp(5px, 2.5dvh, 10px);
     }
     .map-zoom-controls {
-        top: calc(env(safe-area-inset-top, 0px) + 58px);
+        top: calc(env(safe-area-inset-top, 0px) + clamp(46px, 15dvh, 58px));
     }
-    .map-zoom-controls { right: calc(env(safe-area-inset-right, 0px) + 16px); gap: 12px; }
+    .map-zoom-controls { right: calc(env(safe-area-inset-right, 0px) + 16px); gap: clamp(5px, 2.5dvh, 10px); }
     .side-controls .btn-icon-only,
     .map-zoom-btn {
-        width: 50px;
-        height: 50px;
+        width: clamp(42px, 13dvh, 50px);
+        height: clamp(42px, 13dvh, 50px);
         border-radius: 11px;
         font-size: 1.35rem;
     }
@@ -1127,18 +1129,18 @@ nav {
 
     .controls-overlay { bottom: 3px; gap: 8px; padding: 0 8px; }
     .controls-overlay .btn-main-action{
-        height: 50px;
+        height: clamp(42px, 13dvh, 50px);
         max-width: 250px;
         padding: 0 16px;
         border-radius: 25px;
         font-size: .84rem;
     }
-    .controls-overlay .btn-unfollow-map { flex-basis: 145px; font-size: .68rem; }
+    .controls-overlay .btn-unfollow-map { flex-basis: clamp(120px, 25vw, 145px); min-height: clamp(42px, 13dvh, 48px); font-size: .68rem; }
     .btn-unfollow-map svg { width: 18px; height: 18px; flex-basis: 18px; }
     .controls-overlay #btn-stop {
-        flex-basis: 48px;
-        width: 48px;
-        height: 48px;
+        flex-basis: clamp(42px, 13dvh, 48px);
+        width: clamp(42px, 13dvh, 48px);
+        height: clamp(42px, 13dvh, 48px);
         font-size: 1rem;
     }
 
@@ -1928,23 +1930,36 @@ html.large-controls .controls-overlay #btn-stop {
     border: 2px solid #fff !important;
 }
 
-@media (orientation: landscape) and (max-height: 600px) {
-    html.large-controls .swiper-wrapper { height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px)); }
-    html.large-controls body > nav { height: calc(48px + env(safe-area-inset-bottom, 0px)); }
+@media (orientation: landscape) and (max-width: 1280px) {
+    html.large-controls .swiper-wrapper { height: calc(100dvh - clamp(44px, 12dvh, 52px) - env(safe-area-inset-bottom, 0px)); }
+    html.large-controls body > nav { height: calc(clamp(44px, 12dvh, 52px) + env(safe-area-inset-bottom, 0px)); }
     html.large-controls .nav-btn { min-height: 44px; padding: 2px; font-size: .68rem; }
     html.large-controls .nav-btn .icon { font-size: 1.1rem; }
     html.large-controls .side-controls .btn-icon-only,
     html.large-controls .map-zoom-btn {
-        width: 48px;
-        height: 48px;
+        width: clamp(42px, 13dvh, 50px);
+        height: clamp(42px, 13dvh, 50px);
     }
     html.large-controls .controls-overlay .btn-main-action,
     html.large-controls .controls-overlay .btn-unfollow-map { min-height: 46px; }
-    html.large-controls .controls-overlay .btn-main-action { height: 46px; padding: 0 10px; font-size: .76rem; }
-    html.large-controls .controls-overlay .btn-unfollow-map { flex-basis: 132px; padding: 5px 7px; font-size: .64rem; }
+    html.large-controls .controls-overlay .btn-main-action { height: clamp(42px, 13dvh, 46px); padding: 0 10px; font-size: .76rem; }
+    html.large-controls .controls-overlay .btn-unfollow-map { flex-basis: clamp(112px, 24vw, 132px); min-height: clamp(42px, 13dvh, 46px); padding: 5px 7px; font-size: .64rem; }
     html.large-controls .controls-overlay #btn-stop {
-        flex-basis: 44px;
-        width: 44px;
-        height: 44px;
+        flex-basis: clamp(42px, 13dvh, 44px);
+        width: clamp(42px, 13dvh, 44px);
+        height: clamp(42px, 13dvh, 44px);
     }
+}
+
+@media (max-width: 600px) {
+    .nav-btn > span:last-child {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        text-align: center;
+    }
+    .content-panel {
+        padding: clamp(12px, 3vw, 16px) clamp(8px, 3vw, 12px)
+            calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+    .card { padding: clamp(12px, 4vw, 18px); }
 }

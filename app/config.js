@@ -3,7 +3,8 @@
 // ============================================================
 //  CONFIGURACIÓN
 // ============================================================
-const APP_VERSION = '1.2.1'; // prepare-web.js la reemplaza por la versión de package.json en el bundle.
+const APP_VERSION = '1.2.7'; // prepare-web.js la reemplaza por la versión de package.json en el bundle.
+const APP_BUILD = 'local'; // prepare-web.js la reemplaza por el número de ejecución de GitHub Actions.
 const DEFAULT_CLOUD_SERVER = 'https://vamp69.ddns.net';
 const MIN_STEP_M = 4;        // distancia mínima entre puntos grabados (filtra el ruido parado)
 const MAX_ACC_M = 30;        // se descartan fixes con peor precisión que esto

@@ -753,7 +753,7 @@ function initSettings() {
     vibration.addEventListener('change', () => localStorage.setItem('mtb_route_vibration', vibration.checked ? '1' : '0'));
     mapRotation.addEventListener('change', () => setMapRotationMode(mapRotation.checked));
     initSensorConnections();
-    $('app-version').textContent = 'v' + APP_VERSION;
+    $('app-version').textContent = `v${APP_VERSION} (build ${APP_BUILD})`;
 }
 
 async function syncWhenOnline() {
