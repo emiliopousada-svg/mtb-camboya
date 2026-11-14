@@ -65,6 +65,25 @@ const validateCommunitySegment = (e) => {
     catch (error) { throw new BadRequestError("La ruta del segmento no existe."); }
     if (!route.getBool("published")) throw new BadRequestError("La ruta no está publicada.");
 
+    // Limit contributions per account and route on the server, including direct API calls.
+    const MAX_SEGMENTS_PER_USER_ROUTE = 5;
+    let userSegments;
+    try {
+        userSegments = $app.findRecordsByFilter(
+            "community_segments",
+            "route = {:route} && owner = {:owner}",
+            "",
+            MAX_SEGMENTS_PER_USER_ROUTE,
+            0,
+            { route: e.record.getString("route"), owner: e.auth.id }
+        );
+    } catch (error) {
+        throw new BadRequestError("No se pudo comprobar el límite de segmentos. Inténtalo de nuevo.");
+    }
+    if (userSegments.length >= MAX_SEGMENTS_PER_USER_ROUTE) {
+        throw new BadRequestError("Puedes crear como máximo 5 segmentos por ruta.");
+    }
+
     const routeLines = parseLines(route.getString("trackJson"), "El trazado de la ruta");
     const segmentLines = parseLines(e.record.getString("trackJson"), "El trazado del segmento");
     if (segmentLines.length !== 1 || segmentLines[0].length < 2) {

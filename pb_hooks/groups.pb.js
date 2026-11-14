@@ -231,6 +231,10 @@ routerAdd("POST", "/api/mtb/groups/rankings/share", (e) => {
             || (distanceKm === 0 && maxSpeedKmh === 0)) {
             return e.json(400, { message: "Las marcas de la actividad no son válidas." });
         }
+        const minimumMovingTimeSec = distanceKm > 0 ? Math.ceil(distanceKm * 1000 / 25) : 0;
+        if (distanceKm > 0 && movingTimeSec < minimumMovingTimeSec) {
+            return e.json(400, { message: "La velocidad media no puede superar los 25 m/s." });
+        }
 
         const user = $app.findRecordById("users", e.auth.id);
         const groupId = user.getString("groupCode");
