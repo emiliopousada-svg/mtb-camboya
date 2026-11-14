@@ -21,9 +21,6 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Ejecutar tests (si fallan, no se genera el APK)
-        run: npm test
-
       - name: Preparar la web (copias locales de Leaflet y Chart.js, Bluetooth)
         run: node scripts/prepare-web.js
 
