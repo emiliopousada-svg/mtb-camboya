@@ -28,7 +28,7 @@
         "type": "relation",
         "required": true,
         "collectionId": "_pb_users_auth_",
-        "cascadeDelete": false,
+        "cascadeDelete": true,
         "minSelect": 0,
         "maxSelect": 1
       },

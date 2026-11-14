@@ -7,8 +7,8 @@ La app puede compartir una copia pública y reducida de una ruta grabada, separa
 1. Haz una copia de seguridad de PocketBase.
 2. En PocketBase Admin abre **Settings → Import collections** y selecciona `community_routes.json`.
 3. Activa **Merge with the existing collections**.
-4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, acepta solo la incorporación de los campos opcionales `poisJson`, `poiPhotos`, `locality`, `description`, `difficulty` y `performedAt`, y los índices de localidad y límites geográficos; cancela si se propone reemplazar o borrar colecciones existentes.
-5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema y los campos de POI, localidad, descripción y dificultad.
+4. En **Detected changes**, al instalar por primera vez confirma que se va a añadir únicamente `community_routes`. Si ya existe, acepta solo la incorporación de los campos opcionales `poisJson`, `poiPhotos`, `locality`, `description`, `difficulty` y `performedAt`, los índices de localidad y límites geográficos, y el cambio de `community_routes.owner.cascadeDelete` a `true`; cancela si se propone reemplazar o borrar colecciones existentes o realizar otros cambios.
+5. Importa y comprueba en **Collections** que `community_routes` tenga activas las reglas de acceso del esquema, los campos de POI, localidad, descripción y dificultad, y que la relación `owner` tenga activado **Cascade delete**.
 6. Copia `pb_hooks/community_routes.pb.js` al directorio `pb_hooks` de PocketBase y reinicia PocketBase para calcular los límites geográficos.
 
 El catálogo pagina metadatos por zona y descarga los trazados completos solo para un conjunto acotado de candidatos; las rutas antiguas sin límites usan un fallback limitado.
@@ -16,6 +16,8 @@ El catálogo pagina metadatos por zona y descarga los trazados completos solo pa
 La regla de lectura deja ver públicamente solo registros con `published = true`; el autor también puede consultar sus propias rutas. Un envío nuevo debe tener el propietario autenticado y `published = true`, por lo que aparece en el catálogo inmediatamente. La app no permite cambiar el estado de publicación después de crear el registro.
 
 La regla `deleteRule` debe ser `owner = @request.auth.id`. Así, únicamente la cuenta que publicó la ruta puede borrarla, también si intenta hacerlo directamente mediante la API. En el catálogo, la app muestra la acción **Eliminar** solo al autor autenticado. El borrado de la publicación no elimina copias que otros usuarios ya guardaron en sus dispositivos.
+
+La relación `community_routes.owner` usa **Cascade delete**. Al eliminar una cuenta, PocketBase elimina también sus rutas comunitarias y las valoraciones, comentarios, favoritos, segmentos y marcas relacionadas. Para aplicar este ajuste en una instalación existente, importa de nuevo `community_routes.json` con **Merge with the existing collections** y confirma únicamente el cambio de la relación `owner`; haz una copia de seguridad antes de importar.
 
 ## Publicación y moderación
 

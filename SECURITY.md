@@ -21,6 +21,9 @@ for published community routes and their community interactions. The
 use the authenticated `/api/mtb/groups/*` hooks, which perform membership and
 administrator checks.
 
+Deleting a user cascades to their community routes and dependent public
+interactions through `community_routes.owner`.
+
 Community route tracks are public data. The PocketBase request hook trims 150 m
 from both ends before storing a track and rejects POIs within 150 m of the
 submitted endpoints. This reduces location exposure but does not guarantee
