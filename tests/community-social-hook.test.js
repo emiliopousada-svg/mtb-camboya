@@ -8,10 +8,16 @@ const vm = require('node:vm');
 
 class BadRequestError extends Error {}
 
-function loadHook() {
+function loadHook(users = {}) {
     const handlers = [];
     const context = {
         BadRequestError,
+        $app: {
+            findRecordById(collection, id) {
+                if (collection !== 'users' || !users[id]) throw new Error('not found');
+                return { getString: (key) => String(users[id][key] ?? '') };
+            }
+        },
         onRecordCreateRequest: (fn, ...collections) => handlers.push({ fn, collections, on: 'create' }),
         onRecordUpdateRequest: (fn, ...collections) => handlers.push({ fn, collections, on: 'update' })
     };
@@ -40,21 +46,20 @@ test('registers on create and update of route comments only', () => {
     handlers.forEach(h => assert.deepEqual(h.collections, ['community_route_comments']));
 });
 
-test('replaces a client-supplied alias with the stable account alias', () => {
-    const { fn } = loadHook()[0];
-    const { passed, fields } = run(fn, { owner: 'abc123xyz', alias: 'Otra Persona', comment: 'Buena ruta' }, { id: 'abc123xyz' });
+test('replaces a client-supplied alias with the account nickname', () => {
+    const { fn } = loadHook({ abc: { nickname: ' Marta MTB ' } })[0];
+    const { passed, fields } = run(fn, { owner: 'abc', alias: 'Otra Persona', comment: 'Buena ruta' }, { id: 'abc' });
     assert.equal(passed, true);
-    assert.equal(fields.alias, 'Ciclista ABC123XYZ');
+    assert.equal(fields.alias, 'Marta MTB');
 });
 
-test('keeps the alias within the 32 character schema limit for 15 character ids', () => {
-    const { fn } = loadHook()[0];
-    const { fields } = run(fn, { owner: 'a1b2c3d4e5f6g7h' }, { id: 'a1b2c3d4e5f6g7h' });
-    assert.ok(fields.alias.length <= 32);
+test('rejects accounts without a nickname', () => {
+    const { fn } = loadHook({ abc: { nickname: '  ' } })[0];
+    assert.throws(() => run(fn, { owner: 'abc' }, { id: 'abc' }), BadRequestError);
 });
 
 test('rejects anonymous requests and owners that do not match the session', () => {
-    const { fn } = loadHook()[0];
+    const { fn } = loadHook({ abc: { nickname: 'Marta' } })[0];
     assert.throws(() => run(fn, { owner: 'abc' }, null), BadRequestError);
     assert.throws(() => run(fn, { owner: 'abc' }, { id: 'other' }), BadRequestError);
 });
