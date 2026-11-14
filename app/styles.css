@@ -1075,7 +1075,7 @@ nav {
     .nav-btn .icon { font-size: 1.1rem; }
 
     .metrics-bar {
-        top: env(safe-area-inset-top, 0px);
+        top: max(0px, calc(env(safe-area-inset-top, 0px) - 6px));
         left: calc(env(safe-area-inset-left, 0px) + 50px);
         right: calc(env(safe-area-inset-right, 0px) + 50px);
         padding: 6px 3px;
@@ -1926,4 +1926,25 @@ html.large-controls .controls-overlay #btn-stop {
     width: 56px;
     height: 56px;
     border: 2px solid #fff !important;
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    html.large-controls .swiper-wrapper { height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px)); }
+    html.large-controls body > nav { height: calc(48px + env(safe-area-inset-bottom, 0px)); }
+    html.large-controls .nav-btn { min-height: 44px; padding: 2px; font-size: .68rem; }
+    html.large-controls .nav-btn .icon { font-size: 1.1rem; }
+    html.large-controls .side-controls .btn-icon-only,
+    html.large-controls .map-zoom-btn {
+        width: 48px;
+        height: 48px;
+    }
+    html.large-controls .controls-overlay .btn-main-action,
+    html.large-controls .controls-overlay .btn-unfollow-map { min-height: 46px; }
+    html.large-controls .controls-overlay .btn-main-action { height: 46px; padding: 0 10px; font-size: .76rem; }
+    html.large-controls .controls-overlay .btn-unfollow-map { flex-basis: 132px; padding: 5px 7px; font-size: .64rem; }
+    html.large-controls .controls-overlay #btn-stop {
+        flex-basis: 44px;
+        width: 44px;
+        height: 44px;
+    }
 }

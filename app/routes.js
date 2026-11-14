@@ -4,6 +4,7 @@
 // ============================================================
 let routesTab = 'done';
 let routesShowAll = false;
+const routeSortByTab = { done: 'recent', pending: 'recent' };
 let routeCardImageUrls = [];
 let routeCardMaps = [];
 let routeCardMapObserver = null;
@@ -265,6 +266,47 @@ function routePerformedAt(route) {
     return route.startedAt || '';
 }
 
+function routeImportTimestamp(route) {
+    const importedAt = Date.parse(route.importedAt || route.createdAt || '');
+    if (Number.isFinite(importedAt)) return importedAt;
+    const id = Number(route.id);
+    if (Number.isSafeInteger(id) && id >= 100000000000) return id;
+    return Date.parse(route.startedAt) || 0;
+}
+
+function sortRoutesForList(routes, order, tab) {
+    const metricKey = order.startsWith('distance-') ? 'distance'
+        : order.startsWith('time-') ? 'time'
+            : order.startsWith('elevation-') ? 'elevation' : '';
+    const values = new Map(routes.map(route => {
+        let value = null;
+        if (metricKey === 'distance') value = routeDistanceKm(route);
+        if (metricKey === 'time') {
+            const movingTime = routeMovingTime(route);
+            value = movingTime > 0 ? movingTime : null;
+        }
+        if (metricKey === 'elevation') {
+            const stored = route.elevationGain == null ? null : Number(route.elevationGain);
+            if (Number.isFinite(stored)) value = stored;
+            else {
+                const analysis = typeof statsAnalyzeRoute === 'function' ? statsAnalyzeRoute(route) : null;
+                value = analysis && analysis.ascentAvailable ? analysis.ascentM : null;
+            }
+        }
+        if (!metricKey) value = tab === 'pending'
+            ? routeImportTimestamp(route)
+            : Date.parse(routePerformedAt(route)) || 0;
+        return [route, value];
+    }));
+    return routes.slice().sort((a, b) => {
+        const aValue = values.get(a), bValue = values.get(b);
+        if (aValue == null || !Number.isFinite(aValue)) return bValue == null || !Number.isFinite(bValue) ? 0 : 1;
+        if (bValue == null || !Number.isFinite(bValue)) return -1;
+        const descending = !metricKey || order.endsWith('-desc');
+        return (aValue - bValue) * (descending ? -1 : 1);
+    });
+}
+
 function routeHasElevationData(route) {
     const stored = route.elevationGain == null ? null : Number(route.elevationGain);
     if (Number.isFinite(stored) && (stored > 0 || route.kind !== 'imported')) return true;
@@ -330,6 +372,7 @@ async function shareSavedRoute(route) {
 function setRoutesTab(tab) {
     routesTab = tab;
     routesShowAll = tab === 'pending';
+    if (tab === 'done' || tab === 'pending') $('route-sort-filter').value = routeSortByTab[tab];
     const communityTab = tab === 'community';
     document.querySelectorAll('[data-routes-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.routesTab === tab)));
     $('routes-import-box').hidden = tab !== 'pending';
@@ -337,9 +380,9 @@ function setRoutesTab(tab) {
     $('routes-show-all').hidden = tab !== 'done';
     $('community-tab').hidden = !communityTab;
     $('routes-tab-hint').textContent = tab === 'done'
-        ? 'Solo las rutas que has grabado tú. Usa 🏷️ para cambiar la actividad y ✏️ para el nombre.'
+        ? 'Tus rutas, ordenadas por fecha de realización (más reciente primero). También puedes ordenarlas por distancia, tiempo o desnivel.'
         : tab === 'pending'
-            ? 'Aquí aparecen los tracks importados y las rutas descargadas de la comunidad.'
+            ? 'Tracks importados y rutas de la comunidad guardadas en el móvil. Se ordenan por importación o por distancia, tiempo y desnivel.'
             : 'Explora rutas publicadas por la comunidad.';
     renderSavedRoutes();
     if (communityTab && typeof loadCommunityRoutes === 'function') loadCommunityRoutes();
@@ -398,35 +441,13 @@ function renderSavedRoutes() {
         c.appendChild(empty);
         return;
     }
-    const sortedRoutes = visibleRoutes.slice().sort((a, b) =>
-        (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0)
-    );
+    const sortedRoutes = sortRoutesForList(visibleRoutes, $('route-sort-filter').value || 'recent', routesTab);
     const routesToRender = !routesShowAll && !pendingTab ? sortedRoutes.slice(0, 3) : sortedRoutes;
     if (!routesShowAll && !pendingTab) {
         routesToRender.forEach(route => c.appendChild(createRouteCard(route)));
         return;
     }
-    const groups = new Map();
-    routesToRender.forEach(r => {
-        const activityType = activityTypeForRoute(r);
-        const groupKey = activityType || 'other';
-        if (!groups.has(groupKey)) groups.set(groupKey, []);
-        groups.get(groupKey).push(r);
-    });
-    const groupOrder = [...Object.keys(ACTIVITY_TYPES), 'other'];
-    groupOrder.forEach(groupKey => {
-        const routes = groups.get(groupKey);
-        if (!routes || !routes.length) return;
-        const title = document.createElement('h3');
-        title.className = 'route-group-title';
-        title.textContent = groupKey === 'other'
-            ? `📍 Sin clasificar (${routes.length})`
-            : `${ACTIVITY_TYPES[groupKey].icon} ${ACTIVITY_TYPES[groupKey].label} (${routes.length})`;
-        c.appendChild(title);
-        routes.forEach(r => {
-            c.appendChild(createRouteCard(r));
-        });
-    });
+    routesToRender.forEach(route => c.appendChild(createRouteCard(route)));
 }
 
 function createRouteCard(route) {
@@ -606,6 +627,10 @@ async function openSavedRouteDetail(route) {
 
 $('route-activity-filter').addEventListener('change', renderSavedRoutes);
 $('route-user-filter').addEventListener('change', renderSavedRoutes);
+$('route-sort-filter').addEventListener('change', () => {
+    if (routesTab === 'done' || routesTab === 'pending') routeSortByTab[routesTab] = $('route-sort-filter').value;
+    renderSavedRoutes();
+});
 
 $('btn-import-route').addEventListener('click', async () => {
     const input = $('route-file-input');

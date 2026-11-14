@@ -140,6 +140,7 @@ function scheduleGpsRetry() {
     gpsRetryDelay = Math.min(15000, Math.round(gpsRetryDelay * 1.7));
     gpsRetryTimer = setTimeout(() => {
         gpsRetryTimer = null;
+        if (gpsPermissionDenied) return;
         startGps(true);
     }, delay);
 }
@@ -148,6 +149,8 @@ function handleGpsError(error) {
     console.warn('GPS error:', error);
     if (error.code === 1) {
         gpsPermissionDenied = true;
+        clearTimeout(gpsRetryTimer);
+        gpsRetryTimer = null;
         if (!gpsPermissionNoticeShown) {
             gpsPermissionNoticeShown = true;
             toast('Permiso de ubicación denegado: actívalo en los ajustes y pulsa centrar para reintentar.', 7000);

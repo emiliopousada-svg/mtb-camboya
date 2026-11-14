@@ -28,6 +28,8 @@ function createGpsContext() {
         },
         document: { addEventListener() {} },
         window: { addEventListener() {} },
+        console: { warn() {} },
+        toast() {},
         rendered: state.rendered
     };
     vm.createContext(context);
@@ -111,4 +113,24 @@ test('batched route rendering preserves points and keeps each polyline within it
         [context.routePoints[249], context.routePoints[250]]
     );
     assert.equal(vm.runInContext('pendingRouteRenderPoints.length', context), 0);
+});
+
+test('permission denial cancels and invalidates a pending GPS retry', () => {
+    const { context, state } = createGpsContext();
+    let watchCalls = 0;
+    context.navigator = {
+        geolocation: {
+            watchPosition() { watchCalls++; return 1; },
+            clearWatch() {}
+        }
+    };
+    vm.runInContext('scheduleGpsRetry()', context);
+    const retry = state.timers[0];
+
+    vm.runInContext('handleGpsError({ code: 1 })', context);
+
+    assert.equal(retry.cancelled, true);
+    assert.equal(vm.runInContext('gpsRetryTimer', context), null);
+    retry.callback();
+    assert.equal(watchCalls, 0);
 });

@@ -62,3 +62,32 @@ test('saved and completed tabs only include their respective route kinds', () =>
     assert.equal(vm.runInContext('routeCanPublishCommunity({kind: "recorded", communityRouteId: "already-published"})', context), true);
     assert.equal(vm.runInContext('routeCanPublishCommunity({kind: "imported", communityRouteId: "downloaded"})', context), false);
 });
+
+test('route sorting uses import order, performance date, and route metrics', () => {
+    const { context } = createRoutesContext();
+    context.pending = [
+        { id: 1710000000000, name: 'Importación antigua', kind: 'imported', startedAt: '2026-03-10T12:00:00Z', distanceKm: 30, movingTimeSec: 7200, elevationGain: 800 },
+        { id: 1720000000000, name: 'Importación reciente', kind: 'imported', startedAt: '2025-03-10T12:00:00Z', distanceKm: 10, movingTimeSec: 1800, elevationGain: 200 }
+    ];
+    context.completed = [
+        { id: 3, name: 'Salida antigua', kind: 'recorded', startedAt: '2025-03-10T12:00:00Z', distanceKm: 30, movingTimeSec: 7200, elevationGain: 800 },
+        { id: 4, name: 'Salida reciente', kind: 'recorded', startedAt: '2026-03-10T12:00:00Z', distanceKm: 10, movingTimeSec: 1800, elevationGain: 200 }
+    ];
+
+    const sortedNames = order => Array.from(
+        vm.runInContext(`sortRoutesForList(pending, "${order}", "pending")`, context),
+        route => route.name
+    );
+    assert.deepEqual(sortedNames('recent'), ['Importación reciente', 'Importación antigua']);
+    assert.deepEqual(sortedNames('distance-desc'), ['Importación antigua', 'Importación reciente']);
+    assert.deepEqual(sortedNames('time-asc'), ['Importación reciente', 'Importación antigua']);
+    assert.deepEqual(
+        Array.from(vm.runInContext('sortRoutesForList(pending, "elevation-desc", "pending")', context), route => route.name),
+        ['Importación antigua', 'Importación reciente']
+    );
+
+    assert.deepEqual(
+        Array.from(vm.runInContext('sortRoutesForList(completed, "recent", "done")', context), route => route.name),
+        ['Salida reciente', 'Salida antigua']
+    );
+});

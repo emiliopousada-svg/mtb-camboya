@@ -2,7 +2,8 @@
 
 //  PULSÓMETRO BLUETOOTH
 // ============================================================
-let bleDevice = null, bleManual = false;
+let bleDevice = null, bleManual = false, webHrGeneration = 0;
+let webHrConnectingGeneration = null, webHrReconnecting = false;
 const hrToggle = $('sensor-hr-enabled');
 
 function onHrChange(e) {
@@ -18,29 +19,60 @@ async function connectHr(device) {
     const ch = await service.getCharacteristic('heart_rate_measurement');
     ch.addEventListener('characteristicvaluechanged', onHrChange);
     await ch.startNotifications();
-    setHrConnected(true);
 }
 
-async function reconnectHr(device) {
+async function reconnectHr(device, generation) {
     for (let i = 0; i < 5; i++) {
         await new Promise(r => setTimeout(r, 3000));
-        if (bleManual || bleDevice !== device) return;
-        try { await connectHr(device); toast('❤️ Pulsómetro reconectado'); return; } catch (e) {}
+        if (bleManual || !hrToggle.checked || generation !== webHrGeneration || bleDevice !== device) return;
+        try {
+            await connectHr(device);
+            if (bleManual || !hrToggle.checked || generation !== webHrGeneration) {
+                device.gatt.disconnect();
+                return;
+            }
+            setHrConnectionState(true, true);
+            toast('❤️ Pulsómetro reconectado');
+            return;
+        } catch (e) {
+            if (bleManual || !hrToggle.checked || generation !== webHrGeneration) {
+                if (device.gatt.connected) device.gatt.disconnect();
+                return;
+            }
+        }
     }
+    if (bleManual || !hrToggle.checked || generation !== webHrGeneration || bleDevice !== device) return;
+    bleManual = true;
+    bleDevice = null;
+    setHrConnected(false);
     toast('⚠️ Pulsómetro desconectado', 4000);
 }
 
 function onBleDisconnected(e) {
-    setHrConnected(false);
-    if (bleManual) { bleDevice = null; return; }
+    if (bleDevice !== e.target) return;
+    if (bleManual || !hrToggle.checked) {
+        bleDevice = null;
+        setHrConnected(false);
+        return;
+    }
+    setHrConnectionState(false, true, 'Desconectado, reconectando…');
     toast('⚠️ Pulsómetro desconectado, reconectando…');
-    reconnectHr(e.target);
+    if (webHrReconnecting) return;
+    webHrReconnecting = true;
+    const generation = webHrGeneration;
+    reconnectHr(e.target, generation).finally(() => {
+        webHrReconnecting = false;
+        if (generation !== webHrGeneration && hrToggle.checked && !bleManual
+            && !(bleDevice && bleDevice.gatt.connected)) toggleWebHr(true);
+    });
 }
 
 // ---- Pulsómetro Bluetooth nativo (solo dentro del APK) ----
 const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let nativeBleLoading = null, nativeHrId = null, nativeHrConnected = false, nativeHrManual = false;
+let nativeHrGeneration = 0, nativeHrConnectingGeneration = null;
+let nativeHrConnectingDeviceId = null, nativeHrName = '', nativeHrReconnectTask = null;
 const sensorStates = {
     cadence: { connected: false, connecting: false, generation: 0, manual: false, deviceId: null, deviceName: '', lastReadingAt: 0, previous: null },
     power: { connected: false, connecting: false, generation: 0, manual: false, deviceId: null, deviceName: '', lastReadingAt: 0 },
@@ -207,8 +239,8 @@ function initSensorConnections() {
         localStorage.setItem('mtb_wheel_circumference', String(value));
     });
     $('sensor-hr-enabled').addEventListener('change', () => {
-        if (isNativeApp()) nativeHrToggle();
-        else toggleWebHr();
+        if (isNativeApp()) nativeHrToggle(hrToggle.checked);
+        else toggleWebHr(hrToggle.checked);
     });
     for (const type of Object.keys(sensorConfigs)) {
         $(`sensor-${type}-enabled`).addEventListener('change', event => {
@@ -233,55 +265,108 @@ function loadNativeBle() {
 }
 
 function setHrConnected(on) {
-    hrToggle.checked = on;
-    $('sensor-hr-status').textContent = on ? 'Conectado' : 'Desconectado';
-    if (!on) { $('m-hr').textContent = '--'; currentHr = null; }
+    setHrConnectionState(on, on);
 }
 
-async function nativeHrConnect(id, name) {
+function setHrConnectionState(connected, desiredConnected, detail = '') {
+    hrToggle.checked = desiredConnected;
+    $('sensor-hr-status').textContent = detail || (connected ? 'Conectado' : 'Desconectado');
+    if (!connected) { $('m-hr').textContent = '--'; currentHr = null; }
+}
+
+async function nativeHrConnect(id, name, generation) {
     const ble = await loadNativeBle();
-    await ble.connect(id, bpm => { currentHr = bpm; $('m-hr').textContent = bpm; }, () => onNativeHrDisconnected(id));
+    if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return false;
+    nativeHrConnectingDeviceId = id;
     nativeHrId = id;
+    await ble.connect(id, bpm => { currentHr = bpm; $('m-hr').textContent = bpm; }, () => onNativeHrDisconnected(id, generation));
+    if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) {
+        await ble.disconnect(id);
+        if (nativeHrId === id) nativeHrId = null;
+        return false;
+    }
+    nativeHrId = id;
+    nativeHrConnectingDeviceId = null;
+    nativeHrName = name || nativeHrName;
     nativeHrConnected = true;
-    setHrConnected(true);
+    setHrConnectionState(true, true);
     if (name !== undefined) {
         try { localStorage.setItem('mtb_hr_device', JSON.stringify({ id, name: name || '' })); } catch (e) {}
     }
+    return true;
 }
 
-function onNativeHrDisconnected(id) {
+function onNativeHrDisconnected(id, generation) {
+    if (generation !== nativeHrGeneration || nativeHrId !== id) return;
     nativeHrConnected = false;
-    setHrConnected(false);
-    if (nativeHrManual || nativeHrId !== id) return;
+    if (nativeHrManual || !hrToggle.checked) {
+        setHrConnected(false);
+        return;
+    }
+    setHrConnectionState(false, true, 'Desconectado, reconectando…');
     toast('⚠️ Pulsómetro desconectado, reconectando…');
-    nativeHrReconnect(id);
+    if (nativeHrReconnectTask) return;
+    nativeHrReconnectTask = nativeHrReconnect(id, generation).finally(() => {
+        nativeHrReconnectTask = null;
+        if (hrToggle.checked && !nativeHrManual && !nativeHrConnected) nativeHrToggle(true);
+    });
 }
 
-async function nativeHrReconnect(id) {
-    for (let i = 0; i < 8; i++) {
+async function nativeHrReconnect(id, generation) {
+    for (let i = 0; i < 5; i++) {
         await sleep(4000);
-        if (nativeHrManual || nativeHrId !== id || nativeHrConnected) return;
-        try { await nativeHrConnect(id); toast('❤️ Pulsómetro reconectado'); return; } catch (e) {}
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked
+            || nativeHrId !== id || nativeHrConnected) return;
+        try {
+            if (await nativeHrConnect(id, nativeHrName, generation)) {
+                toast('❤️ Pulsómetro reconectado');
+                return;
+            }
+        } catch (e) {}
     }
+    if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked || nativeHrId !== id) return;
+    nativeHrManual = true;
+    nativeHrId = null;
+    nativeHrConnectingDeviceId = null;
+    setHrConnected(false);
     toast('⚠️ No se pudo reconectar el pulsómetro. Pulsa 📶 para conectarlo de nuevo.', 6000);
 }
 
-async function nativeHrToggle() {
-    if (nativeHrConnected) { // un segundo toque lo desconecta
+async function nativeHrToggle(shouldConnect = hrToggle.checked) {
+    if (!shouldConnect) {
+        nativeHrGeneration++;
         nativeHrManual = true;
-        try { await (await loadNativeBle()).disconnect(nativeHrId); } catch (e) {}
+        const deviceId = nativeHrId || nativeHrConnectingDeviceId;
         nativeHrConnected = false;
         nativeHrId = null;
+        nativeHrConnectingDeviceId = null;
         setHrConnected(false);
-        toast('Pulsómetro desconectado');
+        if (deviceId) {
+            try { await (await loadNativeBle()).disconnect(deviceId); }
+            catch (error) {
+                console.warn('No se pudo desconectar el pulsómetro:', error);
+                toast('No se pudo desconectar el pulsómetro.', 5000);
+            }
+        }
         return;
     }
+    if (nativeHrConnectingGeneration !== null || nativeHrReconnectTask) {
+        nativeHrManual = false;
+        nativeHrGeneration++;
+        return;
+    }
+    if (nativeHrConnected) return;
+    const generation = ++nativeHrGeneration;
+    nativeHrConnectingGeneration = generation;
     hrToggle.style.opacity = '0.5';
     nativeHrManual = false;
     try {
         const ble = await loadNativeBle();
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
         await ble.init(); // pide los permisos de Bluetooth la primera vez
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
         if (!(await ble.isEnabled())) { toast('Activa el Bluetooth del móvil', 5000); return; }
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
 
         // 1) intentar con el último pulsómetro usado
         let saved = null;
@@ -289,51 +374,97 @@ async function nativeHrToggle() {
         if (saved && saved.id) {
             try {
                 toast(`Conectando con ${saved.name || 'el último pulsómetro'}…`);
-                await nativeHrConnect(saved.id, saved.name);
-                toast('✅ Pulsómetro conectado');
-                return;
-            } catch (e) { console.warn('Último pulsómetro no disponible:', e); }
+                if (await nativeHrConnect(saved.id, saved.name, generation)) {
+                    toast('✅ Pulsómetro conectado');
+                    return;
+                }
+            } catch (e) {
+                if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
+                console.warn('Último pulsómetro no disponible:', e);
+            }
         }
 
         // 2) elegir de la lista de dispositivos cercanos
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
         const dev = await ble.pick();
-        await nativeHrConnect(dev.deviceId, dev.name);
-        toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
+        if (generation !== nativeHrGeneration || nativeHrManual || !hrToggle.checked) return;
+        if (await nativeHrConnect(dev.deviceId, dev.name, generation)) {
+            toast(`✅ Conectado a: ${dev.name || 'Pulsómetro'}`);
+        }
     } catch (err) {
+        if (generation !== nativeHrGeneration || nativeHrManual) return;
         console.warn('Bluetooth nativo:', err);
         const msg = String((err && (err.message || err)) || '');
         if (!/cancel|no device|not found|notfound/i.test(msg)) toast('No se pudo conectar el pulsómetro: ' + msg, 6000);
     } finally {
-        hrToggle.style.opacity = '1';
-        if (!nativeHrConnected) setHrConnected(false);
+        if (nativeHrConnectingGeneration === generation) {
+            nativeHrConnectingGeneration = null;
+            nativeHrConnectingDeviceId = null;
+            hrToggle.style.opacity = '1';
+            if (!nativeHrConnected && generation === nativeHrGeneration) setHrConnected(false);
+            if (generation !== nativeHrGeneration && hrToggle.checked && !nativeHrManual) nativeHrToggle(true);
+        }
     }
 }
 
-async function toggleWebHr() {
+async function toggleWebHr(shouldConnect = hrToggle.checked) {
+    if (!shouldConnect) {
+        webHrGeneration++;
+        bleManual = true;
+        const device = bleDevice;
+        bleDevice = null;
+        if (device && device.gatt.connected) device.gatt.disconnect();
+        setHrConnected(false);
+        return;
+    }
+    if (webHrConnectingGeneration !== null || webHrReconnecting) {
+        bleManual = false;
+        webHrGeneration++;
+        return;
+    }
     if (!navigator.bluetooth) {
         toast('Aquí no hay Web Bluetooth. Para usar el pulsómetro abre la app web en Chrome (Android).', 6000);
         setHrConnected(false);
         return;
     }
-    if (bleDevice && bleDevice.gatt.connected) { // un segundo toque lo desconecta
-        bleManual = true;
-        bleDevice.gatt.disconnect();
+    if (bleDevice && bleDevice.gatt.connected) {
+        setHrConnectionState(true, true);
         return;
     }
+    const generation = ++webHrGeneration;
+    webHrConnectingGeneration = generation;
+    let device = null;
     try {
         hrToggle.style.opacity = '0.5';
         bleManual = false;
-        const device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+        device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+        if (generation !== webHrGeneration || !hrToggle.checked) return;
         bleDevice = device;
         device.addEventListener('gattserverdisconnected', onBleDisconnected);
         await connectHr(device);
+        if (generation !== webHrGeneration || !hrToggle.checked) {
+            device.gatt.disconnect();
+            return;
+        }
+        setHrConnectionState(true, true);
         toast(`✅ Conectado a: ${device.name || 'Pulsómetro'}`);
     } catch (err) {
+        if (generation !== webHrGeneration || bleManual) {
+            if (device && device.gatt.connected) device.gatt.disconnect();
+            if (bleDevice === device) bleDevice = null;
+            return;
+        }
         console.warn('Error BLE:', err);
+        if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+        bleDevice = null;
+        setHrConnected(false);
         if (err.name !== 'NotFoundError') toast('No se pudo conectar el pulsómetro', 4000);
     } finally {
-        hrToggle.style.opacity = '1';
-        setHrConnected(Boolean(bleDevice && bleDevice.gatt.connected));
+        if (webHrConnectingGeneration === generation) {
+            webHrConnectingGeneration = null;
+            hrToggle.style.opacity = '1';
+            if (generation !== webHrGeneration && hrToggle.checked && !bleManual) toggleWebHr(true);
+        }
     }
 }
 

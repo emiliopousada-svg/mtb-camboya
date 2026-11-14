@@ -187,12 +187,23 @@ test('community counter matches visible search results and resets when the list 
     const { context } = createCommunityContext();
     context.records = [
         {
-            id: 'visible',
-            title: 'Ruta visible',
+            id: 'farther',
+            title: 'Ruta más lejana',
             trackJson: '[[[40,-3],[40.01,-3]]]',
             poisJson: '[]',
             distanceKm: 24,
             elevationGain: 620,
+            proximityKm: 9,
+            owner: 'another-user'
+        },
+        {
+            id: 'nearer',
+            title: 'Ruta más cercana',
+            trackJson: '[[[40,-3],[40.01,-3]]]',
+            poisJson: '[]',
+            distanceKm: 18,
+            elevationGain: 300,
+            proximityKm: 2,
             owner: 'another-user'
         },
         { id: 'invalid', title: 'Ruta inválida', trackJson: '[]', poisJson: '[]' }
@@ -200,8 +211,9 @@ test('community counter matches visible search results and resets when the list 
 
     vm.runInContext('renderCommunityRoutes(records)', context);
 
-    assert.equal(context.$('routes-count-community').textContent, '1');
-    assert.equal(context.$('community-route-list').children.length, 1);
+    assert.equal(context.$('routes-count-community').textContent, '2');
+    assert.equal(context.$('community-route-list').children.length, 2);
+    assert.equal(context.$('community-route-list').children[0].children[0].textContent, 'Ruta más cercana');
 
     vm.runInContext('renderCommunityRoutes([])', context);
 

@@ -941,7 +941,16 @@ function renderCommunityRoutes(records) {
         $('routes-count-community').textContent = '0';
         return;
     }
-    records.forEach(record => {
+    const sortedRecords = records.slice().sort((a, b) => {
+        const aDistance = Number(a.proximityKm), bDistance = Number(b.proximityKm);
+        const aHasDistance = a.proximityKm != null && Number.isFinite(aDistance);
+        const bHasDistance = b.proximityKm != null && Number.isFinite(bDistance);
+        if (aHasDistance && bHasDistance) return aDistance - bDistance;
+        if (aHasDistance) return -1;
+        if (bHasDistance) return 1;
+        return 0;
+    });
+    sortedRecords.forEach(record => {
         const lines = communityRecordLines(record);
         if (!lines) return;
         const card = document.createElement('article');
