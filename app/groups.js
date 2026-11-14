@@ -7,6 +7,7 @@ let friendsRefreshPending = false, lastLivePush = 0, lastFriendsRefreshAt = 0, l
 let pendingLiveLocation = null, pendingLiveLocationLoaded = false;
 let pendingLiveLocationLoadPromise = null, pendingLiveLocationWrite = Promise.resolve();
 let pendingLiveLocationRevision = 0, liveLocationRetryTimer = null;
+let liveLocationRetryBlockedKey = '', liveLocationRetryBlockedStatus = 0;
 let groupRankingDeletesSyncing = false;
 let myLiveRecordId = null;
 let groupLiveEndpointUnsupportedFor = '';
@@ -96,6 +97,20 @@ function scheduleLiveLocationRetry(retryAt) {
         liveLocationRetryTimer = null;
         if (navigator.onLine) retryPendingLiveLocation();
     }, Math.max(0, retryAt - Date.now()));
+}
+
+function liveLocationIdentityKey() {
+    return `${Cloud.server}|${Cloud.uid}|${groupName()}`;
+}
+
+function liveLocationRetryIsBlocked() {
+    if (!liveLocationRetryBlockedKey) return false;
+    if (liveLocationRetryBlockedKey !== liveLocationIdentityKey()) {
+        liveLocationRetryBlockedKey = '';
+        liveLocationRetryBlockedStatus = 0;
+        return false;
+    }
+    return true;
 }
 
 function updatePendingLiveLocation(nickname) {
@@ -741,6 +756,11 @@ async function refreshFriends(retryAuth = true, ownsPending = false) {
             }
         }
         if (!res) res = await cloudApi('/api/collections/live_locations/records?filter=' + f + '&perPage=200&sort=-updated');
+        if (liveLocationRetryBlockedKey === liveLocationIdentityKey()
+            && (liveLocationRetryBlockedStatus === 401 || liveLocationRetryBlockedStatus === 403)) {
+            liveLocationRetryBlockedKey = '';
+            liveLocationRetryBlockedStatus = 0;
+        }
         groupSyncAvailable = true;
         const own = res.items.find(x => x.owner === Cloud.uid);
         myLiveRecordId = own ? own.id : null;
@@ -772,6 +792,7 @@ async function publishMyLocation(force = false) {
         || !Number.isFinite(lastLon) || lastLon < -180 || lastLon > 180
         || !Number.isFinite(lastPositionAt) || Date.now() - lastPositionAt > LIVE_PENDING_TTL_MS
         || !Number.isFinite(lastAccuracy) || lastAccuracy < 0 || lastAccuracy > MAX_ACC_M) return;
+    if (liveLocationRetryIsBlocked()) return;
     const nickname = String(Cloud.nickname || '').trim();
     if (!nickname) {
         $('group-status').textContent = 'Añade un apodo a tu cuenta antes de compartir tu posición.';
@@ -804,6 +825,7 @@ async function publishMyLocation(force = false) {
 
 async function retryPendingLiveLocation() {
     if (!groupJoined || !Cloud.loggedIn() || !isRecording || isPaused || !navigator.onLine) return;
+    if (liveLocationRetryIsBlocked()) return;
     await loadPendingLiveLocation();
     const snapshot = pendingLiveLocation;
     if (!snapshot) return;
@@ -868,23 +890,34 @@ async function sendPendingLiveLocation(snapshot) {
         }
         refreshFriends();
     } catch (e) {
-        console.warn('No se pudo compartir la posición:', e);
+        console.warn('No se pudo compartir la ubicaci\u00f3n:', e);
+        const hadLiveRecordId = Boolean(myLiveRecordId);
         groupSyncAvailable = false;
         renderFriendsGroupStatus();
         if (e.status === 404) myLiveRecordId = null;
-        $('group-status').textContent = e.status !== undefined
-            ? `Error al compartir posición: ${e.message}. Se reintentará automáticamente.`
-            : 'Sin conexión: la posición más reciente queda pendiente y se reintentará al recuperar cobertura.';
+        const retryable = e.retryable === true || e.status === undefined;
+        const recoverStaleRecord = e.status === 404 && hadLiveRecordId;
+        const willRetry = retryable || recoverStaleRecord;
+        $('group-status').textContent = willRetry
+            ? e.status !== undefined
+                ? `Error al compartir ubicaci\u00f3n: ${e.message}. Se reintentar\u00e1 autom\u00e1ticamente.`
+                : 'Sin conexi\u00f3n: la posici\u00f3n m\u00e1s reciente queda pendiente y se reintentar\u00e1 al recuperar cobertura.'
+            : `No se pudo compartir la posici\u00f3n: ${e.message}. Se detuvieron los reintentos autom\u00e1ticos.`;
         if (groupJoined && Cloud.loggedIn() && isRecording && !isPaused
             && groupName() === snapshot.groupCode && Cloud.uid === snapshot.ownerId) {
-            const retry = pendingLiveLocation || snapshot;
-            retry.retryAttempt = Math.min(20, retry.retryAttempt + 1);
-            const delay = Math.min(LIVE_RETRY_BASE_MS * (2 ** (retry.retryAttempt - 1)), LIVE_RETRY_MAX_MS);
-            retry.retryAt = Date.now() + delay;
-            pendingLiveLocation = retry;
-            try { await persistPendingLiveLocation(); }
-            catch (error) { reportPendingLiveLocationStorageError(error); }
-            scheduleLiveLocationRetry(retry.retryAt);
+            if (willRetry) {
+                const retry = pendingLiveLocation || snapshot;
+                retry.retryAttempt = Math.min(20, retry.retryAttempt + 1);
+                const delay = Math.min(LIVE_RETRY_BASE_MS * (2 ** (retry.retryAttempt - 1)), LIVE_RETRY_MAX_MS);
+                retry.retryAt = Date.now() + delay;
+                pendingLiveLocation = retry;
+                try { await persistPendingLiveLocation(); }
+                catch (error) { reportPendingLiveLocationStorageError(error); }
+                scheduleLiveLocationRetry(retry.retryAt);
+            } else {
+                liveLocationRetryBlockedKey = liveLocationIdentityKey();
+                liveLocationRetryBlockedStatus = e.status || 0;
+            }
         }
     } finally { livePushPending = false; }
 }

@@ -2,6 +2,7 @@
 
 const ACCOUNT_AVATAR_MAX_BYTES = 256 * 1024;
 const ACCOUNT_AVATAR_MAX_INPUT_BYTES = 20 * 1024 * 1024;
+const ACCOUNT_AVATAR_FETCH_TIMEOUT_MS = 10000;
 const ACCOUNT_AVATAR_CACHE_PREFIX = 'mtb_avatar_';
 const ACCOUNT_AVATAR_PENDING_PREFIX = 'mtb_avatar_pending_';
 const ACCOUNT_AVATAR_REMOTE_PREFIX = 'mtb_avatar_remote_';
@@ -122,9 +123,24 @@ async function cacheRemoteAccountAvatar(record) {
     }
     if (localStorage.getItem(remoteKey) === remoteName && localStorage.getItem(accountAvatarKey(uid))) return;
     const url = `${Cloud.server}/api/files/users/${encodeURIComponent(uid)}/${encodeURIComponent(remoteName)}?thumb=256x256`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('No se pudo descargar el avatar de la cuenta.');
-    const blob = await response.blob();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ACCOUNT_AVATAR_FETCH_TIMEOUT_MS);
+    let blob;
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+            const error = new Error('No se pudo descargar el avatar de la cuenta.');
+            error.status = response.status;
+            error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+            throw error;
+        }
+        blob = await response.blob();
+    } catch (error) {
+        if (error.name === 'AbortError' || error.status === undefined) error.retryable = true;
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
     if (!blob.type.startsWith('image/')) throw new Error('El servidor devolvió un archivo de avatar no válido.');
     localStorage.setItem(accountAvatarKey(uid), await accountAvatarDataUrl(blob));
     localStorage.setItem(remoteKey, remoteName);

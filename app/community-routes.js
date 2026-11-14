@@ -805,29 +805,45 @@ async function saveCommunityOffline(record, lines) {
     route.kind = 'imported';
     route.movingTimeSec = 0;
     route.dirty = true;
-    let unavailablePhotos = 0;
-    for (const poi of route.pois) {
-        try {
-            const response = await fetch(poi.photoUrl);
-            if (!response.ok) throw new Error(`El servidor respondió ${response.status}`);
-            poi.photo = await response.blob();
-            delete poi.photoUrl;
-        } catch (error) {
-            unavailablePhotos++;
-            console.warn('No se pudo guardar una foto de la ruta para uso sin conexión:', error);
-        }
-    }
     try {
         await DB.put(route);
         savedRoutes.unshift(route);
         renderSavedRoutes();
-        toast(unavailablePhotos
-            ? `Ruta guardada sin conexión. ${unavailablePhotos} foto(s) necesitarán internet para mostrarse.`
-            : 'Ruta guardada para seguirla sin conexión.');
     } catch (error) {
         console.warn('No se pudo guardar la ruta comunitaria:', error);
         toast('No se pudo guardar la ruta en este dispositivo.');
+        return;
     }
+    let unavailablePhotos = 0, downloadedPhotos = 0;
+    for (const poi of route.pois) {
+        let timer = null;
+        try {
+            const controller = new AbortController();
+            timer = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch(poi.photoUrl, { signal: controller.signal });
+            if (!response.ok) throw new Error(`El servidor respondió ${response.status}`);
+            poi.photo = await response.blob();
+            delete poi.photoUrl;
+            downloadedPhotos++;
+            clearTimeout(timer);
+        } catch (error) {
+            clearTimeout(timer);
+            unavailablePhotos++;
+            console.warn('No se pudo guardar una foto de la ruta para uso sin conexión:', error);
+        }
+    }
+    if (downloadedPhotos) {
+        try {
+            await DB.put(route);
+        } catch (error) {
+            console.warn('No se pudieron guardar las fotos descargadas de la ruta:', error);
+            unavailablePhotos += downloadedPhotos;
+        }
+        renderSavedRoutes();
+    }
+    toast(unavailablePhotos
+        ? `Ruta guardada sin conexi\u00f3n. ${unavailablePhotos} foto(s) necesitar\u00e1n internet para mostrarse.`
+        : 'Ruta guardada para seguirla sin conexi\u00f3n.');
 }
 
 function communityPublicPoiData(route, formData) {

@@ -376,6 +376,8 @@ async function saveAccountNickname() {
         Cloud.setSession(Cloud.token, updated);
         renderAccount();
         toast('Apodo guardado en tu cuenta.');
+        syncRoutes();
+        syncSharedPois();
     } catch (error) {
         console.warn('No se pudo guardar el apodo de la cuenta:', error);
         toast('No se pudo guardar el apodo: ' + error.message, 6000);
@@ -754,6 +756,12 @@ function initSettings() {
     $('app-version').textContent = 'v' + APP_VERSION;
 }
 
+async function syncWhenOnline() {
+    if (syncing) syncRetryQueued = true;
+    else await syncRoutes();
+    syncSharedPois();
+}
+
 function initAccount() {
     initAccountAvatar();
     const savedServer = localStorage.getItem('mtb_server');
@@ -796,11 +804,6 @@ function initAccount() {
     });
     $('acc-logout').addEventListener('click', logoutCloudAccount);
     $('acc-logout-incomplete').addEventListener('click', logoutCloudAccount);
-    const syncWhenOnline = () => {
-        if (syncing) syncRetryQueued = true;
-        else syncRoutes();
-        syncSharedPois();
-    };
     window.addEventListener('online', syncWhenOnline);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && navigator.onLine) syncWhenOnline();

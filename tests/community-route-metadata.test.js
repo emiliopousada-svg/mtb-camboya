@@ -32,7 +32,7 @@ class MockFormData {
 
 function createCommunityContext() {
     const elements = new Map();
-    const calls = { formData: null, savedRoute: null, rendered: 0 };
+    const calls = { formData: null, savedRoute: null, rendered: 0, dbWrites: 0, toasts: [] };
     const context = {
         document: { addEventListener() {}, createElement: () => new MockElement() },
         $: id => {
@@ -43,9 +43,10 @@ function createCommunityContext() {
             constructor(label, value) { this.label = label; this.value = value; }
         },
         FormData: MockFormData,
+        AbortController,
         navigator: { onLine: true },
         Cloud: { uid: 'user-1', server: 'https://example.invalid', loggedIn: () => true },
-        DB: { put: async route => { calls.savedRoute = { ...route }; } },
+        DB: { put: async route => { calls.dbWrites++; calls.savedRoute = { ...route }; } },
         ACTIVITY_TYPES: { mtb: { icon: '🚵', label: 'MTB' } },
         activityTypeForRoute: () => 'mtb',
         cloudApi: async (_url, _method, formData) => {
@@ -57,7 +58,7 @@ function createCommunityContext() {
         communitySetStatus() {},
         renderSavedRoutes: () => { calls.rendered++; },
         closeCommunityDialog() {},
-        toast() {},
+        toast: message => calls.toasts.push(message),
         console,
         setTimeout() {}
     };
@@ -181,6 +182,33 @@ test('saving a community route keeps its province, performance date and route me
     assert.equal(context.savedRoutes[0].distanceKm, 24);
     assert.equal(context.savedRoutes[0].elevationGain, 620);
     assert.equal(calls.rendered, 1);
+});
+
+test('a stalled community photo cannot prevent saving the route for offline use', async () => {
+    const { context, calls } = createCommunityContext();
+    context.console = { warn() {} };
+    context.savedRoutes = [];
+    context.communityLocalRoute = () => ({
+        title: 'Ruta guardada',
+        points: [[40, -3], [40.01, -3]],
+        pois: [{ photoUrl: 'https://example.invalid/photo.jpg' }]
+    });
+    context.fetch = (_url, { signal }) => new Promise((resolve, reject) => {
+        if (signal.aborted) reject(new Error('aborted'));
+        else signal.addEventListener('abort', () => reject(new Error('timed out')), { once: true });
+    });
+    context.setTimeout = callback => { queueMicrotask(callback); return 1; };
+    context.clearTimeout = () => {};
+    context.record = { id: 'community-route-1' };
+    context.lines = [[[40, -3], [40.01, -3]]];
+
+    await vm.runInContext('saveCommunityOffline(record, lines)', context);
+
+    assert.equal(calls.dbWrites, 1);
+    assert.equal(context.savedRoutes.length, 1);
+    assert.equal(context.savedRoutes[0].communityRouteId, 'community-route-1');
+    assert.equal(calls.rendered, 1);
+    assert.match(calls.toasts.at(-1), /internet/);
 });
 
 test('community counter matches visible search results and resets when the list is empty', () => {

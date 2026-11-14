@@ -19,6 +19,7 @@ function createLiveLocationContext({
         online,
         values,
         calls: [],
+        timers: [],
         nextTimerId: 1
     };
     const element = { textContent: '', addEventListener() {} };
@@ -57,8 +58,15 @@ function createLiveLocationContext({
         lastAccuracy: 5,
         lastPositionAt: state.now,
         Date: TestDate,
-        setTimeout() { return state.nextTimerId++; },
-        clearTimeout() {},
+        setTimeout(callback, delay) {
+            const timer = { id: state.nextTimerId++, callback, delay, cancelled: false };
+            state.timers.push(timer);
+            return timer.id;
+        },
+        clearTimeout(id) {
+            const timer = state.timers.find(item => item.id === id);
+            if (timer) timer.cancelled = true;
+        },
         console: { warn() {} },
         currentPage: 0
     };
@@ -135,4 +143,25 @@ test('failed live location publication retries after backoff using the newest fi
     assert.equal(latestPost.body.lat, 40.02);
     assert.equal(latestPost.body.lon, -3.02);
     assert.equal(state.values.has('pendingLiveLocation'), false);
+});
+
+test('permanent HTTP errors stop live-location retries until the group state changes', async () => {
+    const { context, state } = createLiveLocationContext({
+        online: true,
+        sendLocation: async (_state, endpoint) => {
+            if (endpoint.startsWith('/api/collections/live_locations/records?')) return { items: [] };
+            const error = new Error('Invalid payload');
+            error.status = 400;
+            error.retryable = false;
+            throw error;
+        }
+    });
+
+    await vm.runInContext('publishMyLocation(true)', context);
+    assert.equal(state.calls.length, 2);
+    assert.equal(state.timers.length, 0);
+    assert.match(context.$().textContent, /reintentos/);
+
+    await vm.runInContext('publishMyLocation(true)', context);
+    assert.equal(state.calls.length, 2);
 });

@@ -39,7 +39,24 @@ const DB = {
                     };
                 }
             };
-            r.onsuccess = () => { this.db = r.result; res(); };
+            r.onblocked = () => {
+                console.warn('La actualizaci\u00f3n de IndexedDB est\u00e1 bloqueada por otra pesta\u00f1a.');
+                if (typeof toast === 'function') {
+                    toast('Cierra las otras pesta\u00f1as de MTB CAMBOYA para terminar la actualizaci\u00f3n.', 7000);
+                }
+            };
+            r.onsuccess = () => {
+                const db = r.result;
+                db.onversionchange = () => {
+                    db.close();
+                    if (this.db === db) this.db = null;
+                    if (typeof toast === 'function') {
+                        toast('La base local se actualiz\u00f3. Recarga esta pesta\u00f1a antes de seguir guardando rutas.', 7000);
+                    }
+                };
+                this.db = db;
+                res();
+            };
             r.onerror = () => rej(r.error);
         });
     },
