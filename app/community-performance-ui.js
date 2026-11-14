@@ -74,20 +74,12 @@ async function communityLoadRanking(record, collection, relationField, container
 }
 
 async function communityGetPublicAlias() {
-    const previous = localStorage.getItem('mtb_community_alias') || '';
-    const suggested = previous || Cloud.nickname || '';
-    const value = await modal({
-        message: 'Elige el apodo que aparecerá públicamente junto a tu mejor tiempo. No uses tu correo: el apodo solo se guarda en este dispositivo y podrás cambiarlo en el próximo envío.',
-        input: suggested,
-        ok: 'Continuar'
-    });
-    if (value === null) return null;
-    const alias = String(value).trim().slice(0, 32);
+    // El nombre público es el apodo único de la cuenta; el servidor lo impone en comentarios y marcas.
+    const alias = String(Cloud.nickname || '').trim().slice(0, 32);
     if (!alias) {
-        toast('Escribe un apodo para publicar la marca.');
+        toast('Añade un apodo a tu cuenta (Ajustes → Cuenta) para publicar en la comunidad.');
         return null;
     }
-    localStorage.setItem('mtb_community_alias', alias);
     return alias;
 }
 

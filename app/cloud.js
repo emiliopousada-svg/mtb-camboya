@@ -369,7 +369,7 @@ async function accAuth(register) {
         console.warn('Auth:', e);
         toast(e.status === undefined
             ? 'No se pudo conectar con el servidor. Revisa la dirección.'
-            : 'No se pudo entrar: ' + e.message, 6000);
+            : (register ? 'No se pudo crear la cuenta: ' : 'No se pudo entrar: ') + e.message, 6000);
     }
 }
 
