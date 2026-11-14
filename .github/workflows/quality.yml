@@ -31,8 +31,6 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
-
       - name: Instalar dependencias
         run: npm ci
 
