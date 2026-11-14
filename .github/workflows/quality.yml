@@ -1,0 +1,50 @@
+name: Quality checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-and-android-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar todos los tests
+        run: node --test tests/*.test.js
+
+      - name: Preparar recursos web
+        run: npm run prepare-web
+
+      - name: Sincronizar Capacitor con Android
+        run: npx cap sync android
+
+      - name: Compilar APK de depuración
+        working-directory: android
+        run: ./gradlew assembleDebug

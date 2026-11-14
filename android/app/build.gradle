@@ -69,6 +69,9 @@ android {
         }
         release {
             minifyEnabled false
+            if (useCiSigning) {
+                signingConfig signingConfigs.ci
+            }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

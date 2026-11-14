@@ -63,14 +63,57 @@ function createCommunityContext() {
         setTimeout() {}
     };
     vm.createContext(context);
+    for (const file of ['community-social.js', 'community-performance-ui.js', 'community-segments.js']) {
+        vm.runInContext(
+            fs.readFileSync(path.join(__dirname, '..', 'app', file), 'utf8'),
+            context
+        );
+    }
     vm.runInContext(
         fs.readFileSync(path.join(__dirname, '..', 'app', 'community-routes.js'), 'utf8'),
         context
     );
     context.communityPublicPoiData = () => ({ json: '[]', count: 0, skipped: 0 });
-    context.communityPublicTrack = () => [[[40, -3], [40.01, -3]]];
+    context.communityUploadTrack = () => [[[40, -3], [40.01, -3]]];
     return { context, elements, calls };
 }
+
+test('PocketBase trims 150 metres from each end before saving a community track', () => {
+    let createHook;
+    const pocketBaseContext = {
+        BadRequestError: class BadRequestError extends Error {},
+        onRecordCreateRequest: handler => { createHook = handler; },
+        onRecordUpdateRequest() {}
+    };
+    vm.createContext(pocketBaseContext);
+    vm.runInContext(
+        fs.readFileSync(path.join(__dirname, '..', 'pb_hooks', 'community_routes.pb.js'), 'utf8'),
+        pocketBaseContext
+    );
+
+    const original = Array.from({ length: 11 }, (_, index) => [40 + index * 0.001, -3]);
+    let savedTrack = JSON.stringify([original]);
+    let continued = false;
+    createHook({
+        hasSuperuserAuth: () => false,
+        record: {
+            getString: field => field === 'poisJson' ? '[]' : savedTrack,
+            set: (field, value) => { if (field === 'trackJson') savedTrack = value; }
+        },
+        next: () => { continued = true; }
+    });
+
+    const savedLines = JSON.parse(savedTrack);
+    const distance = (a, b) => {
+        const lat = (b[0] - a[0]) * Math.PI / 180;
+        const lng = (b[1] - a[1]) * Math.PI / 180;
+        const h = Math.sin(lat / 2) ** 2 + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(lng / 2) ** 2;
+        return 12742000 * Math.asin(Math.sqrt(h));
+    };
+    assert.ok(distance(original[0], savedLines[0][0]) >= 149.9);
+    assert.ok(distance(original.at(-1), savedLines.at(-1).at(-1)) >= 149.9);
+    assert.equal(continued, true);
+});
 
 test('publishing a route records its date and updates its local community counter metadata', async () => {
     const { context, calls } = createCommunityContext();

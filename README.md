@@ -152,6 +152,33 @@ El repositorio incluye un flujo de GitHub Actions en `.github/workflows/build-ap
 
 Consulta la pestaña **Actions** del repositorio para ver las ejecuciones y sus resultados.
 
+### Publicar una versión oficial
+
+El flujo `.github/workflows/release.yml` crea una GitHub Release al subir un tag
+`vX.Y.Z`. Antes de compilar, comprueba que el tag coincida con `package.json`,
+que el commit esté integrado en `main` y que pasen todos los tests. Después
+prepara la web, compila el APK Android de tipo `release` con la clave de firma
+configurada, verifica su certificado y adjunta el APK junto con su checksum
+SHA-256 a la release.
+
+Para publicar la versión actual, confirma primero los cambios deseados en
+`main` y sube el tag `v1.2.7`:
+
+```bash
+git switch main
+git pull --ff-only
+git tag -a v1.2.7 -m "MTB Camboya 1.2.7"
+git push origin main --follow-tags
+```
+
+En versiones futuras, actualiza `package.json` y la versión indicada en este
+README, confirma los cambios en `main`, crea el tag `vX.Y.Z` y súbelo con
+`git push origin main --follow-tags`. La prueba `version-consistency` falla si
+el README o la versión de respaldo de `app/config.js` no coinciden con
+`package.json`. GitHub Actions necesita el secreto `DEBUG_KEYSTORE_B64` con la
+misma clave que firma las instalaciones existentes; el flujo comprueba la
+huella antes de publicar el APK.
+
 ## Uso sin conexión
 
 La aplicación incorpora una PWA y mecanismos de caché para facilitar el uso sin conexión. Para navegar sin cobertura, descarga previamente las zonas o paquetes de mapas que necesites y comprueba que la región está disponible antes de iniciar la actividad.
@@ -171,7 +198,7 @@ La disponibilidad sin conexión puede variar según el mapa, el espacio disponib
 
 ## Estado del proyecto
 
-Versión indicada en el proyecto: **1.2.1**.
+Versión indicada en el proyecto: **1.2.7** (fuente: `package.json`).
 
 Este README describe las funciones y los comandos identificados en el código del repositorio. Algunas funciones pueden depender de la configuración del servidor, los permisos del dispositivo, los sensores compatibles o la disponibilidad de servicios externos.
 

@@ -247,7 +247,14 @@ async function cloudApi(path, method = 'GET', body = null, options = {}) {
     }, timeoutMs);
 
     try {
-        const res = await fetch(url.href, { method, headers, body: payload, signal: controller.signal });
+        const res = await fetch(url.href, {
+            method,
+            headers,
+            body: payload,
+            signal: controller.signal,
+            cache: 'no-store',
+            redirect: 'error'
+        });
         if (!res.ok) {
             let msg = '';
             try {

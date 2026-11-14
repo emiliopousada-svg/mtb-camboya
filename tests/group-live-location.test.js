@@ -72,6 +72,10 @@ function createLiveLocationContext({
     };
     vm.createContext(context);
     vm.runInContext(
+        fs.readFileSync(path.join(__dirname, '..', 'app', 'group-rankings.js'), 'utf8'),
+        context
+    );
+    vm.runInContext(
         fs.readFileSync(path.join(__dirname, '..', 'app', 'groups.js'), 'utf8'),
         context
     );
