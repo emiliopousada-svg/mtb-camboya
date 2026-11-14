@@ -96,7 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x android/gradlew
-          (cd android && ./gradlew -PandroidBuildNumber="$ANDROID_BUILD_NUMBER" assembleRelease)
+          RELEASE_BUILD_NUMBER=$((100000 + ANDROID_BUILD_NUMBER))
+          (cd android && ./gradlew -PandroidBuildNumber="$RELEASE_BUILD_NUMBER" assembleRelease)
           APK="android/app/build/outputs/apk/release/app-release.apk"
           ANDROID_SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           if [ -z "$ANDROID_SDK" ]; then

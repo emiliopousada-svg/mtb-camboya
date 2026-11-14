@@ -162,12 +162,12 @@ configurada, verifica su certificado y adjunta el APK junto con su checksum
 SHA-256 a la release.
 
 Para publicar la versión actual, confirma primero los cambios deseados en
-`main` y sube el tag `v1.2.7`:
+`main` y sube el tag `v1.2.8`:
 
 ```bash
 git switch main
 git pull --ff-only
-git tag -a v1.2.7 -m "MTB Camboya 1.2.7"
+git tag -a v1.2.8 -m "MTB Camboya 1.2.8"
 git push origin main --follow-tags
 ```
 
@@ -198,7 +198,7 @@ La disponibilidad sin conexión puede variar según el mapa, el espacio disponib
 
 ## Estado del proyecto
 
-Versión indicada en el proyecto: **1.2.7** (fuente: `package.json`).
+Versión indicada en el proyecto: **1.2.8** (fuente: `package.json`).
 
 Este README describe las funciones y los comandos identificados en el código del repositorio. Algunas funciones pueden depender de la configuración del servidor, los permisos del dispositivo, los sensores compatibles o la disponibilidad de servicios externos.
 
