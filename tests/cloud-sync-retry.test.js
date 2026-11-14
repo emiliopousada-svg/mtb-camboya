@@ -184,6 +184,70 @@ test('a recording kept locally while offline uploads after connectivity returns'
     assert.equal(route.remoteId, 'remote-route-1');
 });
 
+test('refreshes expired file tokens and renews them during a long track download sync', async () => {
+    const { context } = createCloudContext();
+    let now = 1_800_000_000_000;
+    context.Date = class extends Date { static now() { return now; } };
+    context.savedRoutes = [];
+    context.ACTIVITY_TYPES = { mtb: { label: 'MTB' } };
+    const saved = [];
+    context.DB = {
+        async kvGet() { return []; },
+        async kvSet() {},
+        async put(route) { saved.push(route); }
+    };
+    const remoteTracks = [101, 102, 103].map((clientId, index) => ({
+        id: `remote-${index + 1}`,
+        clientId,
+        track: `track-${index + 1}.json`,
+        name: `Ruta ${index + 1}`,
+        kind: 'recorded',
+        activityType: 'mtb',
+        startedAt: '2026-11-14T10:00:00.000Z'
+    }));
+    context.fetchRemoteRoutes = async () => ({ records: remoteTracks, fullAudit: true });
+    context.syncPendingAccountAvatar = async () => {};
+    context.renderAccountProfile = () => {};
+    context.renderSavedRoutes = () => {};
+    context.refreshStats = () => {};
+
+    let tokenCalls = 0;
+    context.cloudApi = async endpoint => {
+        if (endpoint === '/api/collections/users/auth-refresh') {
+            return { token: 'renewed-auth-token', record: { id: 'user-1', nickname: 'Rider' } };
+        }
+        if (endpoint === '/api/files/token') return { token: `file-token-${++tokenCalls}` };
+        throw new Error(`Unexpected request: ${endpoint}`);
+    };
+
+    const usedTokens = [];
+    let fileRequests = 0;
+    context.fetch = async url => {
+        const token = new URL(url).searchParams.get('token');
+        usedTokens.push(token);
+        const requestIndex = fileRequests++;
+        if (requestIndex === 0) return { ok: false, status: 401 };
+        if (requestIndex === 2) return { ok: false, status: 403 };
+        if (requestIndex === 4) return { ok: false, status: 404 };
+        if (requestIndex === 1) now += 61_000;
+        return {
+            ok: true,
+            async text() { return JSON.stringify([[40, -3], [40.01, -3]]); }
+        };
+    };
+
+    await context.syncRoutes();
+
+    assert.equal(tokenCalls, 5);
+    assert.deepEqual(usedTokens, [
+        'file-token-1', 'file-token-2',
+        'file-token-3', 'file-token-4',
+        'file-token-4', 'file-token-5'
+    ]);
+    assert.equal(saved.length, 3);
+    assert.equal(context.savedRoutes.length, 3);
+});
+
 test('saving the account nickname resumes queued route synchronization', async () => {
     const { context } = createCloudContext();
     const elements = {

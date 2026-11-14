@@ -651,26 +651,48 @@ async function syncRoutes(manual = false) {
         const localIds = new Set(savedRoutes.map(r => r.id));
         const missing = remote.filter(x => !skip.has(x.id) && x.track && !localIds.has(Number(x.clientId)));
         if (missing.length) {
-            const ft = (await cloudApi('/api/files/token', 'POST')).token;
-            for (const rec of missing) {
-                try {
+            const FILE_TOKEN_REFRESH_INTERVAL_MS = 60_000;
+            let fileToken = '';
+            let fileTokenIssuedAt = 0;
+            const refreshFileToken = async () => {
+                const result = await cloudApi('/api/files/token', 'POST');
+                if (!result || !result.token) throw new Error('El servidor no devolvió un token de descarga.');
+                fileToken = result.token;
+                fileTokenIssuedAt = Date.now();
+                return fileToken;
+            };
+            const downloadTrack = async rec => {
+                let retriedWithFreshToken = false;
+                while (true) {
+                    if (!fileToken || Date.now() - fileTokenIssuedAt >= FILE_TOKEN_REFRESH_INTERVAL_MS) {
+                        await refreshFileToken();
+                    }
                     const dlController = new AbortController();
                     const dlTimer = setTimeout(() => dlController.abort(), 15000);
                     let res;
                     try {
-                        res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(ft)}`, { signal: dlController.signal });
+                        res = await fetch(`${Cloud.server}/api/files/routes/${rec.id}/${encodeURIComponent(rec.track)}?token=${encodeURIComponent(fileToken)}`, { signal: dlController.signal });
                     } catch (error) {
                         if (error && (error.status === undefined || error.name === 'AbortError')) error.retryable = true;
                         throw error;
                     } finally {
                         clearTimeout(dlTimer);
                     }
-                    if (!res.ok) {
-                        const error = new Error(`El servidor respondió ${res.status}`);
-                        error.status = res.status;
-                        error.retryable = isRetryableCloudStatus(res.status);
-                        throw error;
+                    if (res.ok) return res;
+                    if (!retriedWithFreshToken && [401, 403, 404].includes(res.status)) {
+                        retriedWithFreshToken = true;
+                        await refreshFileToken();
+                        continue;
                     }
+                    const error = new Error(`El servidor respondió ${res.status}`);
+                    error.status = res.status;
+                    error.retryable = isRetryableCloudStatus(res.status);
+                    throw error;
+                }
+            };
+            for (const rec of missing) {
+                try {
+                    const res = await downloadTrack(rec);
                     let trackData;
                     try { trackData = JSON.parse(await res.text()); }
                     catch (_) { throw new Error('El archivo del track no contiene JSON válido'); }
