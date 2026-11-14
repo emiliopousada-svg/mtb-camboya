@@ -45,4 +45,6 @@ jobs:
 
       - name: Compilar APK de depuración
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
