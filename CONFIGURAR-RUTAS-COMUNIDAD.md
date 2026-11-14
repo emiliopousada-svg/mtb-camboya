@@ -53,7 +53,7 @@ Si ya tienes `community_segments`, `community_route_efforts` y `community_segmen
 
 1. Haz una copia de seguridad de PocketBase.
 2. En **Settings → Import collections**, importa `community_social.json` y activa **Merge with the existing collections**.
-3. Comprueba que PocketBase detecta solo esas tres colecciones nuevas o, si ya existen, los tres índices por `owner` de valoraciones, comentarios y favoritos. Cancela si aparecen otros cambios.
+3. Comprueba que PocketBase detecta solo tres colecciones nuevas: `community_route_ratings`, `community_route_comments` y `community_route_favorites`. Cancela si aparecen cambios en colecciones existentes.
 4. Tras importar, comprueba que las valoraciones y comentarios solo se leen para rutas publicadas y que cada usuario solo ve sus favoritos.
 
 La app usa el apodo único de la cuenta para comentarios y marcas; no envía el correo ni adjunta la actividad GPS. Las valoraciones permiten una puntuación de 1 a 5 por usuario y ruta; los comentarios admiten hasta 500 caracteres y el autor puede borrarlos. Los favoritos son privados por cuenta. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
