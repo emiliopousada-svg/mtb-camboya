@@ -846,6 +846,8 @@ input[type="file"], input[type="text"], input[type="password"], input[type="numb
 .friend-name { color: #fff; font-size: 1.05rem; font-weight: 800; overflow-wrap: anywhere; }
 .friend-updated { margin-top: 5px; color: var(--text-secondary); font-size: .82rem; }
 .friend-locate { flex: 0 0 auto; min-width: 72px; min-height: 44px; }
+.group-member-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.group-member-actions .btn-small { min-height: 44px; }
 .friend-map-avatar-icon { background: transparent; border: 0; }
 .friend-map-avatar, .friend-map-initials {
     position: absolute; inset: 0; width: 42px; height: 42px; box-sizing: border-box;

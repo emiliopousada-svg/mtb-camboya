@@ -236,6 +236,7 @@ function renderGroupState(connected) {
     $('group-setup').style.display = connected ? 'none' : 'block';
     $('group-connected').style.display = connected ? 'block' : 'none';
     $('group-admin-panel').style.display = connected && groupInfo && groupInfo.isAdmin ? 'block' : 'none';
+    $('btn-leave').hidden = Boolean(connected && groupInfo && groupInfo.isAdmin);
     $('group-invite-code').textContent = groupInfo && groupInfo.isAdmin ? groupInfo.inviteCode : '';
     $('group-connected-label').textContent = connected && groupInfo ? (groupInfo.name + (groupInfo.isAdmin ? ' · Administrador' : ' · Miembro')) : 'Grupo activo';
     $('group-choices').style.display = groupChoices.length ? 'block' : 'none';
@@ -304,6 +305,21 @@ async function loadAdminMembers() {
             label.textContent = member.nickname + (member.isAdmin ? ' · Tú' : '');
             row.appendChild(label);
             if (!member.isAdmin) {
+                const actions = document.createElement('div');
+                actions.className = 'group-member-actions';
+                const transfer = document.createElement('button');
+                transfer.type = 'button';
+                transfer.className = 'btn-small secondary';
+                transfer.textContent = 'Pasar admin';
+                transfer.addEventListener('click', async () => {
+                    if (!confirm(`La administración pasará a ${member.nickname}. El grupo y sus miembros se conservarán. ¿Continuar?`)) return;
+                    try {
+                        await cloudApi('/api/mtb/groups/transfer', 'POST', { userId: member.userId });
+                        await loadMyGroup();
+                        toast(`Administración transferida a ${member.nickname}.`);
+                    } catch (e) { toast('No se pudo transferir la administración: ' + e.message, 6000); }
+                });
+                actions.appendChild(transfer);
                 const revoke = document.createElement('button');
                 revoke.type = 'button';
                 revoke.className = 'btn-small danger friend-locate';
@@ -320,7 +336,8 @@ async function loadAdminMembers() {
                         toast('Acceso revocado y código de invitación renovado.');
                     } catch (e) { toast('No se pudo revocar el acceso: ' + e.message, 6000); }
                 });
-                row.appendChild(revoke);
+                actions.appendChild(revoke);
+                row.appendChild(actions);
             }
             box.appendChild(row);
         }

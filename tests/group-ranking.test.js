@@ -69,6 +69,14 @@ function createHookContext() {
             if (collection === 'mtb_groups' && id === group.id) return group;
             throw new Error(`Unexpected record lookup: ${collection}/${id}`);
         },
+        findFirstRecordByFilter(collection, _filter, params) {
+            if (collection === 'mtb_group_members') {
+                const match = memberships.find(item => item.getString('group') === params.group
+                    && item.getString('user') === params.user);
+                if (match) return match;
+            }
+            throw new Error(`Unexpected or missing record: ${collection}`);
+        },
         findRecordsByFilter(collection, _filter, _sort, _limit, _offset, params) {
             return entries.filter(item => item.getString('group') === params.group
                 && item.getString('owner') === params.owner
@@ -76,12 +84,14 @@ function createHookContext() {
         },
         findCollectionByNameOrId(name) { return name; },
         save(record) {
+            if (record === group || users.includes(record)) return;
             if (!entries.includes(record)) entries.push(record);
         },
         delete(record) {
             const index = entries.indexOf(record);
             if (index >= 0) entries.splice(index, 1);
-        }
+        },
+        runInTransaction(callback) { return callback(app); }
     };
     const context = {
         __hooks: '/pb_hooks',
@@ -105,7 +115,7 @@ function createHookContext() {
     otherOwnerEntry.set('movingTimeSec', 3000);
     otherOwnerEntry.set('maxSpeedKmh', 50);
     entries.push(otherOwnerEntry);
-    return { entries, handlers, memberships };
+    return { entries, handlers, memberships, group, users };
 }
 
 function request(userId, body = {}, uploadedFiles = {}) {
@@ -195,4 +205,42 @@ test('only the group administrator can change its icon', () => {
 
     const denied = updateIcon(request('user2', {}, uploadedFiles));
     assert.equal(denied.status, 403);
+});
+
+test('transfers group administration to an existing member without deleting the group', () => {
+    const { handlers, entries, group, users } = createHookContext();
+    const transfer = handlers.get('POST /api/mtb/groups/transfer');
+    const response = transfer(request('user1', { userId: 'user2' }));
+
+    assert.equal(response.status, 200);
+    assert.equal(response.data.ownerId, 'user2');
+    assert.equal(group.getString('owner'), 'user2');
+    assert.equal(users[1].getString('groupCode'), 'group1');
+    assert.equal(entries.length, 1);
+});
+
+test('only the current administrator can transfer administration', () => {
+    const { handlers } = createHookContext();
+    const transfer = handlers.get('POST /api/mtb/groups/transfer');
+    const response = transfer(request('user2', { userId: 'user1' }));
+
+    assert.equal(response.status, 403);
+});
+
+test('requires the new administrator to be a member of the group', () => {
+    const { handlers } = createHookContext();
+    const transfer = handlers.get('POST /api/mtb/groups/transfer');
+    const response = transfer(request('user1', { userId: 'user3' }));
+
+    assert.equal(response.status, 400);
+    assert.match(response.data.message, /debe pertenecer/);
+});
+
+test('prevents the group administrator from leaving before transferring or deleting the group', () => {
+    const { handlers } = createHookContext();
+    const leave = handlers.get('POST /api/mtb/groups/leave');
+    const response = leave(request('user1'));
+
+    assert.equal(response.status, 400);
+    assert.match(response.data.message, /Transfiere la administraci/);
 });

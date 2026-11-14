@@ -140,6 +140,49 @@ routerAdd("GET", "/api/mtb/groups/members", (e) => {
     }
 }, $apis.requireAuth("users"));
 
+routerAdd("POST", "/api/mtb/groups/transfer", (e) => {
+    const { requireSafeValue } = require(`${__hooks}/groups_utils.js`);
+    try {
+        const body = new DynamicModel({ userId: "" });
+        e.bindBody(body);
+        const user = $app.findRecordById("users", e.auth.id);
+        const groupId = user.getString("groupCode");
+        if (!groupId) return e.json(404, { message: "No hay un grupo activo." });
+        const safeGroupId = requireSafeValue(groupId, "groupId");
+        const currentGroup = $app.findRecordById("mtb_groups", safeGroupId);
+        if (currentGroup.getString("owner") !== user.id) {
+            return e.json(403, { message: "Solo el administrador actual puede transferir la administración." });
+        }
+        const targetId = requireSafeValue(body.userId, "userId");
+        if (targetId === user.id) return e.json(400, { message: "Ya eres el administrador del grupo." });
+
+        $app.runInTransaction((txApp) => {
+            const group = txApp.findRecordById("mtb_groups", safeGroupId);
+            if (group.getString("owner") !== user.id) {
+                throw new Error("Solo el administrador actual puede transferir la administración.");
+            }
+            try {
+                txApp.findFirstRecordByFilter(
+                    "mtb_group_members",
+                    "group = {:group} && user = {:user}",
+                    { group: safeGroupId, user: targetId }
+                );
+            } catch (error) {
+                throw new Error("La nueva persona administradora debe pertenecer al grupo.");
+            }
+            const target = txApp.findRecordById("users", targetId);
+            group.set("owner", target.id);
+            target.set("groupCode", safeGroupId);
+            txApp.save(group);
+            txApp.save(target);
+        });
+
+        return e.json(200, { ok: true, groupId: safeGroupId, ownerId: targetId });
+    } catch (err) {
+        return e.json(400, { message: err.message || "No se pudo transferir la administración." });
+    }
+}, $apis.requireAuth("users"));
+
 routerAdd("GET", "/api/mtb/groups/live", (e) => {
     const { SAFE_INVITE_RE, requireSafeValue, requireNickname, safeMembership, findAllRecordsByFilter } = require(`${__hooks}/groups_utils.js`);
     try {
@@ -380,6 +423,10 @@ routerAdd("POST", "/api/mtb/groups/leave", (e) => {
         const groupId = user.getString("groupCode");
         if (!groupId) return e.json(200, { ok: true });
         const safeGroupId = requireSafeValue(groupId, "groupId");
+        const group = $app.findRecordById("mtb_groups", safeGroupId);
+        if (group.getString("owner") === user.id) {
+            return e.json(400, { message: "Transfiere la administración o elimina el grupo antes de salir." });
+        }
         deleteAllRecordsByFilter("live_locations", 'owner = "' + user.id + '" && groupCode = "' + safeGroupId + '"');
         user.set("groupCode", "");
         $app.save(user);
