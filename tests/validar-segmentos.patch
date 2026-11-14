@@ -1,0 +1,222 @@
+diff --git a/CONFIGURAR-RUTAS-COMUNIDAD.md b/CONFIGURAR-RUTAS-COMUNIDAD.md
+index f80db76..1153d0c 100644
+--- a/CONFIGURAR-RUTAS-COMUNIDAD.md
++++ b/CONFIGURAR-RUTAS-COMUNIDAD.md
+@@ -54,4 +54,6 @@ Si ya tienes `community_segments`, `community_route_efforts` y `community_segmen
+ 
+ La app usa el apodo que el usuario confirma para comentarios y marcas; no envía el correo ni adjunta la actividad GPS. Las valoraciones permiten una puntuación de 1 a 5 por usuario y ruta; los comentarios admiten hasta 500 caracteres y el autor puede borrarlos. Los favoritos son privados por cuenta. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
+ 
++Copia también `pb_hooks/community_segments.pb.js` (y `community_performance.pb.js` para las marcas) al directorio `pb_hooks` de PocketBase y reinicia PocketBase. El hook de segmentos exige que el tramo sea un trozo continuo del trazado de una ruta publicada, mide al menos 100 m, recalcula `distanceKm` en el servidor y no permite cambiar el trazado después de crearlo (solo el título).
++
+ Los cambios del cliente no instalan estas colecciones por sí solos. Hasta importar el esquema en el servidor, el catálogo actual de rutas sigue funcionando, pero las nuevas funciones compartidas no podrán guardar ni leer segmentos y clasificaciones.
+diff --git a/pb_hooks/community_segments.pb.js b/pb_hooks/community_segments.pb.js
+new file mode 100644
+index 0000000..be299bc
+--- /dev/null
++++ b/pb_hooks/community_segments.pb.js
+@@ -0,0 +1,90 @@
++// Valida los segmentos comunitarios: cualquier cuenta puede crear segmentos sobre una ruta
++// publicada, pero el tramo debe ser un trozo continuo del trazado real de esa ruta y el
++// servidor recalcula la distancia. Una vez creado, el trazado no se puede modificar porque
++// las marcas de community_segment_efforts dependen de él.
++// El handler es autosuficiente (sin helpers externos) porque PocketBase ejecuta cada handler
++// en un runtime aislado.
++const validateCommunitySegment = (e) => {
++    if (e.hasSuperuserAuth()) return e.next();
++    if (!e.auth) throw new BadRequestError("Inicia sesión para publicar un segmento.");
++    if (e.record.getString("owner") !== e.auth.id) {
++        throw new BadRequestError("El propietario del segmento no coincide con la sesión.");
++    }
++
++    const MIN_SEGMENT_METERS = 100;
++    const MATCH_TOLERANCE_DEG = 0.00001; // ≈1 m; absorbe el redondeo de coordenadas
++    const radians = Math.PI / 180;
++    const distance = (a, b) => {
++        const dLat = (b[0] - a[0]) * radians;
++        const dLng = (b[1] - a[1]) * radians;
++        const h = Math.sin(dLat / 2) ** 2 +
++            Math.cos(a[0] * radians) * Math.cos(b[0] * radians) * Math.sin(dLng / 2) ** 2;
++        return 6371008.8 * 2 * Math.atan2(Math.sqrt(Math.min(1, h)), Math.sqrt(Math.max(0, 1 - h)));
++    };
++    const parseLines = (raw, label) => {
++        let lines;
++        try { lines = JSON.parse(raw); }
++        catch (error) { throw new BadRequestError(label + " no es JSON válido."); }
++        if (!Array.isArray(lines)) throw new BadRequestError(label + " no es válido.");
++        return lines.map((line) => {
++            if (!Array.isArray(line)) throw new BadRequestError(label + " no es válido.");
++            return line.map((point) => {
++                const lat = Array.isArray(point) ? Number(point[0]) : NaN;
++                const lng = Array.isArray(point) ? Number(point[1]) : NaN;
++                if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
++                    throw new BadRequestError(label + " contiene una coordenada no válida.");
++                }
++                return [lat, lng];
++            });
++        });
++    };
++    const samePoint = (a, b) =>
++        Math.abs(a[0] - b[0]) <= MATCH_TOLERANCE_DEG && Math.abs(a[1] - b[1]) <= MATCH_TOLERANCE_DEG;
++    const isSlice = (segment, line) => {
++        for (let start = 0; start + segment.length <= line.length; start++) {
++            let match = true;
++            for (let i = 0; i < segment.length && match; i++) match = samePoint(segment[i], line[start + i]);
++            if (match) return true;
++        }
++        return false;
++    };
++
++    const isUpdate = !e.record.isNew();
++    if (isUpdate) {
++        // En actualizaciones solo se permite cambiar el título.
++        const original = e.record.original();
++        if (e.record.getString("trackJson") !== original.getString("trackJson") ||
++            Number(e.record.get("distanceKm")) !== Number(original.get("distanceKm"))) {
++            throw new BadRequestError("El trazado de un segmento no se puede modificar; crea uno nuevo.");
++        }
++        return e.next();
++    }
++
++    let route;
++    try { route = $app.findRecordById("community_routes", e.record.getString("route")); }
++    catch (error) { throw new BadRequestError("La ruta del segmento no existe."); }
++    if (!route.getBool("published")) throw new BadRequestError("La ruta no está publicada.");
++
++    const routeLines = parseLines(route.getString("trackJson"), "El trazado de la ruta");
++    const segmentLines = parseLines(e.record.getString("trackJson"), "El trazado del segmento");
++    if (segmentLines.length !== 1 || segmentLines[0].length < 2) {
++        throw new BadRequestError("El segmento debe ser un único tramo continuo con al menos dos puntos.");
++    }
++    const segment = segmentLines[0];
++    const reversed = segment.slice().reverse();
++    const onRoute = routeLines.some((line) => isSlice(segment, line) || isSlice(reversed, line));
++    if (!onRoute) {
++        throw new BadRequestError("El segmento debe ser un tramo continuo del trazado de la ruta.");
++    }
++
++    let meters = 0;
++    for (let i = 1; i < segment.length; i++) meters += distance(segment[i - 1], segment[i]);
++    if (!Number.isFinite(meters) || meters < MIN_SEGMENT_METERS) {
++        throw new BadRequestError("El segmento debe medir al menos 100 metros.");
++    }
++    e.record.set("distanceKm", Math.round(meters) / 1000);
++    e.next();
++};
++
++onRecordCreateRequest(validateCommunitySegment, "community_segments");
++onRecordUpdateRequest(validateCommunitySegment, "community_segments");
+diff --git a/tests/community-segments-hook.test.js b/tests/community-segments-hook.test.js
+new file mode 100644
+index 0000000..1a08749
+--- /dev/null
++++ b/tests/community-segments-hook.test.js
+@@ -0,0 +1,109 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++
++class BadRequestError extends Error {}
++
++function loadHook(routes) {
++    const handlers = {};
++    const context = {
++        BadRequestError,
++        $app: {
++            findRecordById(collection, id) {
++                if (collection !== 'community_routes' || !routes[id]) throw new Error('not found');
++                return routes[id];
++            }
++        },
++        onRecordCreateRequest: (fn) => { handlers.create = fn; },
++        onRecordUpdateRequest: (fn) => { handlers.update = fn; }
++    };
++    const source = fs.readFileSync(path.join(__dirname, '../pb_hooks/community_segments.pb.js'), 'utf8');
++    vm.runInNewContext(source, context);
++    return handlers;
++}
++
++function record(fields, { isNew = true, original = {} } = {}) {
++    const read = (data) => ({
++        getString: (key) => String(data[key] ?? ''),
++        getBool: (key) => Boolean(data[key]),
++        get: (key) => data[key]
++    });
++    const result = {
++        ...read(fields),
++        set: (key, value) => { fields[key] = value; },
++        isNew: () => isNew,
++        original: () => read(original)
++    };
++    return result;
++}
++
++const routeLine = [];
++for (let i = 0; i < 10; i++) routeLine.push([40, -3 + i * 0.001]); // ≈85 m entre puntos
++const route = record({ published: true, trackJson: JSON.stringify([routeLine]) });
++
++function run(handlers, fields, auth = { id: 'user1' }, options) {
++    let passed = false;
++    const e = {
++        auth,
++        record: record(fields, options),
++        hasSuperuserAuth: () => false,
++        next: () => { passed = true; }
++    };
++    handlers[options && options.update ? 'update' : 'create'](e);
++    return { passed, fields };
++}
++
++const base = (track) => ({ owner: 'user1', route: 'r1', title: 'Tramo', trackJson: JSON.stringify([track]), distanceKm: 99 });
++
++test('accepts a continuous slice of the route and recalculates the distance', () => {
++    const h = loadHook({ r1: route });
++    const { passed, fields } = run(h, base(routeLine.slice(2, 6)));
++    assert.equal(passed, true);
++    assert.notEqual(fields.distanceKm, 99);
++    assert.ok(fields.distanceKm > 0.2 && fields.distanceKm < 0.3);
++});
++
++test('accepts a slice ridden in the opposite direction', () => {
++    const h = loadHook({ r1: route });
++    assert.equal(run(h, base(routeLine.slice(2, 6).reverse())).passed, true);
++});
++
++test('rejects a track that is not part of the route', () => {
++    const h = loadHook({ r1: route });
++    const fake = [[41, -3], [41, -2.99], [41, -2.98]];
++    assert.throws(() => run(h, base(fake)), BadRequestError);
++});
++
++test('rejects a non-contiguous selection of route points', () => {
++    const h = loadHook({ r1: route });
++    assert.throws(() => run(h, base([routeLine[0], routeLine[4], routeLine[8]])), BadRequestError);
++});
++
++test('rejects segments shorter than 100 m', () => {
++    const h = loadHook({ r1: route });
++    assert.throws(() => run(h, base(routeLine.slice(2, 3).concat([[40, -2.9975]]))), BadRequestError);
++});
++
++test('rejects unpublished or missing routes', () => {
++    const h = loadHook({ r1: record({ published: false, trackJson: JSON.stringify([routeLine]) }) });
++    assert.throws(() => run(h, base(routeLine.slice(2, 6))), BadRequestError);
++    assert.throws(() => run(h, { ...base(routeLine.slice(2, 6)), route: 'missing' }), BadRequestError);
++});
++
++test('rejects an owner that does not match the session', () => {
++    const h = loadHook({ r1: route });
++    assert.throws(() => run(h, base(routeLine.slice(2, 6)), { id: 'other' }), BadRequestError);
++});
++
++test('allows renaming but not changing the track on update', () => {
++    const h = loadHook({ r1: route });
++    const original = base(routeLine.slice(2, 6));
++    const renamed = { ...original, title: 'Otro nombre' };
++    assert.equal(run(h, renamed, { id: 'user1' }, { isNew: false, original, update: true }).passed, true);
++    const moved = { ...original, trackJson: JSON.stringify([routeLine.slice(1, 7)]) };
++    assert.throws(() => run(h, moved, { id: 'user1' }, { isNew: false, original, update: true }), BadRequestError);
++});
