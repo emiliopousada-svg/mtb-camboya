@@ -8,7 +8,12 @@ const normalizeCommunityComment = (e) => {
     if (e.record.getString("owner") !== e.auth.id) {
         throw new BadRequestError("El propietario del comentario no coincide con la sesión.");
     }
-    e.record.set("alias", "Ciclista " + e.auth.id.toUpperCase());
+    let user;
+    try { user = $app.findRecordById("users", e.auth.id); }
+    catch (error) { throw new BadRequestError("No se pudo encontrar la cuenta del propietario."); }
+    const nickname = user.getString("nickname").trim();
+    if (!nickname) throw new BadRequestError("Configura un apodo antes de comentar.");
+    e.record.set("alias", nickname);
     e.next();
 };
 

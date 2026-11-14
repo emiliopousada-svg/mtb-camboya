@@ -8,7 +8,7 @@ const vm = require('node:vm');
 
 class BadRequestError extends Error {}
 
-function loadHook(routes) {
+function loadHook(routes, existingSegments = []) {
     const handlers = {};
     const context = {
         BadRequestError,
@@ -16,6 +16,12 @@ function loadHook(routes) {
             findRecordById(collection, id) {
                 if (collection !== 'community_routes' || !routes[id]) throw new Error('not found');
                 return routes[id];
+            },
+            findRecordsByFilter(collection, filter, sort, limit, offset, params) {
+                if (collection !== 'community_segments') throw new Error('not found');
+                return existingSegments
+                    .filter(segment => segment.route === params.route && segment.owner === params.owner)
+                    .slice(offset, offset + limit);
             }
         },
         onRecordCreateRequest: (fn) => { handlers.create = fn; },
@@ -97,6 +103,12 @@ test('rejects unpublished or missing routes', () => {
 test('rejects an owner that does not match the session', () => {
     const h = loadHook({ r1: route });
     assert.throws(() => run(h, base(routeLine.slice(2, 6)), { id: 'other' }), BadRequestError);
+});
+
+test('rejects a sixth segment from the same user on the same route', () => {
+    const existing = Array.from({ length: 5 }, (_, index) => ({ id: `s${index}`, owner: 'user1', route: 'r1' }));
+    const h = loadHook({ r1: route }, existing);
+    assert.throws(() => run(h, base(routeLine.slice(2, 6))), /segmentos por ruta/);
 });
 
 test('allows renaming but not changing the track on update', () => {

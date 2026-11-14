@@ -73,8 +73,13 @@ function validateCommunityEffort(e) {
         throw new BadRequestError("El tiempo es demasiado corto para la distancia del recorrido.");
     }
 
-    // No acepta el apodo enviado por el cliente; se usa un alias estable de la cuenta.
-    e.record.set("alias", "Ciclista " + ownerId.toUpperCase());
+    // No acepta el apodo enviado por el cliente; usa el apodo confirmado de la cuenta.
+    let user;
+    try { user = $app.findRecordById("users", ownerId); }
+    catch (error) { throw new BadRequestError("No se pudo encontrar la cuenta del propietario."); }
+    const nickname = user.getString("nickname").trim();
+    if (!nickname) throw new BadRequestError("Configura un apodo antes de publicar una marca.");
+    e.record.set("alias", nickname);
     e.next();
 }
 

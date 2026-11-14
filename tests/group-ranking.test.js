@@ -154,6 +154,27 @@ test('deleting an activity recalculates only its owner ranking from remaining ac
     assert.equal(otherOwner.nickname, 'Cuenta Dos');
 });
 
+test('rejects a group ranking whose average speed exceeds 25 m/s', () => {
+    const { handlers } = createHookContext();
+    const share = handlers.get('POST /api/mtb/groups/rankings/share');
+    const response = share(request('user1', {
+        clientId: 900, distanceKm: 1000, movingTimeSec: 1, maxSpeedKmh: 150
+    }));
+
+    assert.equal(response.status, 400);
+    assert.match(response.data.message, /25 m\/s/);
+});
+
+test('accepts a group ranking at the 25 m/s average speed limit', () => {
+    const { handlers } = createHookContext();
+    const share = handlers.get('POST /api/mtb/groups/rankings/share');
+    const response = share(request('user1', {
+        clientId: 901, distanceKm: 1, movingTimeSec: 40, maxSpeedKmh: 90
+    }));
+
+    assert.equal(response.status, 200);
+});
+
 test('selecting a group uses the account nickname instead of a client-provided group alias', () => {
     const { handlers, memberships } = createHookContext();
     const select = handlers.get('POST /api/mtb/groups/select');
