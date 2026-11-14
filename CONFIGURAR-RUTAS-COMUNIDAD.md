@@ -56,4 +56,6 @@ Si ya tienes `community_segments`, `community_route_efforts` y `community_segmen
 
 La app usa el apodo que el usuario confirma para comentarios y marcas; no envía el correo ni adjunta la actividad GPS. Las valoraciones permiten una puntuación de 1 a 5 por usuario y ruta; los comentarios admiten hasta 500 caracteres y el autor puede borrarlos. Los favoritos son privados por cuenta. La hora se calcula localmente a partir de los tiempos GPS y la geometría del trazado, y se enseña al usuario antes de publicarla. Cada usuario conserva una mejor marca por ruta y por segmento. Los tiempos son marcas comunitarias basadas en GPS del dispositivo, no resultados verificados contra fraude por el servidor.
 
+Para los comentarios copia también `pb_hooks/community_social.pb.js`: el servidor sustituye el alias enviado por uno estable derivado de la cuenta (`Ciclista <id>`), igual que en las marcas, para que nadie comente con el nombre de otra persona.
+
 Los cambios del cliente no instalan estas colecciones por sí solos. Hasta importar el esquema en el servidor, el catálogo actual de rutas sigue funcionando, pero las nuevas funciones compartidas no podrán guardar ni leer segmentos y clasificaciones.
